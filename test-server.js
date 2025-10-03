@@ -6,8 +6,16 @@
  */
 
 const http = require('http');
+const net = require('net');
+const { spawn } = require('child_process');
+const path = require('path');
 
-const BASE_URL = 'http://localhost:3000';
+const DEFAULT_PORT = parseInt(process.env.TEST_SERVER_PORT || process.env.PORT || '4000', 10);
+const SERVER_START_TIMEOUT = parseInt(process.env.TEST_SERVER_TIMEOUT || '15000', 10);
+const SERVER_SHUTDOWN_TIMEOUT = parseInt(process.env.TEST_SERVER_SHUTDOWN || '5000', 10);
+
+let BASE_URL = `http://127.0.0.1:${DEFAULT_PORT}`;
+let serverProcess = null;
 
 // Simple HTTP request helper
 function makeRequest(url, options = {}) {
@@ -32,6 +40,142 @@ function makeRequest(url, options = {}) {
     }
     
     req.end();
+  });
+}
+
+async function startServer() {
+  if (serverProcess) {
+    return { port: new URL(BASE_URL).port || DEFAULT_PORT };
+  }
+
+  const port = await findAvailablePort(DEFAULT_PORT);
+  BASE_URL = `http://127.0.0.1:${port}`;
+
+  const env = { ...process.env, PORT: String(port) };
+  const child = spawn(process.execPath, ['server.js'], {
+    cwd: path.resolve(__dirname),
+    env,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+
+  serverProcess = child;
+
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    const startupTimer = setTimeout(() => {
+      if (!resolved) {
+        try {
+          child.kill('SIGTERM');
+        } catch (error) {
+          // ignore
+        }
+        reject(new Error(`Server did not start within ${SERVER_START_TIMEOUT} ms`));
+      }
+    }, SERVER_START_TIMEOUT);
+
+    const handleReady = (data) => {
+      const text = data.toString();
+      process.stdout.write(`[server] ${text}`);
+      const match = text.match(/Server running on http:\/\/[^:]+:(\d+)/);
+      if (match) {
+        BASE_URL = `http://127.0.0.1:${match[1]}`;
+      }
+      if (!resolved && /Server running on http:\/\//.test(text)) {
+        resolved = true;
+        clearTimeout(startupTimer);
+        child.stdout.off('data', handleReady);
+        child.stderr.off('data', handleError);
+        resolve({ port });
+      }
+    };
+
+    const handleError = (data) => {
+      process.stderr.write(`[server:err] ${data}`);
+    };
+
+    child.stdout.on('data', handleReady);
+    child.stderr.on('data', handleError);
+
+    child.once('error', (error) => {
+      if (!resolved) {
+        clearTimeout(startupTimer);
+        child.stdout.off('data', handleReady);
+        child.stderr.off('data', handleError);
+        reject(error);
+      }
+    });
+
+    child.once('exit', (code) => {
+      serverProcess = null;
+      if (!resolved) {
+        clearTimeout(startupTimer);
+        child.stdout.off('data', handleReady);
+        child.stderr.off('data', handleError);
+        reject(new Error(`Server exited with code ${code}`));
+      }
+    });
+  });
+}
+
+function findAvailablePort(preferredPort) {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+
+    const tryPort = (portToTry) => {
+      server.once('error', (error) => {
+        if (portToTry !== 0 && error.code === 'EADDRINUSE') {
+          server.close(() => tryPort(0));
+        } else {
+          server.close(() => reject(error));
+        }
+      });
+
+      server.once('listening', () => {
+        const address = server.address();
+        const selectedPort = typeof address === 'object' && address ? address.port : portToTry;
+        server.close(() => resolve(selectedPort));
+      });
+
+      server.listen({ port: portToTry, host: '127.0.0.1' });
+    };
+
+    tryPort(preferredPort);
+  });
+}
+
+async function stopServer(signal = 'SIGINT') {
+  if (!serverProcess) {
+    return;
+  }
+
+  const child = serverProcess;
+  serverProcess = null;
+
+  await new Promise((resolve) => {
+    const shutdownTimer = setTimeout(() => {
+      if (!child.killed) {
+        child.kill('SIGTERM');
+      }
+    }, SERVER_SHUTDOWN_TIMEOUT);
+
+    const onExit = () => {
+      clearTimeout(shutdownTimer);
+      resolve();
+    };
+
+    if (child.exitCode !== null || child.signalCode !== null) {
+      onExit();
+      return;
+    }
+
+    child.once('exit', onExit);
+
+    try {
+      child.kill(signal);
+    } catch (error) {
+      clearTimeout(shutdownTimer);
+      resolve();
+    }
   });
 }
 
@@ -129,6 +273,108 @@ async function testCustomMapEndpoint() {
   }
 }
 
+async function testBloomMapEndpoint() {
+  console.log('🌊 Testing bloom map endpoint...');
+  try {
+    const payload = {
+      preset: 'costa_metropolitana',
+      start: '2024-10-01',
+      end: '2025-01-01',
+      adaptiveThreshold: false
+    };
+
+    const result = await makeRequest(`${BASE_URL}/api/bloom/map`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    console.log(`   Bloom map: Status ${result.status}`);
+
+    if (result.status === 503) {
+      console.log('✅ Expected 503 (Earth Engine not configured)');
+      return true;
+    } else if (result.status === 200 && result.data.layers && result.data.layers.bloom) {
+      console.log('✅ Bloom map layers available');
+      return true;
+    } else {
+      console.log('❌ Unexpected response');
+      return false;
+    }
+  } catch (error) {
+    console.log(`❌ Bloom map test failed: ${error.message}`);
+    return false;
+  }
+}
+
+async function testBloomStatsEndpoint() {
+  console.log('📈 Testing bloom stats endpoint...');
+  try {
+    const payload = {
+      preset: 'ancon',
+      start: '2024-10-01',
+      end: '2024-12-31',
+      adaptiveThreshold: false
+    };
+
+    const result = await makeRequest(`${BASE_URL}/api/bloom/stats`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    console.log(`   Bloom stats: Status ${result.status}`);
+
+    if (result.status === 503) {
+      console.log('✅ Expected 503 (Earth Engine not configured)');
+      return true;
+    } else if (result.status === 200 && result.data.areaSeries && Array.isArray(result.data.areaSeries.features)) {
+      console.log(`✅ Bloom stats returned ${result.data.areaSeries.features.length} entries`);
+      return true;
+    } else {
+      console.log('❌ Unexpected response');
+      return false;
+    }
+  } catch (error) {
+    console.log(`❌ Bloom stats test failed: ${error.message}`);
+    return false;
+  }
+}
+
+async function testBloomContextEndpoint() {
+  console.log('🌐 Testing bloom context endpoint...');
+  try {
+    const payload = {
+      preset: 'costa_metropolitana',
+      start: '2024-10-01',
+      end: '2025-01-01',
+      contextBuffer: 8000
+    };
+
+    const result = await makeRequest(`${BASE_URL}/api/bloom/context`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    console.log(`   Bloom context: Status ${result.status}`);
+
+    if (result.status === 503) {
+      console.log('✅ Expected 503 (Earth Engine not configured)');
+      return true;
+    } else if (result.status === 200 && result.data.layers && result.data.layers.chlorophyll) {
+      console.log('✅ Bloom context layers available');
+      return true;
+    } else {
+      console.log('❌ Unexpected response');
+      return false;
+    }
+  } catch (error) {
+    console.log(`❌ Bloom context test failed: ${error.message}`);
+    return false;
+  }
+}
+
 async function runAllTests() {
   console.log('🚀 Starting GEE Tiles Server API Tests\n');
   
@@ -136,7 +382,10 @@ async function runAllTests() {
     testHealthEndpoint,
     testTileEndpoint,
     testMapInfoEndpoint,
-    testCustomMapEndpoint
+    testCustomMapEndpoint,
+    testBloomMapEndpoint,
+    testBloomStatsEndpoint,
+    testBloomContextEndpoint
   ];
   
   let passed = 0;
@@ -163,14 +412,39 @@ async function runAllTests() {
     console.log('   2. Restart the server');
     console.log('   3. Test again to see full functionality');
   } else {
-    console.log('\n⚠️  Some tests failed. Check the server is running on port 3000.');
-    process.exit(1);
+    console.log('\n⚠️  Some tests failed. Revisa la salida del servidor anterior.');
   }
+
+  return { passed, failed };
 }
 
 // Run tests if this script is executed directly
 if (require.main === module) {
-  runAllTests().catch(console.error);
+  (async () => {
+    try {
+      await startServer();
+      const { failed } = await runAllTests();
+      if (failed > 0) {
+        process.exitCode = 1;
+      }
+    } catch (error) {
+      console.error('❌ Test runner error:', error.message);
+      process.exitCode = 1;
+    } finally {
+      await stopServer();
+    }
+  })();
 }
 
-module.exports = { runAllTests, testHealthEndpoint, testTileEndpoint, testMapInfoEndpoint, testCustomMapEndpoint };
+module.exports = {
+  runAllTests,
+  testHealthEndpoint,
+  testTileEndpoint,
+  testMapInfoEndpoint,
+  testCustomMapEndpoint,
+  testBloomMapEndpoint,
+  testBloomStatsEndpoint,
+  testBloomContextEndpoint,
+  startServer,
+  stopServer
+};

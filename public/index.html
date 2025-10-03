@@ -1,352 +1,1034 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Google Earth Engine Tiles Viewer</title>
-    
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-        }
-        
-        .header {
-            background-color: #2c3e50;
-            color: white;
-            padding: 1rem;
-            text-align: center;
-        }
-        
-        .controls {
-            background-color: #ecf0f1;
-            padding: 1rem;
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        
-        .controls button {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        
-        .controls button:hover {
-            background-color: #2980b9;
-        }
-        
-        .controls button:disabled {
-            background-color: #bdc3c7;
-            cursor: not-allowed;
-        }
-        
-        .status {
-            padding: 0.5rem;
-            border-radius: 4px;
-            margin-left: auto;
-        }
-        
-        .status.connected {
-            background-color: #d5edda;
-            color: #155724;
-        }
-        
-        .status.disconnected {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        
-        #map-container {
-            height: calc(100vh - 140px);
-            width: 100%;
-            background-color: #f8f9fa;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            color: #6c757d;
-        }
-        
-        .demo-tile-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 2px;
-            width: 80%;
-            max-width: 600px;
-            background-color: #fff;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 20px;
-        }
-        
-        .tile-demo {
-            aspect-ratio: 1;
-            background: linear-gradient(45deg, #28a745, #20c997);
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            font-size: 12px;
-        }
-        
-        .info-panel {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background-color: rgba(255, 255, 255, 0.95);
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            z-index: 1000;
-            max-width: 300px;
-            border: 1px solid #dee2e6;
-        }
-        
-        .info-panel h4 {
-            margin-top: 0;
-            color: #2c3e50;
-        }
-        
-        .api-demo {
-            background-color: #fff;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px;
-        }
-        
-        .api-endpoint {
-            background-color: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 4px;
-            padding: 10px;
-            margin: 10px 0;
-            font-family: monospace;
-            font-size: 14px;
-        }
-        
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-            border-color: #c3e6cb;
-        }
-        
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border-color: #f5c6cb;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GEE Bloom Dashboard – Lima, Perú</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha512-sA+e2E7bQdMCM1j4036whhtjfiPgk41IrT9jp+1rssZCvobqtEtFPd0P5xGX2YeliYg+6TS9403VIR+ZC4fV2g==" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha512-o9N1j7kG719FrpFcqUPRduCMsZ/HXXIQK5vC41jvZ1tcHTTX3e8DqRL3OjaxAg/P6p24rzE7kGKuX3s8m4GaPg==" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --primary: #1e7bb6;
+      --accent: #ff5e3a;
+      --bg: #f5f7fb;
+      --bg-dark: #0f172a;
+      --surface: #ffffff;
+      --surface-dark: #1e293b;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --border: #d0d7e3;
+      --success: #0f9d58;
+      --warning: #dd6b20;
+      --error: #c53030;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    body.dark {
+      --bg: var(--bg-dark);
+      --surface: var(--surface-dark);
+      --text: #f8fafc;
+      --text-muted: #cbd5f5;
+      --border: #2c3a53;
+    }
+
+    header {
+      padding: 16px 32px;
+      background: linear-gradient(120deg, #0f172a, #1e3a8a);
+      color: #f8fafc;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.8rem;
+      font-weight: 700;
+    }
+
+    header p {
+      margin: 0;
+      max-width: 620px;
+      font-size: 0.95rem;
+      opacity: 0.85;
+    }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 16px;
+      padding: 16px;
+    }
+
+    @media (max-width: 1200px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+      .map-panel {
+        min-height: 480px;
+      }
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      border: 1px solid var(--border);
+      padding: 18px 20px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .controls form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .section-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    input[type="number"],
+    input[type="date"],
+    select {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.03);
+      color: inherit;
+      font-size: 0.95rem;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(30, 123, 182, 0.2);
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    button {
+      border: none;
+      border-radius: 12px;
+      padding: 12px 16px;
+      background: linear-gradient(120deg, #2563eb, #0ea5e9);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    button:not(:disabled):hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.3);
+    }
+
+    .map-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    #map {
+      width: 100%;
+      min-height: 520px;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .summary-card h3 {
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .summary-card .value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin: 8px 0 4px;
+    }
+
+    .summary-card small {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    .charts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 280px !important;
+    }
+
+    .status-log {
+      max-height: 140px;
+      overflow-y: auto;
+      padding-right: 8px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .layer-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 0.75rem;
+      margin-top: 12px;
+    }
+
+    .layer-badge {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(30, 123, 182, 0.12);
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    footer {
+      padding: 14px 24px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .loader {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.9rem;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .loader span {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: linear-gradient(120deg, #2563eb, #38bdf8);
+      animation: pulse 1s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+
+    a {
+      color: inherit;
+      text-decoration: underline dashed;
+    }
+  </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Google Earth Engine Tiles Server</h1>
-        <p>XYZ Tile Service with Earth Engine Integration</p>
+  <header>
+    <div>
+      <h1>Monitoreo de Floraciones – Lima, Perú</h1>
+      <p>Integra Sentinel-2 (NDCI/FAI), contexto regional MODIS (clorofila) y NOAA OISST (temperatura superficial) para analizar blooms costeros en tiempo casi real.</p>
     </div>
-    
-    <div class="controls">
-        <button id="testHealthBtn">Test API Health</button>
-        <button id="testTileBtn">Test Tile Endpoint</button>
-        <button id="testMapInfoBtn">Test Map Info</button>
-        <div id="status" class="status disconnected">Checking connection...</div>
+    <div class="loader" id="headerLoader" hidden>
+      <span></span>
+      <span></span>
+      <span></span>
+      Procesando solicitud...
     </div>
-    
-    <div id="map-container">
-        <div class="demo-tile-grid">
-            <div class="tile-demo">XYZ</div>
-            <div class="tile-demo">Tiles</div>
-            <div class="tile-demo">Demo</div>
-            <div class="tile-demo">🌍</div>
-            <div class="tile-demo">GEE</div>
-            <div class="tile-demo">Data</div>
-            <div class="tile-demo">Maps</div>
-            <div class="tile-demo">API</div>
-            <div class="tile-demo">Z/10</div>
-            <div class="tile-demo">X/512</div>
-            <div class="tile-demo">Y/384</div>
-            <div class="tile-demo">🛰️</div>
-            <div class="tile-demo">Landsat</div>
-            <div class="tile-demo">Sentinel</div>
-            <div class="tile-demo">MODIS</div>
-            <div class="tile-demo">Ready</div>
-        </div>
-    </div>
-    
-    <div class="info-panel">
-        <h4>API Status</h4>
-        <div id="apiInfo">
-            <p>Loading API information...</p>
-        </div>
-        <div id="endpointTests">
-            <strong>Test Results:</strong>
-            <div id="testResults"></div>
-        </div>
-    </div>
-    
-    <div class="api-demo">
-        <h3>Available API Endpoints</h3>
-        <div class="api-endpoint">
-            <strong>GET</strong> /api/health - Health check and Earth Engine status
-        </div>
-        <div class="api-endpoint">
-            <strong>GET</strong> /api/tiles/{z}/{x}/{y} - XYZ tile endpoint
-        </div>
-        <div class="api-endpoint">
-            <strong>GET</strong> /api/map/info - Map metadata and tile URL template
-        </div>
-        <div class="api-endpoint">
-            <strong>POST</strong> /api/map/custom - Custom dataset configuration
-        </div>
-    </div>
-    
-    <script>
-        // Global variables
-        let isEEConnected = false;
-        
-        // Check server status
-        async function checkStatus() {
-            try {
-                const response = await fetch('/api/health');
-                const data = await response.json();
-                
-                const statusElement = document.getElementById('status');
-                
-                if (data.status === 'ok' && data.earthEngineInitialized) {
-                    statusElement.textContent = 'Connected to Earth Engine';
-                    statusElement.className = 'status connected';
-                    isEEConnected = true;
-                } else if (data.status === 'ok') {
-                    statusElement.textContent = 'Server OK - EE Not Configured';
-                    statusElement.className = 'status disconnected';
-                    isEEConnected = false;
-                } else {
-                    statusElement.textContent = 'Server Error';
-                    statusElement.className = 'status disconnected';
-                    isEEConnected = false;
-                }
-                
-                // Update API info
-                document.getElementById('apiInfo').innerHTML = `
-                    <p><strong>Status:</strong> ${data.status}</p>
-                    <p><strong>Earth Engine:</strong> ${data.earthEngineInitialized ? 'Connected' : 'Not Configured'}</p>
-                    <p><strong>Timestamp:</strong> ${new Date(data.timestamp).toLocaleString()}</p>
-                `;
-                
-            } catch (error) {
-                console.error('Error checking status:', error);
-                document.getElementById('status').textContent = 'Connection Failed';
-                document.getElementById('status').className = 'status disconnected';
-                isEEConnected = false;
-            }
-        }
-        
-        // Test health endpoint
-        async function testHealth() {
-            try {
-                const response = await fetch('/api/health');
-                const data = await response.json();
-                addTestResult('Health Check', true, `Status: ${data.status}, EE: ${data.earthEngineInitialized}`);
-            } catch (error) {
-                addTestResult('Health Check', false, error.message);
-            }
-        }
-        
-        // Test tile endpoint (just check if it responds)
-        async function testTileEndpoint() {
-            try {
-                const response = await fetch('/api/tiles/10/512/384', { method: 'HEAD' });
-                if (isEEConnected) {
-                    addTestResult('Tile Endpoint', response.ok, `Status: ${response.status}`);
-                } else {
-                    addTestResult('Tile Endpoint', false, 'Earth Engine not configured - expected');
-                }
-            } catch (error) {
-                addTestResult('Tile Endpoint', false, error.message);
-            }
-        }
-        
-        // Test map info endpoint
-        async function testMapInfo() {
-            try {
-                const response = await fetch('/api/map/info');
-                const data = await response.json();
-                if (isEEConnected) {
-                    addTestResult('Map Info', !data.error, data.description || data.error);
-                } else {
-                    addTestResult('Map Info', false, 'Earth Engine not configured - expected');
-                }
-            } catch (error) {
-                addTestResult('Map Info', false, error.message);
-            }
-        }
-        
-        // Add test result to UI
-        function addTestResult(testName, success, details) {
-            const testResults = document.getElementById('testResults');
-            const resultDiv = document.createElement('div');
-            resultDiv.className = `api-endpoint ${success ? 'success' : 'error'}`;
-            resultDiv.innerHTML = `<strong>${testName}:</strong> ${success ? '✅' : '❌'} ${details}`;
-            testResults.appendChild(resultDiv);
-        }
-        
-        // Clear test results
-        function clearTestResults() {
-            document.getElementById('testResults').innerHTML = '';
-        }
-        
-        // Event listeners
-        document.addEventListener('DOMContentLoaded', function() {
-            checkStatus();
-            
-            document.getElementById('testHealthBtn').addEventListener('click', () => {
-                clearTestResults();
-                testHealth();
-            });
-            
-            document.getElementById('testTileBtn').addEventListener('click', () => {
-                clearTestResults();
-                testTileEndpoint();
-            });
-            
-            document.getElementById('testMapInfoBtn').addEventListener('click', () => {
-                clearTestResults();
-                testMapInfo();
-            });
-            
-            // Check status every 30 seconds
-            setInterval(checkStatus, 30000);
-        });
-        
-        // Show setup instructions
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                if (!isEEConnected) {
-                    console.log(`
-🌍 Google Earth Engine Tiles Server Setup:
+  </header>
 
-1. Create Google Cloud Project & enable Earth Engine API
-2. Create Service Account with Earth Engine permissions  
-3. Download service account JSON file
-4. Save as 'service-account.json' in project root
-5. Restart server
+  <main>
+    <aside class="controls">
+      <section class="card">
+        <h2 class="section-title">Configuración del análisis</h2>
+        <form id="controlForm">
+          <label>
+            Zona (ROI preset)
+            <select name="preset" id="presetSelect" required>
+              <option value="" disabled selected>Cargando presets...</option>
+            </select>
+          </label>
 
-📡 XYZ Tile Template: http://localhost:3000/api/tiles/{z}/{x}/{y}
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+            <label>
+              Fecha inicio
+              <input type="date" name="start" id="startDate" required>
+            </label>
+            <label>
+              Fecha fin
+              <input type="date" name="end" id="endDate" required>
+            </label>
+          </div>
 
-🗺️ Integration examples:
-   - Leaflet: L.tileLayer('http://localhost:3000/api/tiles/{z}/{x}/{y}')
-   - OpenLayers: new ol.source.XYZ({url: 'http://localhost:3000/api/tiles/{z}/{x}/{y}'})
-                    `);
-                }
-            }, 2000);
-        });
-    </script>
+          <label>
+            Porcentaje máximo de nubosidad (%)
+            <input type="number" name="cloudPercentage" id="cloudPercentage" min="0" max="100" step="1" value="35">
+          </label>
+
+          <div class="section-title">Umbrales (se combinan con adaptativos)</div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+            <label>
+              NDCI threshold
+              <input type="number" name="ndciThreshold" id="ndciThreshold" step="0.01" value="0.1">
+            </label>
+            <label>
+              FAI threshold
+              <input type="number" name="faiThreshold" id="faiThreshold" step="0.001" value="0.005">
+            </label>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+            <label>
+              Limpieza (pixeles conectados)
+              <input type="number" name="minPixelsClean" id="minPixelsClean" step="1" min="1" value="12">
+            </label>
+            <label>
+              Buffer ROI (m)
+              <input type="number" name="buffer" id="buffer" step="50" value="">
+            </label>
+          </div>
+
+          <div class="checkbox-group">
+            <input type="checkbox" id="adaptiveThreshold" name="adaptiveThreshold" checked>
+            <label for="adaptiveThreshold" style="margin: 0; flex: 1;">Calcular percentiles adaptativos</label>
+          </div>
+
+          <div class="section-title">Contexto regional</div>
+          <label>
+            Buffer regional (km)
+            <input type="number" name="contextBufferKm" id="contextBufferKm" step="1" value="5">
+          </label>
+
+          <button type="submit" id="runButton">Actualizar análisis</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Estado</h2>
+        <div class="status-log" id="statusLog"></div>
+        <div class="layer-badges" id="layerBadges"></div>
+      </section>
+
+      <section class="card" id="thresholdCard">
+        <h2 class="section-title">Umbrales efectivos</h2>
+        <div><strong>NDCI:</strong> <span id="thresholdNdci">–</span></div>
+        <div><strong>FAI:</strong> <span id="thresholdFai">–</span></div>
+        <div><strong>FAI (B8A):</strong> <span id="thresholdFaiAlt">–</span></div>
+        <small>Los umbrales adaptativos se combinan con los manuales usando el máximo.</small>
+      </section>
+    </aside>
+
+    <section class="map-panel">
+      <div id="map"></div>
+
+      <div class="summary-grid">
+        <div class="card summary-card">
+          <h3>Área máxima detectada</h3>
+          <div class="value" id="areaMax">–</div>
+          <small>km² durante el periodo analizado</small>
+        </div>
+        <div class="card summary-card">
+          <h3>Bloom más reciente</h3>
+          <div class="value" id="areaLast">–</div>
+          <small>km² registrados en la última escena libre de nubes</small>
+        </div>
+        <div class="card summary-card">
+          <h3>Clorofila media</h3>
+          <div class="value" id="chlorMean">–</div>
+          <small>mg/m³ promedio regional (MODIS Aqua)</small>
+        </div>
+        <div class="card summary-card">
+          <h3>SST media</h3>
+          <div class="value" id="sstMean">–</div>
+          <small>°C promedio regional (NOAA OISST)</small>
+        </div>
+      </div>
+
+      <div class="charts">
+        <div class="card">
+          <h3>Área con bloom (km²)</h3>
+          <canvas id="areaChart"></canvas>
+        </div>
+        <div class="card">
+          <h3>Clorofila-a regional (mg/m³)</h3>
+          <canvas id="chlorChart"></canvas>
+        </div>
+        <div class="card">
+          <h3>Temperatura superficial del mar (°C)</h3>
+          <canvas id="sstChart"></canvas>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Construido con Google Earth Engine, Sentinel-2 SR, MODIS Aqua (L3SMI) y NOAA OISST V2. Ajusta parámetros por zona y valida con datos in situ.
+  </footer>
+
+  <script>
+    const LOCAL_PRESETS = [
+      {
+        id: 'costa_metropolitana',
+        label: 'Costa Metropolitana de Lima',
+        type: 'mar',
+        defaultBuffer: 400
+      },
+      {
+        id: 'ancon',
+        label: 'Bahía de Ancón',
+        type: 'mar',
+        defaultBuffer: 200
+      },
+      {
+        id: 'pantanos',
+        label: 'Pantanos de Villa',
+        type: 'humedal',
+        defaultBuffer: -200
+      }
+    ];
+
+    const baseLayers = {};
+    let overlayLayers = {};
+    let layerControl;
+    let map;
+    let areaChartInstance;
+    let chlorChartInstance;
+    let sstChartInstance;
+    let roiLayer;
+    let contextLayer;
+  let hasInitialized = false;
+
+    const statusLog = document.getElementById('statusLog');
+    const layerBadgesContainer = document.getElementById('layerBadges');
+    const runButton = document.getElementById('runButton');
+    const headerLoader = document.getElementById('headerLoader');
+
+    function varColor(name) {
+      return getComputedStyle(document.body).getPropertyValue(name).trim();
+    }
+
+    function colorWithAlpha(color, alpha = 0.2) {
+      if (!color) return `rgba(30, 123, 182, ${alpha})`;
+      if (color.startsWith('rgba')) {
+        const parts = color.split(',');
+        parts[3] = ` ${alpha})`;
+        return parts.join(',');
+      }
+      if (color.startsWith('rgb')) {
+        return color.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
+      }
+      if (color.startsWith('#')) {
+        const hex = color.replace('#', '');
+        const chunk = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex;
+        const intVal = parseInt(chunk, 16);
+        const r = (intVal >> 16) & 255;
+        const g = (intVal >> 8) & 255;
+        const b = intVal & 255;
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+      return `rgba(30, 123, 182, ${alpha})`;
+    }
+
+    function getFeatureArray(collectionOrArray) {
+      if (!collectionOrArray) return [];
+      if (Array.isArray(collectionOrArray)) return collectionOrArray;
+      if (Array.isArray(collectionOrArray.features)) return collectionOrArray.features;
+      return [];
+    }
+
+    function averageNumeric(values) {
+      const valid = values.filter((value) => typeof value === 'number' && !Number.isNaN(value));
+      if (!valid.length) return null;
+      return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+    }
+
+    function logStatus(message, type = 'info') {
+      const time = new Date().toLocaleTimeString('es-PE', { hour12: false });
+      const line = document.createElement('div');
+      const colors = {
+        info: varColor('--text-muted'),
+        success: varColor('--success'),
+        warning: varColor('--warning'),
+        error: varColor('--error')
+      };
+      line.style.color = colors[type] || colors.info;
+      line.textContent = `[${time}] ${message}`;
+      statusLog.prepend(line);
+    }
+
+    function setLoading(isLoading) {
+      runButton.disabled = isLoading;
+      headerLoader.hidden = !isLoading;
+      if (isLoading) {
+        logStatus('Procesando solicitud...');
+      }
+    }
+
+    function formatNumber(value, decimals = 2) {
+      if (value === null || value === undefined || Number.isNaN(value)) return '–';
+      return Number(value).toLocaleString('es-PE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+
+    function setDefaultDates() {
+      const startInput = document.getElementById('startDate');
+      const endInput = document.getElementById('endDate');
+      if (!startInput || !endInput) return;
+
+      const today = new Date();
+      const endValue = today.toISOString().split('T')[0];
+      const start = new Date(today);
+      start.setDate(start.getDate() - 30);
+      const startValue = start.toISOString().split('T')[0];
+
+      if (!startInput.value) {
+        startInput.value = startValue;
+      }
+      if (!endInput.value) {
+        endInput.value = endValue;
+      }
+    }
+
+    async function applyPresetList(presets, {
+      preserveSelection = true,
+      triggerRun = true
+    } = {}) {
+      const select = document.getElementById('presetSelect');
+      if (!select || !Array.isArray(presets) || !presets.length) {
+        return false;
+      }
+
+      const previousValue = preserveSelection ? select.value : null;
+      const shouldKeepPrevious = previousValue && presets.some((preset) => preset.id === previousValue);
+
+      select.innerHTML = '';
+      presets.forEach((preset) => {
+        const option = document.createElement('option');
+        option.value = preset.id;
+        option.textContent = `${preset.label} (${preset.type})`;
+        option.dataset.defaultBuffer = preset.defaultBuffer ?? 0;
+        select.appendChild(option);
+      });
+
+      if (shouldKeepPrevious) {
+        select.value = previousValue;
+      } else if (presets[0]) {
+        select.value = presets[0].id;
+      }
+
+      runButton.disabled = false;
+      updateBufferPlaceholder();
+      setDefaultDates();
+
+      if (!hasInitialized && triggerRun) {
+        hasInitialized = true;
+        try {
+          await runAnalysis();
+        } catch (error) {
+          console.error('Error al ejecutar el análisis automático:', error);
+        }
+      }
+
+      return true;
+    }
+
+    async function fetchPresets() {
+      const select = document.getElementById('presetSelect');
+      if (!select) {
+        logStatus('No se encontró el selector de presets en el DOM.', 'error');
+        return;
+      }
+
+      const hasLocalPresets = Array.isArray(LOCAL_PRESETS) && LOCAL_PRESETS.length > 0;
+
+      if (hasLocalPresets) {
+        logStatus('Presets locales disponibles inmediatamente.', 'info');
+        await applyPresetList(LOCAL_PRESETS, { triggerRun: false });
+      }
+
+      logStatus('Solicitando presets de ROI a la API...', 'info');
+
+      try {
+        const response = await fetch('/api/bloom/presets', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`Respuesta ${response.status}`);
+        }
+        const data = await response.json();
+        const presets = Array.isArray(data?.presets) ? data.presets : [];
+        if (!presets.length) {
+          throw new Error('Respuesta sin presets');
+        }
+
+        await applyPresetList(presets, { preserveSelection: true, triggerRun: true });
+        logStatus(`Presets de ROI cargados desde la API (${presets.length}).`, 'success');
+      } catch (error) {
+        const message = error?.message || 'Error desconocido';
+        if (hasLocalPresets) {
+          logStatus(`No se pudo cargar presets desde la API (${message}). Se mantiene la lista local.`, 'warning');
+          await applyPresetList(LOCAL_PRESETS, { preserveSelection: true, triggerRun: !hasInitialized });
+        } else {
+          select.innerHTML = '';
+          const option = document.createElement('option');
+          option.value = '';
+          option.disabled = true;
+          option.selected = true;
+          option.textContent = 'No se pudieron cargar los presets';
+          select.appendChild(option);
+          runButton.disabled = true;
+          logStatus(`Error al cargar presets: ${message}`, 'error');
+        }
+      }
+    }
+
+    function createMap() {
+      map = L.map('map', { zoomControl: false }).setView([-12.05, -77.05], 10);
+
+      const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      const esri = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, GIS User Community'
+      });
+
+      baseLayers['OpenStreetMap'] = osm;
+      baseLayers['ESRI Imagery'] = esri;
+      layerControl = L.control.layers(baseLayers, overlayLayers, { collapsed: false }).addTo(map);
+      L.control.scale({ metric: true }).addTo(map);
+      L.control.zoom({ position: 'topright' }).addTo(map);
+    }
+
+    function rebuildLayerControl() {
+      if (layerControl) {
+        layerControl.remove();
+      }
+      layerControl = L.control.layers(baseLayers, overlayLayers, { collapsed: false }).addTo(map);
+    }
+
+    function clearOverlays() {
+      Object.values(overlayLayers).forEach((layer) => {
+        if (map.hasLayer(layer)) {
+          map.removeLayer(layer);
+        }
+      });
+      overlayLayers = {};
+      rebuildLayerControl();
+      layerBadgesContainer.innerHTML = '';
+    }
+
+    function addBadge(label) {
+      const badge = document.createElement('span');
+      badge.className = 'layer-badge';
+      badge.textContent = label;
+      layerBadgesContainer.appendChild(badge);
+    }
+
+    function resolveTileUrl(mapInfo) {
+      if (!mapInfo) return null;
+      const candidates = [
+        mapInfo.tileUrl,
+        mapInfo.urlFormat,
+        mapInfo.url,
+        mapInfo.v1TileUrl,
+        mapInfo.legacyTileUrl
+      ];
+
+      for (const value of candidates) {
+        if (typeof value === 'string' && value.includes('{z}') && value.includes('{x}') && value.includes('{y}')) {
+          return value;
+        }
+      }
+
+      const rawMapId = mapInfo.legacyMapId || mapInfo.mapid;
+      if (rawMapId) {
+        const hasPath = rawMapId.includes('/');
+        const legacyId = hasPath && rawMapId.includes('/maps/') ? rawMapId.split('/maps/')[1] : rawMapId;
+        if (legacyId) {
+          const suffix = mapInfo.token ? `?token=${mapInfo.token}` : '';
+          return `https://earthengine.googleapis.com/map/${legacyId}/{z}/{x}/{y}${suffix}`;
+        }
+      }
+
+      return null;
+    }
+
+    function addOverlayLayer(label, mapInfo, options = {}) {
+      const url = resolveTileUrl(mapInfo);
+      if (!url) {
+        logStatus(`No se pudo construir la URL de tiles para ${label}.`, 'error');
+        return;
+      }
+
+      const layer = L.tileLayer(url, {
+        attribution: 'Google Earth Engine',
+        opacity: options.opacity ?? 0.85,
+        maxZoom: options.maxZoom ?? 18
+      });
+      overlayLayers[label] = layer;
+      if (options.visible !== false) {
+        layer.addTo(map);
+      }
+      addBadge(label);
+    }
+
+    function updateMapLayers(bloomLayers, roiGeometry, contextGeometry) {
+      clearOverlays();
+
+      if (roiLayer) {
+        map.removeLayer(roiLayer);
+      }
+      if (contextLayer) {
+        map.removeLayer(contextLayer);
+      }
+
+      if (roiGeometry) {
+        roiLayer = L.geoJSON(roiGeometry, {
+          style: {
+            color: '#22d3ee',
+            weight: 2,
+            dashArray: '6 3',
+            fill: false
+          }
+        }).addTo(map);
+        try {
+          const bounds = roiLayer.getBounds();
+          if (bounds.isValid()) {
+            map.fitBounds(bounds.pad(0.25));
+          }
+        } catch (error) {
+          console.warn('No se pudo ajustar el mapa al ROI:', error);
+        }
+      }
+
+      if (contextGeometry) {
+        contextLayer = L.geoJSON(contextGeometry, {
+          style: {
+            color: '#fbbf24',
+            weight: 1.2,
+            dashArray: '4 4',
+            fill: false
+          }
+        }).addTo(map);
+      }
+
+      if (bloomLayers) {
+        if (bloomLayers.trueColor) {
+          addOverlayLayer('True Color (Sentinel-2)', bloomLayers.trueColor, { visible: false, opacity: 1 });
+        }
+        if (bloomLayers.ndci) {
+          addOverlayLayer('NDCI (mediana)', bloomLayers.ndci, { visible: false });
+        }
+        if (bloomLayers.fai) {
+          addOverlayLayer('FAI (mediana)', bloomLayers.fai, { visible: false });
+        }
+        if (bloomLayers.bloom) {
+          addOverlayLayer('Bloom Mask', bloomLayers.bloom, { visible: true, opacity: 0.75 });
+        }
+      }
+
+      rebuildLayerControl();
+    }
+
+    function updateContextLayers(contextLayers) {
+      if (!contextLayers) return;
+      if (contextLayers.chlorophyll) {
+        addOverlayLayer('Clorofila MODIS', contextLayers.chlorophyll, { visible: false });
+      }
+      if (contextLayers.sst) {
+        addOverlayLayer('SST NOAA', contextLayers.sst, { visible: false });
+      }
+      rebuildLayerControl();
+    }
+
+    function ensureChart(chartRef, canvasId, config) {
+      if (chartRef) {
+        chartRef.data = config.data;
+        chartRef.options = config.options;
+        chartRef.update();
+        return chartRef;
+      }
+      const ctx = document.getElementById(canvasId);
+      if (!ctx) return null;
+      return new Chart(ctx, config);
+    }
+
+    function buildLineChartConfig(labels, datasetLabel, data, color) {
+      return {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: datasetLabel,
+              data,
+              borderColor: color,
+              backgroundColor: colorWithAlpha(color, 0.18),
+              borderWidth: 2,
+              pointRadius: 2,
+              tension: 0.3,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => `${context.parsed.y.toFixed(2)}`
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { maxRotation: 0, autoSkip: true, color: varColor('--text-muted') },
+              grid: { display: false }
+            },
+            y: {
+              ticks: { color: varColor('--text-muted') },
+              grid: { color: 'rgba(148, 163, 184, 0.2)' }
+            }
+          }
+        }
+      };
+    }
+
+    function updateAreaSummary(areaData) {
+      const areaFeatures = getFeatureArray(areaData);
+      if (!areaFeatures.length) {
+        document.getElementById('areaMax').textContent = '–';
+        document.getElementById('areaLast').textContent = '–';
+        areaChartInstance = ensureChart(areaChartInstance, 'areaChart', buildLineChartConfig([], 'Área (km²)', [], '#f97316'));
+        return;
+      }
+      const areas = areaFeatures.map((f) => Number(f.properties.area_km2 || 0));
+      const dates = areaFeatures.map((f) => f.properties.date);
+      const maxArea = Math.max(...areas);
+      const lastNonNullIndex = [...areas].reverse().findIndex((value) => value > 0);
+      const lastIndex = lastNonNullIndex === -1 ? areas.length - 1 : areas.length - 1 - lastNonNullIndex;
+      const lastArea = areas[lastIndex];
+      const lastDate = dates[lastIndex];
+
+      document.getElementById('areaMax').textContent = `${formatNumber(maxArea)} km²`;
+      document.getElementById('areaLast').textContent = `${formatNumber(lastArea)} km² (${lastDate})`;
+
+      areaChartInstance = ensureChart(areaChartInstance, 'areaChart', buildLineChartConfig(
+        dates,
+        'Área (km²)',
+        areas,
+        '#f97316'
+      ));
+    }
+
+    function updateContextCharts(seriesData, summaryData) {
+      const chlorFeatures = getFeatureArray(seriesData?.chlorophyll);
+      const chlorLabels = chlorFeatures.map((f) => f.properties?.date);
+      const chlorValues = chlorFeatures.map((f) => Number(f.properties?.chlor_a ?? f.properties?.value ?? NaN));
+
+      chlorChartInstance = ensureChart(chlorChartInstance, 'chlorChart', buildLineChartConfig(
+        chlorLabels,
+        'Clorofila-a (mg/m³)',
+        chlorValues,
+        '#22d3ee'
+      ));
+
+      const sstFeatures = getFeatureArray(seriesData?.sst);
+      const sstLabels = sstFeatures.map((f) => f.properties?.date);
+      const sstValues = sstFeatures.map((f) => {
+        const raw = Number(f.properties?.sst ?? f.properties?.value ?? NaN);
+        if (!Number.isFinite(raw)) return NaN;
+        return raw > 150 ? raw - 273.15 : raw;
+      });
+
+      sstChartInstance = ensureChart(sstChartInstance, 'sstChart', buildLineChartConfig(
+        sstLabels,
+        'SST (°C)',
+        sstValues,
+        '#ef4444'
+      ));
+
+      let chlorMean = Number(summaryData?.chlor_mean ?? NaN);
+      if (!Number.isFinite(chlorMean)) {
+        chlorMean = averageNumeric(chlorValues.filter((value) => Number.isFinite(value)));
+      }
+
+      let sstMean = Number(summaryData?.sst_mean ?? NaN);
+      if (Number.isFinite(sstMean) && sstMean > 150) {
+        sstMean -= 273.15;
+      } else if (!Number.isFinite(sstMean)) {
+        sstMean = averageNumeric(sstValues.filter((value) => Number.isFinite(value)));
+      }
+
+      document.getElementById('chlorMean').textContent = formatNumber(chlorMean, 2);
+      document.getElementById('sstMean').textContent = formatNumber(sstMean, 2);
+    }
+
+    function updateThresholdCard(thresholds) {
+      document.getElementById('thresholdNdci').textContent = formatNumber(thresholds?.ndci, 3);
+      document.getElementById('thresholdFai').textContent = formatNumber(thresholds?.fai, 3);
+      document.getElementById('thresholdFaiAlt').textContent = formatNumber(thresholds?.faiAlt, 3);
+    }
+    function updateBufferPlaceholder() {
+      const select = document.getElementById('presetSelect');
+      const bufferInput = document.getElementById('buffer');
+      const selectedOption = select.selectedOptions[0];
+      if (selectedOption && selectedOption.dataset.defaultBuffer) {
+        const value = Number(selectedOption.dataset.defaultBuffer);
+        bufferInput.placeholder = value ? `Sugerencia: ${value} m` : 'Opcional';
+      } else {
+        bufferInput.placeholder = 'Opcional';
+      }
+    }
+
+    async function runAnalysis(event) {
+      event?.preventDefault();
+      setLoading(true);
+
+      try {
+        const formData = new FormData(document.getElementById('controlForm'));
+        const payload = {
+          preset: formData.get('preset'),
+          start: formData.get('start'),
+          end: formData.get('end'),
+          cloudPercentage: Number(formData.get('cloudPercentage')) || 35,
+          ndciThreshold: Number(formData.get('ndciThreshold')) || 0.1,
+          faiThreshold: Number(formData.get('faiThreshold')) || 0.005,
+          adaptiveThreshold: formData.get('adaptiveThreshold') === 'on',
+          minPixelsClean: Number(formData.get('minPixelsClean')) || 12,
+          buffer: formData.get('buffer') ? Number(formData.get('buffer')) : undefined
+        };
+
+        const contextBufferKm = Number(formData.get('contextBufferKm')) || 5;
+        const contextPayload = { ...payload, contextBuffer: contextBufferKm * 1000 };
+
+        logStatus('Solicitando datos a la API...', 'info');
+
+        const [mapResponse, statsResponse, contextResponse] = await Promise.all([
+          fetch('/api/bloom/map', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }),
+          fetch('/api/bloom/stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }),
+          fetch('/api/bloom/context', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(contextPayload)
+          })
+        ]);
+
+        if (!mapResponse.ok) throw new Error('No se pudo obtener el mapa de bloom');
+        if (!statsResponse.ok) throw new Error('No se pudieron obtener las estadísticas de bloom');
+        if (!contextResponse.ok) throw new Error('No se pudo obtener el contexto regional');
+
+        const [mapData, statsData, contextData] = await Promise.all([
+          mapResponse.json(),
+          statsResponse.json(),
+          contextResponse.json()
+        ]);
+
+        const contextGeometry = contextData.contextGeometry || contextData.contextRoi || null;
+
+        updateThresholdCard(mapData.thresholds || mapData.thresholdsEvaluated);
+        updateMapLayers(mapData.layers, mapData.roi, contextGeometry);
+        updateContextLayers(contextData.layers);
+        updateAreaSummary(statsData.areaSeries);
+        updateContextCharts(contextData.series, contextData.summary);
+
+        logStatus('Capas actualizadas correctamente.', 'success');
+        if (mapData.presetMeta?.label) {
+          logStatus(`ROI analizado: ${mapData.presetMeta.label}`, 'success');
+        }
+      } catch (error) {
+        console.error(error);
+        logStatus(`Error al ejecutar análisis: ${error.message}`, 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      createMap();
+      fetchPresets();
+
+      document.getElementById('controlForm').addEventListener('submit', runAnalysis);
+      document.getElementById('presetSelect').addEventListener('change', updateBufferPlaceholder);
+    });
+  </script>
 </body>
 </html>

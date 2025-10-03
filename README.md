@@ -6,10 +6,12 @@ A Node.js server that provides XYZ tile service for Google Earth Engine datasets
 
 - 🌍 **XYZ Tile Service**: Serve Earth Engine imagery as standard XYZ map tiles
 - 🗺️ **Web Interface**: Interactive map viewer using Leaflet
+- 🌐 **Bloom Dashboard**: Panel interactivo (Leaflet + Chart.js) con presets regionales para Lima
 - 🔐 **Service Account Authentication**: Secure authentication with Google Cloud Service Account
 - 📊 **Multiple Datasets**: Support for Landsat, Sentinel, and custom collections
 - 🎨 **Visualization Parameters**: Customizable band combinations and styling
 - 🚀 **RESTful API**: Clean API endpoints for integration
+- 🧭 **Contexto Regional**: Mapas y series temporales MODIS (clorofila) + NOAA OISST (temperatura)
 
 ## Quick Start Checklist
 
@@ -123,6 +125,66 @@ Content-Type: application/json
 }
 ```
 
+### Bloom ROI Presets
+```
+GET /api/bloom/presets
+```
+Lista los presets configurados para Lima (costa metropolitana, Bahía de Ancón, Pantanos de Villa) incluyendo sus geometrías base y metadatos.
+
+### Bloom Map Layers
+```
+POST /api/bloom/map
+Content-Type: application/json
+
+{
+   "preset": "costa_metropolitana",
+   "start": "2024-10-01",
+   "end": "2025-01-01",
+   "cloudPercentage": 35,
+   "ndciThreshold": 0.1,
+   "faiThreshold": 0.005,
+   "adaptiveThreshold": true,
+   "minPixelsClean": 12,
+   "buffer": 400
+}
+```
+Devuelve `mapId` y `token` para cuatro capas (`bloom`, `ndci`, `fai`, `trueColor`), los umbrales aplicados y la geometría final del ROI. Si `preset` es `custom`, envía un objeto GeoJSON en `geometry`.
+
+### Bloom Statistics
+```
+POST /api/bloom/stats
+Content-Type: application/json
+
+{
+   "preset": "ancon",
+   "start": "2024-10-01",
+   "end": "2024-12-31",
+   "adaptiveThreshold": false
+}
+```
+Entrega una `FeatureCollection` con el área diaria de bloom (km²) y los umbrales utilizados. Ideal para dashboards o análisis temporal.
+
+### Bloom Contexto Regional
+````
+POST /api/bloom/context
+Content-Type: application/json
+
+{
+   "preset": "costa_metropolitana",
+   "start": "2024-10-01",
+   "end": "2025-01-01",
+   "contextBuffer": 8000,
+   "chlorDataset": "NASA/OCEANDATA/MODIS-Aqua/L3SMI",
+   "sstDataset": "NOAA/CDR/OISST/V2_1"
+}
+````
+Devuelve un paquete con:
+
+- `layers`: Tiles XYZ para clorofila (MODIS Aqua) y temperatura superficial del mar (NOAA OISST)
+- `series`: Series temporales promedio sobre el buffer definido
+- `summary`: Estadísticos básicos (mínimo/máximo/promedio) para cada variable
+- `contextGeometry`: Geometría del buffer en GeoJSON para sobreponer en el visor
+
 ## Usage Examples
 
 ### Leaflet Integration
@@ -151,6 +213,44 @@ const eeLayer = new ol.layer.Tile({
 
 map.addLayer(eeLayer);
 ```
+
+## Bloom Detection for Lima, Perú
+
+El servidor expone la lógica de Sentinel-2 adaptada al litoral de Lima para detectar floraciones algales mediante NDCI/FAI:
+
+- **Presets:** `costa_metropolitana`, `ancon`, `pantanos` (consulta `GET /api/bloom/presets`). Puedes enviar `preset: "custom"` con tu propio GeoJSON.
+- **Buffer dinámico:** Cada preset trae un buffer sugerido (p. ej. +400 m mar adentro). Ajusta `buffer` en la petición para acercarte/alejarte de costa.
+- **Máscaras:** Se aplican máscaras de nubes (SCL), agua (NDWI + clase 6) y limpieza morfológica (`minPixelsClean`) para reducir ruido por espuma.
+- **Umbrales:** Envíalos fijos (`ndciThreshold`, `faiThreshold`) o activa `adaptiveThreshold` para calcular percentiles locales (P85/P90) y combinarlos con tus límites.
+- **Capas resultantes:** Cada llamada a `/api/bloom/map` devuelve cuatro capas (True Color, NDCI, FAI, Bloom) listas para usarse como tiles XYZ.
+- **Series temporales:** `/api/bloom/stats` entrega el área diaria (km²) detectada; ideal para gráficas o alertas.
+
+Consejos rápidos:
+
+1. **Costa abierta:** Si queda ruido por rompiente, incrementa `minPixelsClean` a 18–20 o aplica un buffer adicional positivo.
+2. **Ancón / aguas someras:** Reduce `cloudPercentage` (<25) y evalúa `faiThreshold` ≥ 0.01 para evitar sedimentos.
+3. **Pantanos de Villa:** Usa `buffer` negativo para recortar bordes y mantén `roiType` humedal (se aplica filtro NDVI < 0.3).
+4. **Calibración:** Ajusta umbrales con los histogramas e integra muestreos in situ de clorofila-a/ficocianina cuando estén disponibles.
+
+## Bloom Dashboard Web
+
+El archivo `public/index.html` ofrece un panel moderno con mapa Leaflet y gráficas Chart.js que consume los endpoints `/api/bloom/*`:
+
+- **Mapa dinámico:** Capas True Color, NDCI, FAI y Bloom con control de visibilidad.
+- **Contexto regional:** Cargado automáticamente tras cada análisis (clorofila MODIS + SST NOAA).
+- **Series temporales:** Área diaria de bloom y promedios regionales listos para graficar.
+- **Panel de control:** Selección de preset, fechas, umbrales, buffers y modo adaptativo.
+
+### Cómo usarlo
+
+1. Inicia el servidor backend:
+   ```bash
+   npm start
+   ```
+2. Abre `http://localhost:3000` en tu navegador.
+3. Escoge un preset (p. ej. *costa_metropolitana*), ajusta fechas y pulsa **Actualizar análisis**.
+4. Explora los resultados: mapa principal, tarjetas de resumen y series temporales.
+5. Ajusta el buffer regional (km) para ampliar/restringir el contexto MODIS/NOAA.
 
 ## Configuration
 
@@ -209,6 +309,21 @@ The server supports any Google Earth Engine dataset. Common examples include:
 1. Check the server logs for detailed error messages
 2. Test API endpoints using curl or Postman
 3. Verify Google Cloud project setup and permissions
+
+## Testing
+
+Las pruebas automáticas validan los endpoints principales (tiles, mapas personalizados y bloom completo). Para ejecutarlas:
+
+1. Abre una terminal y levanta el servidor:
+   ```bash
+   npm start
+   ```
+2. En otra terminal ejecuta la suite:
+   ```bash
+   npm test
+   ```
+
+Las pruebas esperan respuestas 200/302 cuando Earth Engine está configurado. Si faltan credenciales, verás `503` como resultado esperado para la mayoría de endpoints.
 
 ## Development
 
