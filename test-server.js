@@ -13,9 +13,19 @@ const path = require('path');
 const DEFAULT_PORT = parseInt(process.env.TEST_SERVER_PORT || process.env.PORT || '4000', 10);
 const SERVER_START_TIMEOUT = parseInt(process.env.TEST_SERVER_TIMEOUT || '15000', 10);
 const SERVER_SHUTDOWN_TIMEOUT = parseInt(process.env.TEST_SERVER_SHUTDOWN || '5000', 10);
+const EE_READY_TIMEOUT = parseInt(process.env.TEST_SERVER_EE_TIMEOUT || '20000', 10);
+const EE_READY_INTERVAL = parseInt(process.env.TEST_SERVER_EE_INTERVAL || '500', 10);
 
 let BASE_URL = `http://127.0.0.1:${DEFAULT_PORT}`;
 let serverProcess = null;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // Simple HTTP request helper
 function makeRequest(url, options = {}) {
@@ -117,6 +127,23 @@ async function startServer() {
   });
 }
 
+async function waitForInitialization(maxAttempts = 10, delayMs = 1500) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const result = await makeRequest(`${BASE_URL}/api/health`);
+      if (result.status === 200 && result.data && result.data.earthEngineInitialized) {
+        return true;
+      }
+    } catch (error) {
+      // Ignore and retry
+    }
+    await sleep(delayMs);
+  }
+
+  console.warn('⚠️  Earth Engine did not report as initialized within the expected time window.');
+  return false;
+}
+
 function findAvailablePort(preferredPort) {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -177,6 +204,28 @@ async function stopServer(signal = 'SIGINT') {
       resolve();
     }
   });
+}
+
+async function waitForEarthEngineReady(timeoutMs = EE_READY_TIMEOUT, intervalMs = EE_READY_INTERVAL) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const health = await makeRequest(`${BASE_URL}/api/health`);
+      if (health.status === 200 && health.data && health.data.earthEngineInitialized) {
+        const elapsed = Date.now() - startedAt;
+        console.log(`✅ Earth Engine ready after ${elapsed} ms`);
+        return true;
+      }
+    } catch (error) {
+      // Ignore and retry
+    }
+
+    await delay(intervalMs);
+  }
+
+  console.log(`⚠️  Earth Engine not ready after ${timeoutMs} ms`);
+  return false;
 }
 
 // Test functions
@@ -377,6 +426,8 @@ async function testBloomContextEndpoint() {
 
 async function runAllTests() {
   console.log('🚀 Starting GEE Tiles Server API Tests\n');
+
+  await waitForEarthEngineReady();
   
   const tests = [
     testHealthEndpoint,
@@ -446,5 +497,6 @@ module.exports = {
   testBloomStatsEndpoint,
   testBloomContextEndpoint,
   startServer,
-  stopServer
+  stopServer,
+  waitForEarthEngineReady
 };

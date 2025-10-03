@@ -7,6 +7,11 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const DEFAULT_EE_SCOPES = [
+  'https://www.googleapis.com/auth/earthengine',
+  'https://www.googleapis.com/auth/devstorage.full_control'
+];
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -15,13 +20,42 @@ app.use(express.static('public'));
 // Earth Engine authentication and initialization
 let eeInitialized = false;
 
+function getConfiguredScopes() {
+  const extraScopes = process.env.GOOGLE_EE_SCOPES;
+  if (!extraScopes) {
+    return DEFAULT_EE_SCOPES;
+  }
+
+  return extraScopes.split(',')
+    .map((scope) => scope.trim())
+    .filter(Boolean);
+}
+
+async function authenticateWithServiceAccount(serviceAccount, scopes) {
+  return new Promise((resolve, reject) => {
+    ee.data.authenticateViaPrivateKey(
+      serviceAccount,
+      () => {
+        console.log(`Service account authenticated (${serviceAccount.client_email})`);
+        resolve();
+      },
+      (error) => {
+        console.error('Failed to authenticate Earth Engine service account:', error);
+        reject(error);
+      },
+      scopes
+    );
+  });
+}
+
 async function initializeEarthEngine() {
+  const fs = require('fs');
+
   try {
     const serviceAccountPath = process.env.GOOGLE_SERVICE_ACCOUNT_PATH || './service-account.json';
     const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-    
-    // Check if service account file exists
-    const fs = require('fs');
+    const configuredProject = process.env.GOOGLE_EE_PROJECT || process.env.EE_PROJECT_ID;
+
     let serviceAccount;
 
     if (serviceAccountJson) {
@@ -33,31 +67,48 @@ async function initializeEarthEngine() {
         throw parseError;
       }
     } else {
-      if (!fs.existsSync(serviceAccountPath)) {
+      const resolvedPath = path.resolve(serviceAccountPath);
+
+      if (!fs.existsSync(resolvedPath)) {
         console.warn('Service account JSON file not found. Please add your service account credentials.');
         console.warn('Copy your service account JSON file to:', serviceAccountPath);
         console.warn('Alternatively, set GOOGLE_SERVICE_ACCOUNT_JSON with the raw JSON string.');
         return false;
       }
 
-      const fileContents = fs.readFileSync(path.resolve(serviceAccountPath), 'utf8');
+      const fileContents = fs.readFileSync(resolvedPath, 'utf8');
       serviceAccount = JSON.parse(fileContents);
     }
-    
-    // Authenticate with service account
-    await ee.data.authenticateViaPrivateKey(serviceAccount);
-    
-    // Initialize the Earth Engine library
-    await ee.initialize(null, null, () => {
-      console.log('Earth Engine initialized successfully');
-      eeInitialized = true;
-    }, (error) => {
-      console.error('Error initializing Earth Engine:', error);
-      eeInitialized = false;
+
+    const projectId = configuredProject || serviceAccount.project_id || null;
+    const scopes = getConfiguredScopes();
+
+    await authenticateWithServiceAccount(serviceAccount, scopes);
+
+    await new Promise((resolve, reject) => {
+      ee.initialize(
+        null,
+        null,
+        () => {
+          eeInitialized = true;
+          app.locals.eeProjectId = projectId;
+          const projectSuffix = projectId ? ` (project: ${projectId})` : '';
+          console.log(`Earth Engine initialized successfully${projectSuffix}`);
+          resolve();
+        },
+        (error) => {
+          eeInitialized = false;
+          console.error('Error initializing Earth Engine:', error);
+          reject(error);
+        },
+        null,
+        projectId || undefined
+      );
     });
-    
+
     return true;
   } catch (error) {
+    eeInitialized = false;
     console.error('Failed to initialize Earth Engine:', error);
     return false;
   }
@@ -117,6 +168,51 @@ const BLOOM_ROI_META = {
   pantanos: { label: 'Pantanos de Villa', type: 'humedal', defaultZoom: 13, bufferMeters: -200 }
 };
 
+const ECOPLAN_ROI_PRESETS = {
+  lima_metropolitana: {
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [-77.21, -12.05],
+        [-76.77, -12.05],
+        [-76.77, -12.39],
+        [-77.21, -12.39],
+        [-77.21, -12.05]
+      ]]
+    }
+  },
+  lima_centro: {
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [-77.10, -11.95],
+        [-76.90, -11.95],
+        [-76.90, -12.20],
+        [-77.10, -12.20],
+        [-77.10, -11.95]
+      ]]
+    }
+  },
+  callao: {
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [-77.20, -11.90],
+        [-76.99, -11.90],
+        [-76.99, -12.12],
+        [-77.20, -12.12],
+        [-77.20, -11.90]
+      ]]
+    }
+  }
+};
+
+const ECOPLAN_ROI_META = {
+  lima_metropolitana: { label: 'Lima Metropolitana', type: 'urbano', defaultZoom: 10, bufferMeters: 0 },
+  lima_centro: { label: 'Lima Centro', type: 'urbano', defaultZoom: 12, bufferMeters: 0 },
+  callao: { label: 'Provincia Constitucional del Callao', type: 'urbano', defaultZoom: 12, bufferMeters: 0 }
+};
+
 function getPresetList() {
   return Object.entries(BLOOM_ROI_PRESETS).map(([key, preset]) => ({
     id: key,
@@ -124,6 +220,16 @@ function getPresetList() {
     type: BLOOM_ROI_META[key]?.type || 'mar',
     geometry: preset.geometry,
     defaultBuffer: BLOOM_ROI_META[key]?.bufferMeters || preset.buffer || 0
+  }));
+}
+
+function getEcoPlanPresetList() {
+  return Object.entries(ECOPLAN_ROI_PRESETS).map(([key, preset]) => ({
+    id: key,
+    label: ECOPLAN_ROI_META[key]?.label || key,
+    type: ECOPLAN_ROI_META[key]?.type || 'urbano',
+    geometry: preset.geometry,
+    defaultBuffer: ECOPLAN_ROI_META[key]?.bufferMeters || preset.buffer || 0
   }));
 }
 
@@ -167,6 +273,34 @@ function getRoiFromRequest({ preset = 'costa_metropolitana', geometry, buffer })
   }
   const meta = BLOOM_ROI_META[presetKey] || { type: 'mar', defaultZoom: 11, bufferMeters: 0 };
   const bufferMeters = typeof buffer === 'number' ? buffer : meta.bufferMeters || 0;
+  return {
+    roi: applyBufferToGeometry(baseGeom, bufferMeters),
+    meta: { ...meta, bufferMeters }
+  };
+}
+
+function getEcoPlanRoiFromRequest({ preset = 'lima_metropolitana', geometry, buffer }) {
+  const presetKey = preset in ECOPLAN_ROI_PRESETS ? preset : 'custom';
+  if (presetKey === 'custom') {
+    const customGeom = parseGeometry(geometry);
+    if (!customGeom) {
+      throw new Error('Custom geometry is required when preset is custom');
+    }
+    const bufferMeters = typeof buffer === 'number' ? buffer : 0;
+    return {
+      roi: applyBufferToGeometry(customGeom, bufferMeters),
+      meta: { label: 'Área personalizada', type: 'urbano', defaultZoom: 11, bufferMeters }
+    };
+  }
+
+  const presetDef = ECOPLAN_ROI_PRESETS[presetKey];
+  let baseGeom = ee.Geometry(presetDef.geometry);
+  if (presetDef.geometry.type === 'Point') {
+    baseGeom = baseGeom.buffer(presetDef.buffer || 0);
+  }
+  const meta = ECOPLAN_ROI_META[presetKey] || { type: 'urbano', defaultZoom: 11, bufferMeters: 0 };
+  const bufferMeters = typeof buffer === 'number' ? buffer : meta.bufferMeters || 0;
+
   return {
     roi: applyBufferToGeometry(baseGeom, bufferMeters),
     meta: { ...meta, bufferMeters }
@@ -253,6 +387,35 @@ function maskSentinel2(image) {
   const cirrus = scl.eq(7);
   const bad = cloudShadow.or(clouds).or(snow).or(cirrus);
   return image.updateMask(bad.not());
+}
+
+function maskL8sr(image) {
+  const qa = image.select('QA_PIXEL');
+  const cloudShadowMask = 1 << 3;
+  const snowMask = 1 << 5;
+  const cloudMask = 1 << 4;
+  const cirrusMask = 1 << 2;
+
+  const mask = qa.bitwiseAnd(cloudShadowMask).eq(0)
+    .and(qa.bitwiseAnd(cloudMask).eq(0))
+    .and(qa.bitwiseAnd(cirrusMask).eq(0))
+    .and(qa.bitwiseAnd(snowMask).eq(0));
+
+  return image.updateMask(mask);
+}
+
+function addLstCelsius(image) {
+  const lstKelvin = image.select('ST_B10').multiply(0.00341802).add(149);
+  const lstCelsius = lstKelvin.subtract(273.15).rename('LST_C');
+  return image.addBands(lstCelsius);
+}
+
+function normalizeImage(image, minValue, maxValue) {
+  const min = ee.Number(minValue);
+  const max = ee.Number(maxValue);
+  const range = max.subtract(min);
+  const safeRange = ee.Number(ee.Algorithms.If(range.eq(0), 1, range));
+  return image.subtract(min).divide(safeRange).clamp(0, 1);
 }
 
 function addWaterMask(image, roiType = 'mar') {
@@ -530,6 +693,196 @@ async function buildRegionalContext(options) {
   };
 }
 
+async function buildEcoPlanAnalysis(options) {
+  const {
+    preset = 'lima_metropolitana',
+    geometry,
+    buffer,
+    start = '2024-01-01',
+    end = '2024-12-31',
+    cloudPercentage = 20,
+    populationYear = 2020,
+    districtsAsset,
+    tileScale = 4
+  } = options || {};
+
+  const { roi, meta } = getEcoPlanRoiFromRequest({ preset, geometry, buffer });
+
+  const sentinelCollection = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+    .filterBounds(roi)
+    .filterDate(start, end)
+    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', cloudPercentage))
+    .map(maskSentinel2)
+    .map((image) => {
+      const ndvi = image.normalizedDifference(['B8', 'B4']).rename('NDVI');
+      const ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI');
+      return image.addBands([ndvi, ndwi]);
+    });
+
+  const ndviComposite = sentinelCollection.qualityMosaic('NDVI').select('NDVI').clip(roi);
+  const ndwiComposite = sentinelCollection.mean().select('NDWI').clip(roi);
+
+  const landsatCollection = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
+    .filterBounds(roi)
+    .filterDate(start, end)
+    .map(maskL8sr)
+    .map(addLstCelsius);
+
+  const lstComposite = landsatCollection.median().select('LST_C').clip(roi);
+
+  const ndviSeries = createTimeSeries(sentinelCollection.select('NDVI'), 'NDVI', roi, 20, 'ndvi');
+  const lstSeries = createTimeSeries(landsatCollection.select('LST_C'), 'LST_C', roi, 30, 'lst_c');
+
+  const populationCollection = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Density')
+    .filter(ee.Filter.eq('year', populationYear));
+
+  let populationImage = populationCollection.first();
+  populationImage = ee.Image(ee.Algorithms.If(
+    populationImage,
+    populationImage,
+    ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Density').sort('year', false).first()
+  ));
+  populationImage = ee.Image(populationImage).select('population_density').clip(roi);
+
+  const ndviNorm = normalizeImage(ndviComposite, 0, 0.8);
+  const lstNorm = normalizeImage(lstComposite, 20, 40);
+  const popNorm = normalizeImage(populationImage, 0, 10000);
+
+  const heatImage = lstNorm.multiply(0.5)
+    .add(ndviNorm.multiply(-0.3))
+    .add(popNorm.multiply(0.2))
+    .rename('HeatVulnerability')
+    .clip(roi);
+
+  const aodBand = 'Aerosol_Optical_Depth_Land_Ocean_Mean_Mean';
+  const aodCollection = ee.ImageCollection('MODIS/061/MOD08_M3')
+    .select(aodBand)
+    .filterBounds(roi)
+    .filterDate(start, end);
+
+  const aodImage = aodCollection.mean().rename('AOD').clip(roi);
+  const aodSeries = createTimeSeries(aodCollection, aodBand, roi, 1000, 'aod');
+
+  const summaryReducer = ee.Reducer.mean().combine({
+    reducer2: ee.Reducer.minMax(),
+    sharedInputs: true
+  });
+
+  const ndviStats = ndviComposite.reduceRegion({
+    reducer: summaryReducer,
+    geometry: roi,
+    scale: 20,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  });
+
+  const lstStats = lstComposite.reduceRegion({
+    reducer: summaryReducer,
+    geometry: roi,
+    scale: 30,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  });
+
+  const heatStats = heatImage.reduceRegion({
+    reducer: summaryReducer,
+    geometry: roi,
+    scale: 100,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  });
+
+  const ndwiStats = ndwiComposite.reduceRegion({
+    reducer: summaryReducer,
+    geometry: roi,
+    scale: 20,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  });
+
+  const aodStats = aodImage.reduceRegion({
+    reducer: summaryReducer,
+    geometry: roi,
+    scale: 1000,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  });
+
+  const populationStats = populationImage.reduceRegion({
+    reducer: summaryReducer,
+    geometry: roi,
+    scale: 250,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  });
+
+  const summary = ee.Dictionary({
+    ndvi_mean: ndviStats.get('NDVI_mean'),
+    ndvi_min: ndviStats.get('NDVI_min'),
+    ndvi_max: ndviStats.get('NDVI_max'),
+    lst_mean: lstStats.get('LST_C_mean'),
+    lst_min: lstStats.get('LST_C_min'),
+    lst_max: lstStats.get('LST_C_max'),
+    heat_mean: heatStats.get('HeatVulnerability_mean'),
+    heat_min: heatStats.get('HeatVulnerability_min'),
+    heat_max: heatStats.get('HeatVulnerability_max'),
+    ndwi_mean: ndwiStats.get('NDWI_mean'),
+    ndwi_min: ndwiStats.get('NDWI_min'),
+    ndwi_max: ndwiStats.get('NDWI_max'),
+    aod_mean: aodStats.get('AOD_mean'),
+    aod_min: aodStats.get('AOD_min'),
+    aod_max: aodStats.get('AOD_max'),
+    population_mean: populationStats.get('population_density_mean'),
+    population_max: populationStats.get('population_density_max')
+  });
+
+  let boundaryStats = null;
+  if (districtsAsset) {
+    try {
+      const boundaries = ee.FeatureCollection(districtsAsset);
+      const combinedImage = ndviComposite.rename('NDVI')
+        .addBands(lstComposite.rename('LST_C'))
+        .addBands(heatImage.rename('HeatVulnerability'))
+        .addBands(populationImage.rename('population_density'));
+
+      boundaryStats = combinedImage.reduceRegions({
+        collection: boundaries,
+        reducer: ee.Reducer.mean().combine({
+          reducer2: ee.Reducer.stdDev(),
+          sharedInputs: true
+        }),
+        scale: 120,
+        maxPixels: 1e12,
+        bestEffort: true,
+        tileScale
+      });
+    } catch (error) {
+      console.warn('Could not compute boundary statistics:', error);
+    }
+  }
+
+  return {
+    roi,
+    meta,
+    ndviImage: ndviComposite,
+    lstImage: lstComposite,
+    heatImage,
+    ndwiImage: ndwiComposite,
+    aodImage,
+    ndviSeries,
+    lstSeries,
+    aodSeries,
+    summary,
+    boundaryStats
+  };
+}
+
 // Routes
 
 // Health check endpoint
@@ -613,6 +966,124 @@ app.get('/api/map/info', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to get map info',
       message: error.message 
+    });
+  }
+});
+
+// Presets para EcoPlan Urbano
+app.get('/api/ecoplan/presets', (req, res) => {
+  res.json({
+    presets: getEcoPlanPresetList()
+  });
+});
+
+// Análisis EcoPlan Urbano
+app.post('/api/ecoplan/analyze', async (req, res) => {
+  if (!eeInitialized) {
+    return res.status(503).json({
+      error: 'Earth Engine not initialized'
+    });
+  }
+
+  try {
+    const options = req.body || {};
+    const analysis = await buildEcoPlanAnalysis(options);
+
+    const [
+      ndviLayer,
+      lstLayer,
+      heatLayer,
+      ndwiLayer,
+      aodLayer,
+      ndviSeries,
+      lstSeries,
+      aodSeries,
+      summary,
+      roiGeoJson,
+      boundaryStats
+    ] = await Promise.all([
+      getMapFromImage(analysis.ndviImage, {
+        min: -0.2,
+        max: 0.8,
+        palette: ['#002651', '#0f5d2a', '#4fb043', '#f8e71c']
+      }),
+      getMapFromImage(analysis.lstImage, {
+        min: 20,
+        max: 40,
+        palette: ['#0021ff', '#0ba9ff', '#74ffdc', '#f9fd6c', '#ff5e3a']
+      }),
+      getMapFromImage(analysis.heatImage, {
+        min: -0.5,
+        max: 1,
+        palette: ['#2e7d32', '#fdd835', '#e53935']
+      }),
+      getMapFromImage(analysis.ndwiImage, {
+        min: -0.1,
+        max: 0.5,
+        palette: ['#704214', '#0ea5e9', '#22d3ee']
+      }),
+      getMapFromImage(analysis.aodImage, {
+        min: 0,
+        max: 1.5,
+        palette: ['#132a13', '#52b788', '#ffba08', '#d94801']
+      }),
+      evaluateEeObject(analysis.ndviSeries),
+      evaluateEeObject(analysis.lstSeries),
+      evaluateEeObject(analysis.aodSeries),
+      evaluateEeObject(analysis.summary),
+      evaluateEeObject(analysis.roi),
+      analysis.boundaryStats ? evaluateEeObject(analysis.boundaryStats) : Promise.resolve(null)
+    ]);
+
+    res.json({
+      presetMeta: analysis.meta,
+      layers: {
+        ndvi: {
+          ...ndviLayer,
+          name: 'NDVI máximo (Sentinel-2)',
+          min: -0.2,
+          max: 0.8
+        },
+        lst: {
+          ...lstLayer,
+          name: 'Temperatura superficial (°C)',
+          min: 20,
+          max: 40
+        },
+        heat: {
+          ...heatLayer,
+          name: 'Índice de vulnerabilidad al calor',
+          min: -0.5,
+          max: 1
+        },
+        ndwi: {
+          ...ndwiLayer,
+          name: 'NDWI promedio',
+          min: -0.1,
+          max: 0.5
+        },
+        aod: {
+          ...aodLayer,
+          name: 'AOD promedio (MODIS)',
+          min: 0,
+          max: 1.5
+        }
+      },
+      summary,
+      series: {
+        ndvi: ndviSeries?.features || [],
+        lst: lstSeries?.features || [],
+        aod: aodSeries?.features || []
+      },
+      boundaryStats,
+      roi: roiGeoJson,
+      request: options
+    });
+  } catch (error) {
+    console.error('Error generating EcoPlan analysis:', error);
+    res.status(500).json({
+      error: 'Failed to generate EcoPlan analysis',
+      message: error.message
     });
   }
 });

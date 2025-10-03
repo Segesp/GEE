@@ -12,6 +12,7 @@ A Node.js server that provides XYZ tile service for Google Earth Engine datasets
 - 🎨 **Visualization Parameters**: Customizable band combinations and styling
 - 🚀 **RESTful API**: Clean API endpoints for integration
 - 🧭 **Contexto Regional**: Mapas y series temporales MODIS (clorofila) + NOAA OISST (temperatura)
+- 📘 **Manual EcoPlan Urbano**: Guía metodológica detallada con flujos GEE para implementar EcoPlan Urbano ([ver documento](docs/manual-ecoplan-gee.md))
 
 ## Quick Start Checklist
 
@@ -261,6 +262,12 @@ Create a `.env` file with the following variables:
 ```bash
 # Google Earth Engine Configuration
 GOOGLE_SERVICE_ACCOUNT_PATH=./service-account.json
+# Optional: inline JSON string (overrides the path above)
+# GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+# Optional: force a specific Earth Engine project
+# GOOGLE_EE_PROJECT=your-project-id
+# Optional: override OAuth scopes (comma separated)
+# GOOGLE_EE_SCOPES=https://www.googleapis.com/auth/earthengine,https://www.googleapis.com/auth/devstorage.read_write
 
 # Server Configuration  
 PORT=3000
@@ -292,7 +299,8 @@ The server supports any Google Earth Engine dataset. Common examples include:
 1. **"Earth Engine not initialized"**
    - Check that your service account JSON file exists
    - Verify the file path in `.env` 
-   - Ensure the service account has proper permissions
+   - Ensure the service account has proper permissions and that the project is registered in Earth Engine (`GOOGLE_EE_PROJECT` can force it when needed)
+   - Review the server logs — the backend now waits for authentication and will report whether the service account and project were accepted
 
 2. **"Failed to generate tile"**
    - Check your internet connection

@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GEE Bloom Dashboard – Lima, Perú</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha512-sA+e2E7bQdMCM1j4036whhtjfiPgk41IrT9jp+1rssZCvobqtEtFPd0P5xGX2YeliYg+6TS9403VIR+ZC4fV2g==" crossorigin=""/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha512-o9N1j7kG719FrpFcqUPRduCMsZ/HXXIQK5vC41jvZ1tcHTTX3e8DqRL3OjaxAg/P6p24rzE7kGKuX3s8m4GaPg==" crossorigin=""></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="./vendor/leaflet/leaflet.css">
+  <script src="./vendor/leaflet/leaflet.js"></script>
+  <script src="./vendor/chart/chart.umd.js"></script>
   <style>
     :root {
       color-scheme: light dark;
@@ -68,19 +68,63 @@
 
     main {
       flex: 1;
-      display: grid;
-      grid-template-columns: 320px 1fr;
+      display: flex;
+      flex-direction: column;
       gap: 16px;
       padding: 16px;
     }
 
+    .dashboard-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 16px;
+    }
+
+    #controlColumn {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
     @media (max-width: 1200px) {
-      main {
+      .dashboard-grid {
         grid-template-columns: 1fr;
       }
       .map-panel {
         min-height: 480px;
       }
+    }
+
+    .view-switcher {
+      display: inline-flex;
+      gap: 10px;
+      background: var(--surface);
+      border-radius: 999px;
+      padding: 6px;
+      border: 1px solid var(--border);
+      align-self: flex-start;
+    }
+
+    .mode-button {
+      border: none;
+      background: transparent;
+      padding: 8px 20px;
+      border-radius: 999px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .mode-button.active {
+      background: linear-gradient(120deg, #2563eb, #0ea5e9);
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.25);
+    }
+
+    .hidden {
+      display: none !important;
     }
 
     .card {
@@ -241,6 +285,34 @@
       line-height: 1.4;
     }
 
+    .table-wrapper {
+      overflow-x: auto;
+      margin-top: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    table thead {
+      background: rgba(15, 23, 42, 0.05);
+    }
+
+    table th,
+    table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    table tbody tr:hover {
+      background: rgba(30, 123, 182, 0.08);
+    }
+
     .layer-badges {
       display: flex;
       flex-wrap: wrap;
@@ -307,127 +379,287 @@
   </header>
 
   <main>
-    <aside class="controls">
-      <section class="card">
-        <h2 class="section-title">Configuración del análisis</h2>
-        <form id="controlForm">
-          <label>
-            Zona (ROI preset)
-            <select name="preset" id="presetSelect" required>
-              <option value="" disabled selected>Cargando presets...</option>
-            </select>
-          </label>
+    <div class="view-switcher">
+      <button type="button" class="mode-button active" data-mode="bloom">Floraciones algales</button>
+      <button type="button" class="mode-button" data-mode="ecoplan">EcoPlan Urbano</button>
+    </div>
 
-          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
-            <label>
-              Fecha inicio
-              <input type="date" name="start" id="startDate" required>
-            </label>
-            <label>
-              Fecha fin
-              <input type="date" name="end" id="endDate" required>
-            </label>
-          </div>
+    <div class="dashboard-grid">
+      <div id="controlColumn">
+        <aside class="controls" id="bloomControls">
+          <section class="card">
+            <h2 class="section-title">Configuración del análisis</h2>
+            <form id="controlForm">
+              <label>
+                Zona (ROI preset)
+                <select name="preset" id="presetSelect" required>
+                  <option value="" disabled selected>Cargando presets...</option>
+                  <option value="costa_metropolitana" data-default-buffer="400">Costa Metropolitana de Lima (mar)</option>
+                  <option value="ancon" data-default-buffer="200">Bahía de Ancón (mar)</option>
+                  <option value="pantanos" data-default-buffer="-200">Pantanos de Villa (humedal)</option>
+                </select>
+              </label>
 
-          <label>
-            Porcentaje máximo de nubosidad (%)
-            <input type="number" name="cloudPercentage" id="cloudPercentage" min="0" max="100" step="1" value="35">
-          </label>
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+                <label>
+                  Fecha inicio
+                  <input type="date" name="start" id="startDate" required>
+                </label>
+                <label>
+                  Fecha fin
+                  <input type="date" name="end" id="endDate" required>
+                </label>
+              </div>
 
-          <div class="section-title">Umbrales (se combinan con adaptativos)</div>
-          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
-            <label>
-              NDCI threshold
-              <input type="number" name="ndciThreshold" id="ndciThreshold" step="0.01" value="0.1">
-            </label>
-            <label>
-              FAI threshold
-              <input type="number" name="faiThreshold" id="faiThreshold" step="0.001" value="0.005">
-            </label>
-          </div>
+              <label>
+                Porcentaje máximo de nubosidad (%)
+                <input type="number" name="cloudPercentage" id="cloudPercentage" min="0" max="100" step="1" value="35">
+              </label>
 
-          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
-            <label>
-              Limpieza (pixeles conectados)
-              <input type="number" name="minPixelsClean" id="minPixelsClean" step="1" min="1" value="12">
-            </label>
-            <label>
-              Buffer ROI (m)
-              <input type="number" name="buffer" id="buffer" step="50" value="">
-            </label>
-          </div>
+              <div class="section-title">Umbrales (se combinan con adaptativos)</div>
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+                <label>
+                  NDCI threshold
+                  <input type="number" name="ndciThreshold" id="ndciThreshold" step="0.01" value="0.1">
+                </label>
+                <label>
+                  FAI threshold
+                  <input type="number" name="faiThreshold" id="faiThreshold" step="0.001" value="0.005">
+                </label>
+              </div>
 
-          <div class="checkbox-group">
-            <input type="checkbox" id="adaptiveThreshold" name="adaptiveThreshold" checked>
-            <label for="adaptiveThreshold" style="margin: 0; flex: 1;">Calcular percentiles adaptativos</label>
-          </div>
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+                <label>
+                  Limpieza (pixeles conectados)
+                  <input type="number" name="minPixelsClean" id="minPixelsClean" step="1" min="1" value="12">
+                </label>
+                <label>
+                  Buffer ROI (m)
+                  <input type="number" name="buffer" id="buffer" step="50" value="">
+                </label>
+              </div>
 
-          <div class="section-title">Contexto regional</div>
-          <label>
-            Buffer regional (km)
-            <input type="number" name="contextBufferKm" id="contextBufferKm" step="1" value="5">
-          </label>
+              <div class="checkbox-group">
+                <input type="checkbox" id="adaptiveThreshold" name="adaptiveThreshold" checked>
+                <label for="adaptiveThreshold" style="margin: 0; flex: 1;">Calcular percentiles adaptativos</label>
+              </div>
 
-          <button type="submit" id="runButton">Actualizar análisis</button>
-        </form>
-      </section>
+              <div class="section-title">Contexto regional</div>
+              <label>
+                Buffer regional (km)
+                <input type="number" name="contextBufferKm" id="contextBufferKm" step="1" value="5">
+              </label>
 
-      <section class="card">
-        <h2 class="section-title">Estado</h2>
-        <div class="status-log" id="statusLog"></div>
-        <div class="layer-badges" id="layerBadges"></div>
-      </section>
+              <button type="submit" id="runButton">Actualizar análisis</button>
+            </form>
+          </section>
 
-      <section class="card" id="thresholdCard">
-        <h2 class="section-title">Umbrales efectivos</h2>
-        <div><strong>NDCI:</strong> <span id="thresholdNdci">–</span></div>
-        <div><strong>FAI:</strong> <span id="thresholdFai">–</span></div>
-        <div><strong>FAI (B8A):</strong> <span id="thresholdFaiAlt">–</span></div>
-        <small>Los umbrales adaptativos se combinan con los manuales usando el máximo.</small>
-      </section>
-    </aside>
+          <section class="card">
+            <h2 class="section-title">Prueba rápida</h2>
+            <p style="margin-top: 0; font-size: 0.85rem; color: var(--text-muted);">
+              Carga una imagen de referencia (Landsat 8 True Color) para comprobar que la conexión con Earth Engine funciona
+              aun sin ejecutar el análisis completo de bloom.
+            </p>
+            <button type="button" id="quickViewButton">Ver imagen satelital simple</button>
+          </section>
 
-    <section class="map-panel">
-      <div id="map"></div>
+          <section class="card">
+            <h2 class="section-title">Estado</h2>
+            <div class="status-log" id="statusLog"></div>
+            <div class="layer-badges" id="layerBadges"></div>
+          </section>
 
-      <div class="summary-grid">
-        <div class="card summary-card">
-          <h3>Área máxima detectada</h3>
-          <div class="value" id="areaMax">–</div>
-          <small>km² durante el periodo analizado</small>
-        </div>
-        <div class="card summary-card">
-          <h3>Bloom más reciente</h3>
-          <div class="value" id="areaLast">–</div>
-          <small>km² registrados en la última escena libre de nubes</small>
-        </div>
-        <div class="card summary-card">
-          <h3>Clorofila media</h3>
-          <div class="value" id="chlorMean">–</div>
-          <small>mg/m³ promedio regional (MODIS Aqua)</small>
-        </div>
-        <div class="card summary-card">
-          <h3>SST media</h3>
-          <div class="value" id="sstMean">–</div>
-          <small>°C promedio regional (NOAA OISST)</small>
-        </div>
+          <section class="card" id="thresholdCard">
+            <h2 class="section-title">Umbrales efectivos</h2>
+            <div><strong>NDCI:</strong> <span id="thresholdNdci">–</span></div>
+            <div><strong>FAI:</strong> <span id="thresholdFai">–</span></div>
+            <div><strong>FAI (B8A):</strong> <span id="thresholdFaiAlt">–</span></div>
+            <small>Los umbrales adaptativos se combinan con los manuales usando el máximo.</small>
+          </section>
+        </aside>
+
+        <aside class="controls hidden" id="ecoControls">
+          <section class="card">
+            <h2 class="section-title">Parámetros EcoPlan</h2>
+            <form id="ecoForm">
+              <label>
+                Área de trabajo
+                <select name="preset" id="ecoPresetSelect" required>
+                  <option value="" disabled selected>Cargando presets...</option>
+                  <option value="lima_metropolitana">Lima Metropolitana (urbano)</option>
+                  <option value="lima_centro">Lima Centro (urbano)</option>
+                  <option value="callao">Callao (urbano)</option>
+                </select>
+              </label>
+
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+                <label>
+                  Fecha inicio
+                  <input type="date" name="start" id="ecoStartDate" required>
+                </label>
+                <label>
+                  Fecha fin
+                  <input type="date" name="end" id="ecoEndDate" required>
+                </label>
+              </div>
+
+              <label>
+                Porcentaje máximo de nubosidad (%)
+                <input type="number" name="cloudPercentage" id="ecoCloudPercentage" min="0" max="100" step="1" value="20">
+              </label>
+
+              <label>
+                Año de densidad poblacional
+                <select name="populationYear" id="ecoPopulationYear">
+                  <option value="2020" selected>2020</option>
+                  <option value="2015">2015</option>
+                  <option value="2010">2010</option>
+                </select>
+              </label>
+
+              <label>
+                Buffer ROI (m)
+                <input type="number" name="buffer" id="ecoBuffer" step="50" placeholder="Opcional">
+              </label>
+
+              <label>
+                Asset de límites (opcional)
+                <input type="text" name="districtsAsset" id="ecoDistrictsAsset" placeholder="users/tu_usuario/distritos_lima">
+              </label>
+
+              <button type="submit" id="ecoRunButton">Calcular EcoPlan</button>
+            </form>
+          </section>
+
+          <section class="card">
+            <h2 class="section-title">Estado EcoPlan</h2>
+            <div class="status-log" id="ecoStatusLog"></div>
+          </section>
+
+          <section class="card">
+            <h2 class="section-title">Notas rápidas</h2>
+            <ul style="margin: 0; padding-left: 18px; color: var(--text-muted); font-size: 0.85rem;">
+              <li>NDVI se obtiene de Sentinel-2 SR (calidad armonizada).</li>
+              <li>LST proviene de Landsat 8/9 L2 y se expresa en °C.</li>
+              <li>Índice de calor combina LST, NDVI y densidad poblacional.</li>
+              <li>AOD usa MODIS MOD08_M3 para contaminación atmosférica.</li>
+            </ul>
+          </section>
+        </aside>
       </div>
 
-      <div class="charts">
-        <div class="card">
-          <h3>Área con bloom (km²)</h3>
-          <canvas id="areaChart"></canvas>
+      <section class="map-panel">
+        <div id="map"></div>
+
+        <div id="bloomSummarySection">
+          <div class="summary-grid">
+            <div class="card summary-card">
+              <h3>Área máxima detectada</h3>
+              <div class="value" id="areaMax">–</div>
+              <small>km² durante el periodo analizado</small>
+            </div>
+            <div class="card summary-card">
+              <h3>Bloom más reciente</h3>
+              <div class="value" id="areaLast">–</div>
+              <small>km² registrados en la última escena libre de nubes</small>
+            </div>
+            <div class="card summary-card">
+              <h3>Clorofila media</h3>
+              <div class="value" id="chlorMean">–</div>
+              <small>mg/m³ promedio regional (MODIS Aqua)</small>
+            </div>
+            <div class="card summary-card">
+              <h3>SST media</h3>
+              <div class="value" id="sstMean">–</div>
+              <small>°C promedio regional (NOAA OISST)</small>
+            </div>
+          </div>
+
+          <div class="charts">
+            <div class="card">
+              <h3>Área con bloom (km²)</h3>
+              <canvas id="areaChart"></canvas>
+            </div>
+            <div class="card">
+              <h3>Clorofila-a regional (mg/m³)</h3>
+              <canvas id="chlorChart"></canvas>
+            </div>
+            <div class="card">
+              <h3>Temperatura superficial del mar (°C)</h3>
+              <canvas id="sstChart"></canvas>
+            </div>
+          </div>
         </div>
-        <div class="card">
-          <h3>Clorofila-a regional (mg/m³)</h3>
-          <canvas id="chlorChart"></canvas>
+
+        <div id="ecoSummarySection" class="hidden">
+          <div class="summary-grid">
+            <div class="card summary-card">
+              <h3>NDVI medio</h3>
+              <div class="value" id="ecoNdviMean">–</div>
+              <small>Rango: <span id="ecoNdviRange">–</span></small>
+            </div>
+            <div class="card summary-card">
+              <h3>LST media</h3>
+              <div class="value" id="ecoLstMean">–</div>
+              <small>Rango: <span id="ecoLstRange">–</span></small>
+            </div>
+            <div class="card summary-card">
+              <h3>Índice de calor</h3>
+              <div class="value" id="ecoHeatMean">–</div>
+              <small>Rango: <span id="ecoHeatRange">–</span></small>
+            </div>
+            <div class="card summary-card">
+              <h3>AOD media</h3>
+              <div class="value" id="ecoAodMean">–</div>
+              <small>Rango: <span id="ecoAodRange">–</span></small>
+            </div>
+            <div class="card summary-card">
+              <h3>NDWI medio</h3>
+              <div class="value" id="ecoNdwiMean">–</div>
+              <small>Rango: <span id="ecoNdwiRange">–</span></small>
+            </div>
+            <div class="card summary-card">
+              <h3>Densidad poblacional</h3>
+              <div class="value" id="ecoPopulationMean">–</div>
+              <small>Máx.: <span id="ecoPopulationMax">–</span></small>
+            </div>
+          </div>
+
+          <div class="charts">
+            <div class="card">
+              <h3>NDVI (promedio)</h3>
+              <canvas id="ecoNdviChart"></canvas>
+            </div>
+            <div class="card">
+              <h3>LST (°C)</h3>
+              <canvas id="ecoLstChart"></canvas>
+            </div>
+            <div class="card">
+              <h3>Aerosol Optical Depth</h3>
+              <canvas id="ecoAodChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card" id="ecoBoundaryCard" hidden>
+            <h3>Indicadores por distrito</h3>
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Distrito</th>
+                    <th>NDVI medio</th>
+                    <th>LST (°C)</th>
+                    <th>Índice calor</th>
+                    <th>Densidad</th>
+                  </tr>
+                </thead>
+                <tbody id="ecoBoundaryBody"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
-        <div class="card">
-          <h3>Temperatura superficial del mar (°C)</h3>
-          <canvas id="sstChart"></canvas>
-        </div>
-      </div>
-    </section>
+      </section>
+    </div>
   </main>
 
   <footer>
@@ -435,7 +667,7 @@
   </footer>
 
   <script>
-    const LOCAL_PRESETS = [
+    const BLOOM_PRESETS_LOCAL = [
       {
         id: 'costa_metropolitana',
         label: 'Costa Metropolitana de Lima',
@@ -456,6 +688,27 @@
       }
     ];
 
+    const ECO_PRESETS_LOCAL = [
+      {
+        id: 'lima_metropolitana',
+        label: 'Lima Metropolitana',
+        type: 'urbano',
+        defaultBuffer: 0
+      },
+      {
+        id: 'lima_centro',
+        label: 'Lima Centro',
+        type: 'urbano',
+        defaultBuffer: 0
+      },
+      {
+        id: 'callao',
+        label: 'Callao',
+        type: 'urbano',
+        defaultBuffer: 0
+      }
+    ];
+
     const baseLayers = {};
     let overlayLayers = {};
     let layerControl;
@@ -463,14 +716,48 @@
     let areaChartInstance;
     let chlorChartInstance;
     let sstChartInstance;
+    let ecoNdviChartInstance;
+    let ecoLstChartInstance;
+    let ecoAodChartInstance;
     let roiLayer;
     let contextLayer;
-  let hasInitialized = false;
+    let currentMode = 'bloom';
+    let bloomInitialized = false;
+    let ecoInitialized = false;
+  let lastBloomResult = null;
+  let lastEcoResult = null;
 
-    const statusLog = document.getElementById('statusLog');
+    const statusLogs = {
+      bloom: document.getElementById('statusLog'),
+      ecoplan: document.getElementById('ecoStatusLog')
+    };
     const layerBadgesContainer = document.getElementById('layerBadges');
-    const runButton = document.getElementById('runButton');
+    const bloomRunButton = document.getElementById('runButton');
+    const ecoRunButton = document.getElementById('ecoRunButton');
+    const quickViewButton = document.getElementById('quickViewButton');
     const headerLoader = document.getElementById('headerLoader');
+    const modeButtons = document.querySelectorAll('.mode-button');
+    const bloomControls = document.getElementById('bloomControls');
+    const ecoControls = document.getElementById('ecoControls');
+    const bloomSummarySection = document.getElementById('bloomSummarySection');
+    const ecoSummarySection = document.getElementById('ecoSummarySection');
+
+    const ecoSummaryEls = {
+      ndviMean: document.getElementById('ecoNdviMean'),
+      ndviRange: document.getElementById('ecoNdviRange'),
+      lstMean: document.getElementById('ecoLstMean'),
+      lstRange: document.getElementById('ecoLstRange'),
+      heatMean: document.getElementById('ecoHeatMean'),
+      heatRange: document.getElementById('ecoHeatRange'),
+      aodMean: document.getElementById('ecoAodMean'),
+      aodRange: document.getElementById('ecoAodRange'),
+      ndwiMean: document.getElementById('ecoNdwiMean'),
+      ndwiRange: document.getElementById('ecoNdwiRange'),
+      populationMean: document.getElementById('ecoPopulationMean'),
+      populationMax: document.getElementById('ecoPopulationMax'),
+      boundaryCard: document.getElementById('ecoBoundaryCard'),
+      boundaryBody: document.getElementById('ecoBoundaryBody')
+    };
 
     function varColor(name) {
       return getComputedStyle(document.body).getPropertyValue(name).trim();
@@ -511,7 +798,7 @@
       return valid.reduce((sum, value) => sum + value, 0) / valid.length;
     }
 
-    function logStatus(message, type = 'info') {
+    function logStatus(message, type = 'info', mode = currentMode) {
       const time = new Date().toLocaleTimeString('es-PE', { hour12: false });
       const line = document.createElement('div');
       const colors = {
@@ -522,14 +809,21 @@
       };
       line.style.color = colors[type] || colors.info;
       line.textContent = `[${time}] ${message}`;
-      statusLog.prepend(line);
+      const container = statusLogs[mode];
+      if (container) {
+        container.prepend(line);
+      }
     }
 
-    function setLoading(isLoading) {
-      runButton.disabled = isLoading;
+    function setLoading(isLoading, mode = currentMode) {
+      if (mode === 'bloom') {
+        if (bloomRunButton) bloomRunButton.disabled = isLoading;
+      } else if (mode === 'ecoplan') {
+        if (ecoRunButton) ecoRunButton.disabled = isLoading;
+      }
       headerLoader.hidden = !isLoading;
       if (isLoading) {
-        logStatus('Procesando solicitud...');
+        logStatus('Procesando solicitud...', 'info', mode);
       }
     }
 
@@ -538,9 +832,18 @@
       return Number(value).toLocaleString('es-PE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     }
 
-    function setDefaultDates() {
-      const startInput = document.getElementById('startDate');
-      const endInput = document.getElementById('endDate');
+    function buildRangeText(min, max, decimals = 2) {
+      const minText = formatNumber(min, decimals);
+      const maxText = formatNumber(max, decimals);
+      if (minText === '–' || maxText === '–') {
+        return '–';
+      }
+      return `${minText} – ${maxText}`;
+    }
+
+    function setDefaultDates(startId = 'startDate', endId = 'endDate') {
+      const startInput = document.getElementById(startId);
+      const endInput = document.getElementById(endId);
       if (!startInput || !endInput) return;
 
       const today = new Date();
@@ -557,7 +860,7 @@
       }
     }
 
-    async function applyPresetList(presets, {
+    async function applyBloomPresetList(presets, {
       preserveSelection = true,
       triggerRun = true
     } = {}) {
@@ -584,14 +887,14 @@
         select.value = presets[0].id;
       }
 
-      runButton.disabled = false;
+      if (bloomRunButton) bloomRunButton.disabled = false;
       updateBufferPlaceholder();
       setDefaultDates();
 
-      if (!hasInitialized && triggerRun) {
-        hasInitialized = true;
+      if (!bloomInitialized && triggerRun) {
+        bloomInitialized = true;
         try {
-          await runAnalysis();
+          await runBloomAnalysis();
         } catch (error) {
           console.error('Error al ejecutar el análisis automático:', error);
         }
@@ -600,21 +903,21 @@
       return true;
     }
 
-    async function fetchPresets() {
+    async function fetchBloomPresets() {
       const select = document.getElementById('presetSelect');
       if (!select) {
-        logStatus('No se encontró el selector de presets en el DOM.', 'error');
+        logStatus('No se encontró el selector de presets en el DOM.', 'error', 'bloom');
         return;
       }
 
-      const hasLocalPresets = Array.isArray(LOCAL_PRESETS) && LOCAL_PRESETS.length > 0;
+      const hasLocalPresets = Array.isArray(BLOOM_PRESETS_LOCAL) && BLOOM_PRESETS_LOCAL.length > 0;
 
       if (hasLocalPresets) {
-        logStatus('Presets locales disponibles inmediatamente.', 'info');
-        await applyPresetList(LOCAL_PRESETS, { triggerRun: false });
+        logStatus('Presets locales disponibles inmediatamente.', 'info', 'bloom');
+        await applyBloomPresetList(BLOOM_PRESETS_LOCAL, { triggerRun: false });
       }
 
-      logStatus('Solicitando presets de ROI a la API...', 'info');
+      logStatus('Solicitando presets de ROI a la API...', 'info', 'bloom');
 
       try {
         const response = await fetch('/api/bloom/presets', { cache: 'no-store' });
@@ -627,13 +930,13 @@
           throw new Error('Respuesta sin presets');
         }
 
-        await applyPresetList(presets, { preserveSelection: true, triggerRun: true });
-        logStatus(`Presets de ROI cargados desde la API (${presets.length}).`, 'success');
+        await applyBloomPresetList(presets, { preserveSelection: true, triggerRun: true });
+        logStatus(`Presets de ROI cargados desde la API (${presets.length}).`, 'success', 'bloom');
       } catch (error) {
         const message = error?.message || 'Error desconocido';
         if (hasLocalPresets) {
-          logStatus(`No se pudo cargar presets desde la API (${message}). Se mantiene la lista local.`, 'warning');
-          await applyPresetList(LOCAL_PRESETS, { preserveSelection: true, triggerRun: !hasInitialized });
+          logStatus(`No se pudo cargar presets desde la API (${message}). Se mantiene la lista local.`, 'warning', 'bloom');
+          await applyBloomPresetList(BLOOM_PRESETS_LOCAL, { preserveSelection: true, triggerRun: !bloomInitialized });
         } else {
           select.innerHTML = '';
           const option = document.createElement('option');
@@ -642,8 +945,99 @@
           option.selected = true;
           option.textContent = 'No se pudieron cargar los presets';
           select.appendChild(option);
-          runButton.disabled = true;
-          logStatus(`Error al cargar presets: ${message}`, 'error');
+          if (bloomRunButton) bloomRunButton.disabled = true;
+          logStatus(`Error al cargar presets: ${message}`, 'error', 'bloom');
+        }
+      }
+    }
+
+    async function applyEcoPresetList(presets, {
+      preserveSelection = true,
+      triggerRun = false
+    } = {}) {
+      const select = document.getElementById('ecoPresetSelect');
+      if (!select || !Array.isArray(presets) || !presets.length) {
+        return false;
+      }
+
+      const previousValue = preserveSelection ? select.value : null;
+      const keepPrevious = previousValue && presets.some((preset) => preset.id === previousValue);
+
+      select.innerHTML = '';
+      presets.forEach((preset) => {
+        const option = document.createElement('option');
+        option.value = preset.id;
+        option.textContent = `${preset.label} (${preset.type})`;
+        option.dataset.defaultBuffer = preset.defaultBuffer ?? 0;
+        select.appendChild(option);
+      });
+
+      if (keepPrevious) {
+        select.value = previousValue;
+      } else if (presets[0]) {
+        select.value = presets[0].id;
+      }
+
+      if (ecoRunButton) ecoRunButton.disabled = false;
+      setDefaultDates('ecoStartDate', 'ecoEndDate');
+      updateEcoBufferPlaceholder();
+
+      if (triggerRun && !ecoInitialized) {
+        ecoInitialized = true;
+        try {
+          await runEcoPlanAnalysis();
+        } catch (error) {
+          console.error('Error al ejecutar análisis EcoPlan automático:', error);
+        }
+      }
+
+      return true;
+    }
+
+    async function fetchEcoPresets() {
+      const select = document.getElementById('ecoPresetSelect');
+      if (!select) {
+        logStatus('No se encontró el selector de presets EcoPlan en el DOM.', 'error', 'ecoplan');
+        return;
+      }
+
+      const hasLocalPresets = Array.isArray(ECO_PRESETS_LOCAL) && ECO_PRESETS_LOCAL.length > 0;
+
+      if (hasLocalPresets) {
+        logStatus('Presets urbanos disponibles localmente.', 'info', 'ecoplan');
+        await applyEcoPresetList(ECO_PRESETS_LOCAL, { triggerRun: false });
+      }
+
+      logStatus('Solicitando presets EcoPlan a la API...', 'info', 'ecoplan');
+
+      try {
+        const response = await fetch('/api/ecoplan/presets', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`Respuesta ${response.status}`);
+        }
+        const data = await response.json();
+        const presets = Array.isArray(data?.presets) ? data.presets : [];
+        if (!presets.length) {
+          throw new Error('Respuesta sin presets');
+        }
+
+        await applyEcoPresetList(presets, { preserveSelection: true, triggerRun: true });
+        logStatus(`Presets EcoPlan cargados (${presets.length}).`, 'success', 'ecoplan');
+      } catch (error) {
+        const message = error?.message || 'Error desconocido';
+        if (hasLocalPresets) {
+          logStatus(`No se pudo actualizar presets EcoPlan (${message}). Se usan locales.`, 'warning', 'ecoplan');
+          await applyEcoPresetList(ECO_PRESETS_LOCAL, { preserveSelection: true, triggerRun: false });
+        } else {
+          select.innerHTML = '';
+          const option = document.createElement('option');
+          option.value = '';
+          option.disabled = true;
+          option.selected = true;
+          option.textContent = 'No se pudieron cargar los presets';
+          select.appendChild(option);
+          if (ecoRunButton) ecoRunButton.disabled = true;
+          logStatus(`Error al cargar presets EcoPlan: ${message}`, 'error', 'ecoplan');
         }
       }
     }
@@ -680,6 +1074,14 @@
         }
       });
       overlayLayers = {};
+      if (roiLayer && map.hasLayer(roiLayer)) {
+        map.removeLayer(roiLayer);
+      }
+      if (contextLayer && map.hasLayer(contextLayer)) {
+        map.removeLayer(contextLayer);
+      }
+      roiLayer = null;
+      contextLayer = null;
       rebuildLayerControl();
       layerBadgesContainer.innerHTML = '';
     }
@@ -720,26 +1122,27 @@
       return null;
     }
 
-    function addOverlayLayer(label, mapInfo, options = {}) {
+    function addOverlayLayer(label, mapInfo, options = {}, mode = currentMode) {
       const url = resolveTileUrl(mapInfo);
       if (!url) {
-        logStatus(`No se pudo construir la URL de tiles para ${label}.`, 'error');
+        logStatus(`No se pudo construir la URL de tiles para ${label}.`, 'error', mode);
         return;
       }
 
       const layer = L.tileLayer(url, {
         attribution: 'Google Earth Engine',
-        opacity: options.opacity ?? 0.85,
-        maxZoom: options.maxZoom ?? 18
+        opacity: options.opacity ?? mapInfo.opacity ?? 0.85,
+        maxZoom: options.maxZoom ?? mapInfo.maxZoom ?? 18
       });
       overlayLayers[label] = layer;
-      if (options.visible !== false) {
+      const shouldShow = options.visible ?? mapInfo.visible ?? false;
+      if (shouldShow) {
         layer.addTo(map);
       }
       addBadge(label);
     }
 
-    function updateMapLayers(bloomLayers, roiGeometry, contextGeometry) {
+    function updateMapLayers(layers, roiGeometry, contextGeometry, { mode = currentMode } = {}) {
       clearOverlays();
 
       if (roiLayer) {
@@ -779,19 +1182,26 @@
         }).addTo(map);
       }
 
-      if (bloomLayers) {
-        if (bloomLayers.trueColor) {
-          addOverlayLayer('True Color (Sentinel-2)', bloomLayers.trueColor, { visible: false, opacity: 1 });
-        }
-        if (bloomLayers.ndci) {
-          addOverlayLayer('NDCI (mediana)', bloomLayers.ndci, { visible: false });
-        }
-        if (bloomLayers.fai) {
-          addOverlayLayer('FAI (mediana)', bloomLayers.fai, { visible: false });
-        }
-        if (bloomLayers.bloom) {
-          addOverlayLayer('Bloom Mask', bloomLayers.bloom, { visible: true, opacity: 0.75 });
-        }
+      if (layers) {
+        const entries = Object.entries(layers);
+        entries.forEach(([key, layerConfig], index) => {
+          const label = layerConfig.name || key;
+          let visibleDefault = index === 0;
+          if (mode === 'bloom') {
+            if (key === 'bloom') visibleDefault = true;
+            if (key === 'trueColor') visibleDefault = false;
+          }
+          if (mode === 'ecoplan') {
+            visibleDefault = key === 'heat';
+          }
+          const defaultOpacity = (mode === 'bloom' && key === 'bloom') ? 0.75 : (layerConfig.opacity ?? 0.85);
+          const options = {
+            visible: layerConfig.visible ?? visibleDefault,
+            opacity: defaultOpacity,
+            maxZoom: layerConfig.maxZoom
+          };
+          addOverlayLayer(label, layerConfig, options, mode);
+        });
       }
 
       rebuildLayerControl();
@@ -800,10 +1210,10 @@
     function updateContextLayers(contextLayers) {
       if (!contextLayers) return;
       if (contextLayers.chlorophyll) {
-        addOverlayLayer('Clorofila MODIS', contextLayers.chlorophyll, { visible: false });
+        addOverlayLayer('Clorofila MODIS', contextLayers.chlorophyll, { visible: false }, 'bloom');
       }
       if (contextLayers.sst) {
-        addOverlayLayer('SST NOAA', contextLayers.sst, { visible: false });
+        addOverlayLayer('SST NOAA', contextLayers.sst, { visible: false }, 'bloom');
       }
       rebuildLayerControl();
     }
@@ -934,6 +1344,210 @@
       document.getElementById('sstMean').textContent = formatNumber(sstMean, 2);
     }
 
+    function getSummaryNumber(summary, key) {
+      if (!summary || summary[key] === null || summary[key] === undefined) {
+        return NaN;
+      }
+      const value = Number(summary[key]);
+      return Number.isFinite(value) ? value : NaN;
+    }
+
+    function updateEcoSummary(summary) {
+      const s = summary || {};
+      const ndviMean = getSummaryNumber(s, 'ndvi_mean');
+      const ndviMin = getSummaryNumber(s, 'ndvi_min');
+      const ndviMax = getSummaryNumber(s, 'ndvi_max');
+
+      const lstMean = getSummaryNumber(s, 'lst_mean');
+      const lstMin = getSummaryNumber(s, 'lst_min');
+      const lstMax = getSummaryNumber(s, 'lst_max');
+
+      const heatMean = getSummaryNumber(s, 'heat_mean');
+      const heatMin = getSummaryNumber(s, 'heat_min');
+      const heatMax = getSummaryNumber(s, 'heat_max');
+
+      const ndwiMean = getSummaryNumber(s, 'ndwi_mean');
+      const ndwiMin = getSummaryNumber(s, 'ndwi_min');
+      const ndwiMax = getSummaryNumber(s, 'ndwi_max');
+
+      const aodMean = getSummaryNumber(s, 'aod_mean');
+      const aodMin = getSummaryNumber(s, 'aod_min');
+      const aodMax = getSummaryNumber(s, 'aod_max');
+
+      const populationMean = getSummaryNumber(s, 'population_mean');
+      const populationMax = getSummaryNumber(s, 'population_max');
+
+      if (ecoSummaryEls.ndviMean) ecoSummaryEls.ndviMean.textContent = formatNumber(ndviMean, 3);
+      if (ecoSummaryEls.ndviRange) ecoSummaryEls.ndviRange.textContent = buildRangeText(ndviMin, ndviMax, 3);
+
+      if (ecoSummaryEls.lstMean) ecoSummaryEls.lstMean.textContent = formatNumber(lstMean, 2);
+      if (ecoSummaryEls.lstRange) ecoSummaryEls.lstRange.textContent = buildRangeText(lstMin, lstMax, 2);
+
+      if (ecoSummaryEls.heatMean) ecoSummaryEls.heatMean.textContent = formatNumber(heatMean, 2);
+      if (ecoSummaryEls.heatRange) ecoSummaryEls.heatRange.textContent = buildRangeText(heatMin, heatMax, 2);
+
+      if (ecoSummaryEls.ndwiMean) ecoSummaryEls.ndwiMean.textContent = formatNumber(ndwiMean, 3);
+      if (ecoSummaryEls.ndwiRange) ecoSummaryEls.ndwiRange.textContent = buildRangeText(ndwiMin, ndwiMax, 3);
+
+      if (ecoSummaryEls.aodMean) ecoSummaryEls.aodMean.textContent = formatNumber(aodMean, 3);
+      if (ecoSummaryEls.aodRange) ecoSummaryEls.aodRange.textContent = buildRangeText(aodMin, aodMax, 3);
+
+      if (ecoSummaryEls.populationMean) ecoSummaryEls.populationMean.textContent = formatNumber(populationMean, 0);
+      if (ecoSummaryEls.populationMax) ecoSummaryEls.populationMax.textContent = formatNumber(populationMax, 0);
+    }
+
+    function updateEcoCharts(seriesData) {
+      const ndviFeatures = getFeatureArray(seriesData?.ndvi);
+      const ndviLabels = ndviFeatures.map((f) => f.properties?.date);
+      const ndviValues = ndviFeatures.map((f) => Number(f.properties?.ndvi ?? f.properties?.value ?? NaN));
+      ecoNdviChartInstance = ensureChart(ecoNdviChartInstance, 'ecoNdviChart', buildLineChartConfig(
+        ndviLabels,
+        'NDVI promedio',
+        ndviValues,
+        '#16a34a'
+      ));
+
+      const lstFeatures = getFeatureArray(seriesData?.lst);
+      const lstLabels = lstFeatures.map((f) => f.properties?.date);
+      const lstValues = lstFeatures.map((f) => Number(f.properties?.lst_c ?? f.properties?.value ?? NaN));
+      ecoLstChartInstance = ensureChart(ecoLstChartInstance, 'ecoLstChart', buildLineChartConfig(
+        lstLabels,
+        'LST (°C)',
+        lstValues,
+        '#f97316'
+      ));
+
+      const aodFeatures = getFeatureArray(seriesData?.aod);
+      const aodLabels = aodFeatures.map((f) => f.properties?.date);
+      const aodValues = aodFeatures.map((f) => Number(f.properties?.aod ?? f.properties?.value ?? NaN));
+      ecoAodChartInstance = ensureChart(ecoAodChartInstance, 'ecoAodChart', buildLineChartConfig(
+        aodLabels,
+        'AOD promedio',
+        aodValues,
+        '#9333ea'
+      ));
+    }
+
+    function resolveDistrictName(properties = {}, fallbackIndex) {
+      const nameKeys = ['name', 'NAME', 'NAM', 'NOMBRE', 'NOM_DIST', 'distrito', 'DISTRITO', 'DIST', 'DIST_NAME', 'Provincia', 'provincia'];
+      for (const key of nameKeys) {
+        if (properties[key]) {
+          return properties[key];
+        }
+      }
+      if (fallbackIndex !== undefined) {
+        return `Área ${fallbackIndex + 1}`;
+      }
+      return 'Área';
+    }
+
+    function updateEcoBoundaryTable(boundaryStats) {
+      if (!ecoSummaryEls.boundaryBody || !ecoSummaryEls.boundaryCard) {
+        return;
+      }
+
+      ecoSummaryEls.boundaryBody.innerHTML = '';
+
+      const features = getFeatureArray(boundaryStats);
+      if (!features.length) {
+        ecoSummaryEls.boundaryCard.hidden = true;
+        return;
+      }
+
+      features.slice(0, 25).forEach((feature, index) => {
+        const props = feature.properties || {};
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${resolveDistrictName(props, index)}</td>
+          <td>${formatNumber(props.NDVI_mean, 3)}</td>
+          <td>${formatNumber(props.LST_C_mean, 2)}</td>
+          <td>${formatNumber(props.HeatVulnerability_mean, 2)}</td>
+          <td>${formatNumber(props.population_density_mean, 0)}</td>
+        `;
+        ecoSummaryEls.boundaryBody.appendChild(row);
+      });
+
+      ecoSummaryEls.boundaryCard.hidden = false;
+    }
+
+    function renderBloomResult(result, { silent = false } = {}) {
+      if (!result) return;
+      const { mapData, statsData, contextData } = result;
+      const thresholds = mapData?.thresholds || mapData?.thresholdsEvaluated;
+      const contextGeometry = contextData?.contextGeometry || contextData?.contextRoi || null;
+
+      if (thresholds) {
+        updateThresholdCard(thresholds);
+      }
+
+      updateMapLayers(mapData?.layers || {}, mapData?.roi, contextGeometry, { mode: 'bloom' });
+      if (contextData?.layers) {
+        updateContextLayers(contextData.layers);
+      }
+      updateAreaSummary(statsData?.areaSeries);
+      updateContextCharts(contextData?.series, contextData?.summary);
+
+      if (!silent) {
+        logStatus('Capas actualizadas correctamente.', 'success', 'bloom');
+        if (mapData?.presetMeta?.label) {
+          logStatus(`ROI analizado: ${mapData.presetMeta.label}`, 'success', 'bloom');
+        }
+      }
+      lastBloomResult = result;
+    }
+
+    function renderEcoResult(result, { silent = false } = {}) {
+      if (!result) return;
+
+      updateMapLayers(result.layers || {}, result.roi, null, { mode: 'ecoplan' });
+      updateEcoSummary(result.summary);
+      updateEcoCharts(result.series);
+      updateEcoBoundaryTable(result.boundaryStats);
+
+      if (!silent) {
+        logStatus('Indicadores EcoPlan actualizados.', 'success', 'ecoplan');
+        if (result.presetMeta?.label) {
+          logStatus(`Área analizada: ${result.presetMeta.label}`, 'success', 'ecoplan');
+        }
+      }
+      lastEcoResult = result;
+    }
+
+    function setMode(mode, { reRender = true, silent = false } = {}) {
+      const normalized = mode === 'ecoplan' ? 'ecoplan' : 'bloom';
+      currentMode = normalized;
+
+      modeButtons.forEach((button) => {
+        const isActive = button.dataset.mode === normalized;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      });
+
+      const isBloom = normalized === 'bloom';
+      bloomControls.classList.toggle('hidden', !isBloom);
+      bloomSummarySection.classList.toggle('hidden', !isBloom);
+      ecoControls.classList.toggle('hidden', isBloom);
+      ecoSummarySection.classList.toggle('hidden', isBloom);
+
+      if (!reRender) {
+        return;
+      }
+
+      if (normalized === 'bloom') {
+        if (lastBloomResult) {
+          renderBloomResult(lastBloomResult, { silent: true });
+        } else if (!silent) {
+          logStatus('Configura los parámetros y ejecuta el análisis de floraciones.', 'info', 'bloom');
+        }
+      } else if (normalized === 'ecoplan') {
+        if (lastEcoResult) {
+          renderEcoResult(lastEcoResult, { silent: true });
+        } else if (!silent) {
+          logStatus('Completa el formulario EcoPlan para obtener indicadores urbanos.', 'info', 'ecoplan');
+        }
+      }
+    }
+
     function updateThresholdCard(thresholds) {
       document.getElementById('thresholdNdci').textContent = formatNumber(thresholds?.ndci, 3);
       document.getElementById('thresholdFai').textContent = formatNumber(thresholds?.fai, 3);
@@ -942,18 +1556,70 @@
     function updateBufferPlaceholder() {
       const select = document.getElementById('presetSelect');
       const bufferInput = document.getElementById('buffer');
+      if (!select || !bufferInput || !select.selectedOptions.length) return;
       const selectedOption = select.selectedOptions[0];
-      if (selectedOption && selectedOption.dataset.defaultBuffer) {
+      const hasBuffer = selectedOption && selectedOption.dataset.defaultBuffer !== undefined;
+      if (hasBuffer) {
         const value = Number(selectedOption.dataset.defaultBuffer);
-        bufferInput.placeholder = value ? `Sugerencia: ${value} m` : 'Opcional';
+        bufferInput.placeholder = Number.isFinite(value) && value !== 0 ? `Sugerencia: ${value} m` : 'Opcional';
       } else {
         bufferInput.placeholder = 'Opcional';
       }
     }
 
-    async function runAnalysis(event) {
+    function updateEcoBufferPlaceholder() {
+      const select = document.getElementById('ecoPresetSelect');
+      const bufferInput = document.getElementById('ecoBuffer');
+      if (!select || !bufferInput || !select.selectedOptions.length) return;
+      const selectedOption = select.selectedOptions[0];
+      const hasBuffer = selectedOption && selectedOption.dataset.defaultBuffer !== undefined;
+      if (hasBuffer) {
+        const value = Number(selectedOption.dataset.defaultBuffer);
+        bufferInput.placeholder = Number.isFinite(value) && value !== 0 ? `Sugerencia: ${value} m` : 'Opcional';
+      } else {
+        bufferInput.placeholder = 'Opcional';
+      }
+    }
+
+    async function loadQuickView() {
+      setLoading(true, 'bloom');
+
+      try {
+        logStatus('Solicitando imagen Landsat 8 True Color...', 'info', 'bloom');
+        const response = await fetch('/api/map/info', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`Respuesta ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        clearOverlays();
+        if (roiLayer) {
+          map.removeLayer(roiLayer);
+          roiLayer = null;
+        }
+        if (contextLayer) {
+          map.removeLayer(contextLayer);
+          contextLayer = null;
+        }
+
+        addOverlayLayer('Landsat 8 – True Color', {
+          ...data,
+          name: 'Landsat 8 True Color'
+        }, { visible: true, opacity: 1 });
+
+        logStatus('Imagen básica cargada correctamente.', 'success', 'bloom');
+      } catch (error) {
+        console.error(error);
+        logStatus(`No se pudo cargar la imagen simple: ${error.message}`, 'error', 'bloom');
+      } finally {
+        setLoading(false, 'bloom');
+      }
+    }
+
+    async function runBloomAnalysis(event) {
       event?.preventDefault();
-      setLoading(true);
+      setLoading(true, 'bloom');
 
       try {
         const formData = new FormData(document.getElementById('controlForm'));
@@ -972,7 +1638,7 @@
         const contextBufferKm = Number(formData.get('contextBufferKm')) || 5;
         const contextPayload = { ...payload, contextBuffer: contextBufferKm * 1000 };
 
-        logStatus('Solicitando datos a la API...', 'info');
+        logStatus('Solicitando datos de bloom a la API...', 'info', 'bloom');
 
         const [mapResponse, statsResponse, contextResponse] = await Promise.all([
           fetch('/api/bloom/map', {
@@ -992,9 +1658,18 @@
           })
         ]);
 
-        if (!mapResponse.ok) throw new Error('No se pudo obtener el mapa de bloom');
-        if (!statsResponse.ok) throw new Error('No se pudieron obtener las estadísticas de bloom');
-        if (!contextResponse.ok) throw new Error('No se pudo obtener el contexto regional');
+        if (!mapResponse.ok) {
+          const errorText = await mapResponse.text();
+          throw new Error(`Mapa bloom: ${errorText || mapResponse.statusText}`);
+        }
+        if (!statsResponse.ok) {
+          const errorText = await statsResponse.text();
+          throw new Error(`Estadísticas bloom: ${errorText || statsResponse.statusText}`);
+        }
+        if (!contextResponse.ok) {
+          const errorText = await contextResponse.text();
+          throw new Error(`Contexto regional: ${errorText || contextResponse.statusText}`);
+        }
 
         const [mapData, statsData, contextData] = await Promise.all([
           mapResponse.json(),
@@ -1002,32 +1677,85 @@
           contextResponse.json()
         ]);
 
-        const contextGeometry = contextData.contextGeometry || contextData.contextRoi || null;
-
-        updateThresholdCard(mapData.thresholds || mapData.thresholdsEvaluated);
-        updateMapLayers(mapData.layers, mapData.roi, contextGeometry);
-        updateContextLayers(contextData.layers);
-        updateAreaSummary(statsData.areaSeries);
-        updateContextCharts(contextData.series, contextData.summary);
-
-        logStatus('Capas actualizadas correctamente.', 'success');
-        if (mapData.presetMeta?.label) {
-          logStatus(`ROI analizado: ${mapData.presetMeta.label}`, 'success');
-        }
+        renderBloomResult({
+          mapData,
+          statsData,
+          contextData
+        });
       } catch (error) {
         console.error(error);
-        logStatus(`Error al ejecutar análisis: ${error.message}`, 'error');
+        logStatus(`Error al ejecutar análisis: ${error.message}`, 'error', 'bloom');
       } finally {
-        setLoading(false);
+        setLoading(false, 'bloom');
       }
+    }
+
+    async function runEcoPlanAnalysis(event) {
+      event?.preventDefault();
+      setLoading(true, 'ecoplan');
+
+      try {
+        const form = document.getElementById('ecoForm');
+        const formData = new FormData(form);
+        const payload = {
+          preset: formData.get('preset'),
+          start: formData.get('start'),
+          end: formData.get('end'),
+          cloudPercentage: Number(formData.get('cloudPercentage')) || 20,
+          populationYear: Number(formData.get('populationYear')) || 2020,
+          buffer: formData.get('buffer') ? Number(formData.get('buffer')) : undefined,
+          districtsAsset: formData.get('districtsAsset') || undefined
+        };
+
+        logStatus('Solicitando análisis EcoPlan Urbano...', 'info', 'ecoplan');
+
+        const response = await fetch('/api/ecoplan/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || response.statusText || 'Error desconocido');
+        }
+
+        const result = await response.json();
+        renderEcoResult(result);
+      } catch (error) {
+        console.error(error);
+        logStatus(`Error EcoPlan: ${error.message}`, 'error', 'ecoplan');
+      } finally {
+        setLoading(false, 'ecoplan');
+      }
+    }
+
+    async function fetchPresets() {
+      await fetchBloomPresets();
+      await fetchEcoPresets();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
       createMap();
       fetchPresets();
 
-      document.getElementById('controlForm').addEventListener('submit', runAnalysis);
+      document.getElementById('controlForm').addEventListener('submit', runBloomAnalysis);
       document.getElementById('presetSelect').addEventListener('change', updateBufferPlaceholder);
+      document.getElementById('ecoForm').addEventListener('submit', runEcoPlanAnalysis);
+      document.getElementById('ecoPresetSelect').addEventListener('change', updateEcoBufferPlaceholder);
+      modeButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const targetMode = button.dataset.mode;
+          if (targetMode) {
+            setMode(targetMode);
+          }
+        });
+      });
+      setMode(currentMode, { reRender: false, silent: true });
+      if (quickViewButton) {
+        quickViewButton.addEventListener('click', loadQuickView);
+      }
+      logStatus('Interfaz lista. Usa "Ver imagen satelital simple" para probar rápidamente.', 'info');
     });
   </script>
 </body>
