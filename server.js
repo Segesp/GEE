@@ -319,6 +319,10 @@ function evaluateEeObject(eeObject) {
   });
 }
 
+function toDictionary(stats) {
+  return ee.Dictionary(ee.Algorithms.If(stats, stats, {}));
+}
+
 function normalizeMapInfo(info) {
   if (!info) {
     return null;
@@ -822,24 +826,31 @@ async function buildEcoPlanAnalysis(options) {
     tileScale
   });
 
+  const ndviDict = toDictionary(ndviStats);
+  const lstDict = toDictionary(lstStats);
+  const heatDict = toDictionary(heatStats);
+  const ndwiDict = toDictionary(ndwiStats);
+  const aodDict = toDictionary(aodStats);
+  const populationDict = toDictionary(populationStats);
+
   const summary = ee.Dictionary({
-    ndvi_mean: ndviStats.get('NDVI_mean'),
-    ndvi_min: ndviStats.get('NDVI_min'),
-    ndvi_max: ndviStats.get('NDVI_max'),
-    lst_mean: lstStats.get('LST_C_mean'),
-    lst_min: lstStats.get('LST_C_min'),
-    lst_max: lstStats.get('LST_C_max'),
-    heat_mean: heatStats.get('HeatVulnerability_mean'),
-    heat_min: heatStats.get('HeatVulnerability_min'),
-    heat_max: heatStats.get('HeatVulnerability_max'),
-    ndwi_mean: ndwiStats.get('NDWI_mean'),
-    ndwi_min: ndwiStats.get('NDWI_min'),
-    ndwi_max: ndwiStats.get('NDWI_max'),
-    aod_mean: aodStats.get('AOD_mean'),
-    aod_min: aodStats.get('AOD_min'),
-    aod_max: aodStats.get('AOD_max'),
-    population_mean: populationStats.get('population_density_mean'),
-    population_max: populationStats.get('population_density_max')
+    ndvi_mean: ndviDict.get('NDVI_mean', null),
+    ndvi_min: ndviDict.get('NDVI_min', null),
+    ndvi_max: ndviDict.get('NDVI_max', null),
+    lst_mean: lstDict.get('LST_C_mean', null),
+    lst_min: lstDict.get('LST_C_min', null),
+    lst_max: lstDict.get('LST_C_max', null),
+    heat_mean: heatDict.get('HeatVulnerability_mean', null),
+    heat_min: heatDict.get('HeatVulnerability_min', null),
+    heat_max: heatDict.get('HeatVulnerability_max', null),
+    ndwi_mean: ndwiDict.get('NDWI_mean', null),
+    ndwi_min: ndwiDict.get('NDWI_min', null),
+    ndwi_max: ndwiDict.get('NDWI_max', null),
+    aod_mean: aodDict.get('AOD_mean', null),
+    aod_min: aodDict.get('AOD_min', null),
+    aod_max: aodDict.get('AOD_max', null),
+    population_mean: populationDict.get('population_density_mean', null),
+    population_max: populationDict.get('population_density_max', null)
   });
 
   let boundaryStats = null;

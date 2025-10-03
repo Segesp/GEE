@@ -1060,6 +1060,40 @@
       L.control.zoom({ position: 'topright' }).addTo(map);
     }
 
+    async function loadGeeBasemap() {
+      try {
+        const response = await fetch('/api/map/info', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`Respuesta ${response.status}`);
+        }
+
+        const mapInfo = await response.json();
+        const url = resolveTileUrl(mapInfo);
+        if (!url) {
+          logStatus('No se pudo construir la URL de la capa base de GEE.', 'warning', 'bloom');
+          return;
+        }
+
+        const label = mapInfo.description ? `GEE – ${mapInfo.description}` : 'GEE Landsat 8 True Color';
+        const geeLayer = L.tileLayer(url, {
+          attribution: 'Google Earth Engine (Landsat 8 True Color)',
+          maxZoom: mapInfo.maxZoom ?? 18,
+          opacity: 1
+        });
+
+        baseLayers[label] = geeLayer;
+        geeLayer.addTo(map);
+        if (baseLayers['OpenStreetMap'] && map.hasLayer(baseLayers['OpenStreetMap'])) {
+          map.removeLayer(baseLayers['OpenStreetMap']);
+        }
+        rebuildLayerControl();
+        logStatus('Capa base satelital de GEE cargada.', 'success', 'bloom');
+      } catch (error) {
+        console.error('No se pudo cargar el mapa base de GEE:', error);
+        logStatus(`No se pudo cargar la capa base de GEE: ${error.message}`, 'warning', 'bloom');
+      }
+    }
+
     function rebuildLayerControl() {
       if (layerControl) {
         layerControl.remove();
@@ -1472,6 +1506,14 @@
 
     function renderBloomResult(result, { silent = false } = {}) {
       if (!result) return;
+      lastBloomResult = result;
+
+      if (currentMode !== 'bloom') {
+        if (!silent) {
+          logStatus('Resultado de floraciones listo. Cambia a su modo para visualizarlo.', 'info', 'bloom');
+        }
+        return;
+      }
       const { mapData, statsData, contextData } = result;
       const thresholds = mapData?.thresholds || mapData?.thresholdsEvaluated;
       const contextGeometry = contextData?.contextGeometry || contextData?.contextRoi || null;
@@ -1493,11 +1535,19 @@
           logStatus(`ROI analizado: ${mapData.presetMeta.label}`, 'success', 'bloom');
         }
       }
-      lastBloomResult = result;
     }
 
     function renderEcoResult(result, { silent = false } = {}) {
       if (!result) return;
+
+      lastEcoResult = result;
+
+      if (currentMode !== 'ecoplan') {
+        if (!silent) {
+          logStatus('Indicadores EcoPlan listos. Cambia al modo EcoPlan para verlos.', 'info', 'ecoplan');
+        }
+        return;
+      }
 
       updateMapLayers(result.layers || {}, result.roi, null, { mode: 'ecoplan' });
       updateEcoSummary(result.summary);
@@ -1510,7 +1560,6 @@
           logStatus(`Área analizada: ${result.presetMeta.label}`, 'success', 'ecoplan');
         }
       }
-      lastEcoResult = result;
     }
 
     function setMode(mode, { reRender = true, silent = false } = {}) {
@@ -1737,6 +1786,7 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       createMap();
+      loadGeeBasemap();
       fetchPresets();
 
       document.getElementById('controlForm').addEventListener('submit', runBloomAnalysis);
