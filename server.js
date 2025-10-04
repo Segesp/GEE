@@ -1195,8 +1195,21 @@ async function buildEcoPlanAnalysis(options) {
     .filterBounds(roi)
     .filterDate(start, end);
 
-  const aodImage = aodCollection.mean().rename('AOD').clip(roi);
-  const aodSeries = createTimeSeries(aodCollection, aodBand, roi, 1000, 'aod');
+  let aodImageCount = 0;
+  try {
+    aodImageCount = await evaluateEeObject(aodCollection.size());
+  } catch (error) {
+    console.warn('AOD collection unavailable for EcoPlan ROI:', error.message || error);
+  }
+  const hasAodData = aodImageCount && Number(aodImageCount) > 0;
+
+  const aodImage = hasAodData
+    ? aodCollection.mean().rename('AOD').clip(roi)
+    : ee.Image.constant(0).rename('AOD').clip(roi);
+
+  const aodSeries = hasAodData
+    ? createTimeSeries(aodCollection, aodBand, roi, 1000, 'aod')
+    : ee.FeatureCollection([]);
 
   let ndbiComposite;
   if (hasSentinelData) {
@@ -1288,11 +1301,11 @@ async function buildEcoPlanAnalysis(options) {
     }
   }
 
-  if (!pm25Image && aodImage) {
+  if (!pm25Image && hasAodData && aodImage) {
     pm25Image = aodImage.multiply(PM25_FROM_AOD_FACTOR).rename('PM25_est');
   }
 
-  if (!pm25Series && aodSeries) {
+  if (!pm25Series && hasAodData && aodSeries) {
     pm25Series = aodSeries.map((feature) => ee.Feature(null, {
       date: feature.get('date'),
       pm25: ee.Number(feature.get('aod')).multiply(PM25_FROM_AOD_FACTOR)
@@ -1312,27 +1325,35 @@ async function buildEcoPlanAnalysis(options) {
     pm25Norm = normalizeImage(pm25Image, 0, 60).rename('PM25_Norm');
   }
 
-  let airQualitySum = ee.Image.constant(0);
-  let weightSum = ee.Image.constant(0);
-
+  // Construir el índice de calidad del aire con las imágenes disponibles
+  const airQualityComponents = [];
+  const airQualityWeights = [];
+  
   if (aodNorm) {
-    airQualitySum = airQualitySum.add(aodNorm.multiply(0.5));
-    weightSum = weightSum.add(0.5);
+    airQualityComponents.push(aodNorm.multiply(0.5));
+    airQualityWeights.push(0.5);
   }
   if (no2Norm) {
-    airQualitySum = airQualitySum.add(no2Norm.multiply(0.3));
-    weightSum = weightSum.add(0.3);
+    airQualityComponents.push(no2Norm.multiply(0.3));
+    airQualityWeights.push(0.3);
   }
   if (pm25Norm) {
-    airQualitySum = airQualitySum.add(pm25Norm.multiply(0.2));
-    weightSum = weightSum.add(0.2);
+    airQualityComponents.push(pm25Norm.multiply(0.2));
+    airQualityWeights.push(0.2);
   }
 
-  airQualityIndexImage = ee.Image(ee.Algorithms.If(
-    weightSum.gt(0),
-    airQualitySum.divide(weightSum).rename('AirQualityIndex'),
-    aodNorm.rename('AirQualityIndex')
-  ));
+  // Calcular el índice de calidad del aire
+  if (airQualityComponents.length > 0) {
+    let airQualitySum = airQualityComponents[0];
+    for (let i = 1; i < airQualityComponents.length; i++) {
+      airQualitySum = airQualitySum.add(airQualityComponents[i]);
+    }
+    const totalWeight = airQualityWeights.reduce((a, b) => a + b, 0);
+    airQualityIndexImage = airQualitySum.divide(totalWeight).rename('AirQualityIndex');
+  } else {
+    // Si no hay datos, usar una imagen constante
+    airQualityIndexImage = ee.Image.constant(0).rename('AirQualityIndex').clip(roi);
+  }
 
   const summaryReducer = ee.Reducer.mean().combine({
     reducer2: ee.Reducer.minMax(),
@@ -1510,10 +1531,30 @@ async function buildEcoPlanAnalysis(options) {
     population_max: populationDict.get('population_density_max', null),
     population_total: populationCountDict.get('population_count', null),
     green_area_m2: greenAreaDict.get('GreenArea', null),
-    green_per_capita_mean: greenPerCapitaDict.get('GreenPerCapita_mean', greenPerCapitaDict.get('GreenPerCapita', null)),
-    green_per_capita_min: greenPerCapitaDict.get('GreenPerCapita_min', null),
-    green_per_capita_max: greenPerCapitaDict.get('GreenPerCapita_max', null),
-    green_deficit_ratio: greenDeficitDict.get('GreenDeficit', null),
+    green_per_capita_mean: ee.Algorithms.If(
+      greenPerCapitaDict.contains('GreenPerCapita_mean'),
+      greenPerCapitaDict.get('GreenPerCapita_mean'),
+      ee.Algorithms.If(
+        greenPerCapitaDict.contains('GreenPerCapita'),
+        greenPerCapitaDict.get('GreenPerCapita'),
+        null
+      )
+    ),
+    green_per_capita_min: ee.Algorithms.If(
+      greenPerCapitaDict.contains('GreenPerCapita_min'),
+      greenPerCapitaDict.get('GreenPerCapita_min'),
+      null
+    ),
+    green_per_capita_max: ee.Algorithms.If(
+      greenPerCapitaDict.contains('GreenPerCapita_max'),
+      greenPerCapitaDict.get('GreenPerCapita_max'),
+      null
+    ),
+    green_deficit_ratio: ee.Algorithms.If(
+      greenDeficitDict.contains('GreenDeficit'),
+      greenDeficitDict.get('GreenDeficit'),
+      null
+    ),
     impervious_mean: imperviousDict.get('Impervious_mean', null),
     impervious_min: imperviousDict.get('Impervious_min', null),
     impervious_max: imperviousDict.get('Impervious_max', null),
@@ -1524,7 +1565,11 @@ async function buildEcoPlanAnalysis(options) {
     air_quality_min: airQualityDict.get('AirQualityIndex_min', null),
     air_quality_max: airQualityDict.get('AirQualityIndex_max', null),
     no2_mean: no2Dict.get('NO2_mean', null),
-    pm25_mean: pm25Dict.get('PM25_mean', pm25Dict.get('PM25_est_mean', null))
+    pm25_mean: ee.Algorithms.If(
+      pm25Image,
+      pm25Dict.get('PM25_mean', pm25Dict.get('PM25_est_mean', null)),
+      null
+    )
   });
 
   let boundaryStats = null;

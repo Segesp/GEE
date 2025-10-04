@@ -103,9 +103,14 @@
       align-items: center;
       justify-content: center;
       padding: clamp(16px, 5vw, 32px);
-      z-index: 999;
+      z-index: 9999;
       backdrop-filter: blur(6px);
     }
+    
+    .modal-overlay[hidden] {
+      display: none !important;
+    }
+    
     .modal-dialog {
       width: min(780px, 100%);
       max-height: 90vh;
@@ -121,9 +126,9 @@
       position: absolute;
       top: 14px;
       right: 14px;
-      background: rgba(15, 23, 42, 0.4);
-      color: var(--text-muted);
-      border: 1px solid rgba(148, 163, 184, 0.4);
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.5);
       border-radius: 999px;
       width: 36px;
       height: 36px;
@@ -135,11 +140,16 @@
       justify-content: center;
       cursor: pointer;
       transition: all 0.2s ease;
-      z-index: 10;
+      z-index: 10000;
     }
     .modal-close-button:hover {
-      color: var(--text);
-      border-color: rgba(148, 163, 184, 0.8);
+      background: rgba(239, 68, 68, 0.3);
+      color: #dc2626;
+      border-color: rgba(239, 68, 68, 0.8);
+      transform: scale(1.1);
+    }
+    .modal-close-button:active {
+      transform: scale(0.95);
     }
     .modal-header {
       display: flex;
@@ -750,6 +760,116 @@
         justify-content: flex-start;
       }
     }
+    /* Estilos para el nuevo modal MVP de reportes */
+    .step-indicator {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      opacity: 0.4;
+      transition: opacity 0.3s ease;
+    }
+    
+    .step-indicator.active {
+      opacity: 1;
+    }
+    
+    .step-indicator.completed {
+      opacity: 0.7;
+    }
+    
+    .step-number {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(148, 163, 184, 0.2);
+      border: 2px solid rgba(148, 163, 184, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.1rem;
+      transition: all 0.3s ease;
+    }
+    
+    .step-indicator.active .step-number {
+      background: #3b82f6;
+      border-color: #3b82f6;
+      color: white;
+      transform: scale(1.1);
+    }
+    
+    .step-indicator.completed .step-number {
+      background: #10b981;
+      border-color: #10b981;
+      color: white;
+    }
+    
+    .step-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+    
+    .step-indicator.active .step-label {
+      color: #3b82f6;
+    }
+    
+    .step-connector {
+      width: 50px;
+      height: 2px;
+      background: rgba(148, 163, 184, 0.3);
+      margin-top: 20px;
+    }
+    
+    .report-step {
+      min-height: 300px;
+    }
+    
+    .report-step.hidden {
+      display: none;
+    }
+    
+    .category-card {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      text-align: center;
+    }
+    
+    .category-card:hover {
+      border-color: #3b82f6;
+      background: rgba(59, 130, 246, 0.05);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    }
+    
+    .category-card.selected {
+      border-color: #3b82f6;
+      background: rgba(59, 130, 246, 0.1);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+    
+    .category-icon {
+      font-size: 3rem;
+      line-height: 1;
+    }
+    
+    .category-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
   </style>
 </head>
 <body>
@@ -770,6 +890,7 @@
     <div class="view-switcher">
       <button type="button" class="mode-button active" data-mode="bloom">Floraciones algales</button>
       <button type="button" class="mode-button" data-mode="ecoplan">EcoPlan Urbano</button>
+      <button type="button" class="mode-button" data-mode="citizen">Participación Ciudadana</button>
     </div>
 
     <div class="dashboard-grid">
@@ -1019,71 +1140,95 @@
             </div>
             <p id="reportRunsEmpty" style="margin: 12px 0 0; font-size: 0.8rem; color: var(--text-muted);" hidden>Usa el botón «Actualizar» para cargar ejecuciones recientes.</p>
           </section>
+        </aside>
 
-          <section class="card" id="citizenReportsCard">
-            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-              <h2 class="section-title" style="margin-bottom: 0;">Participación ciudadana</h2>
-              <button type="button" class="button-secondary" id="refreshCitizenReports" style="padding: 8px 14px; font-size: 0.8rem;">Actualizar</button>
+        <aside class="controls hidden" id="citizenControls">
+          <section class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px;">
+              <div>
+                <h2 class="section-title" style="margin-bottom: 4px;">Reportes Ciudadanos</h2>
+                <p style="margin: 0; font-size: 0.8rem; color: var(--text-muted);">Validación de datos satelitales con observaciones de campo</p>
+              </div>
+              <button type="button" class="button-primary" id="openNewReportModal" style="padding: 12px 20px; font-size: 1.1rem; border-radius: 50px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
+                ➕ Reportar
+              </button>
             </div>
-            <p style="margin: 8px 0 16px; color: var(--text-muted); font-size: 0.8rem;">Registra observaciones desde el territorio para complementar los indicadores satelitales. Selecciona la ubicación en el mapa (modo EcoPlan) y describe la incidencia.</p>
-
-            <form id="citizenReportForm" class="form-grid" style="display: flex; flex-direction: column; gap: 12px;">
-              <label>
-                Tipo de incidencia
-                <select name="category" id="citizenReportCategory" required>
-                  <option value="" disabled selected>Selecciona una categoría</option>
-                  <option value="heat">Calor extremo / isla de calor</option>
-                  <option value="green">Falta de áreas verdes</option>
-                  <option value="flooding">Inundación / aniego</option>
-                  <option value="water">Calidad del agua / olores</option>
-                  <option value="air">Aire contaminado / humo</option>
-                  <option value="waste">Residuos / basura</option>
-                  <option value="other">Otra incidencia</option>
-                </select>
-              </label>
-
-              <label>
-                Descripción
-                <textarea name="description" id="citizenReportDescription" rows="3" maxlength="2000" placeholder="Describe qué ocurre, frecuencia, personas afectadas, etc." required></textarea>
-              </label>
-
-              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end;">
-                <label>
-                  Latitud
-                  <input type="number" name="latitude" id="citizenReportLatitude" step="0.000001" placeholder="Haz click en el mapa" required>
-                </label>
-                <label>
-                  Longitud
-                  <input type="number" name="longitude" id="citizenReportLongitude" step="0.000001" placeholder="Haz click en el mapa" required>
-                </label>
+            
+            <div class="card" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.1) 100%); border: 1px solid rgba(59, 130, 246, 0.3); padding: 20px; margin-bottom: 24px;">
+              <h3 style="margin: 0 0 12px; font-size: 1.1rem; color: #3b82f6; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.5rem;">🎯</span> MVP - Bloque Ciudadano Básico
+              </h3>
+              <p style="margin: 0 0 12px; font-size: 0.9rem; line-height: 1.6;">
+                Reporta problemas ambientales en <strong>3 pasos simples</strong>: categoría → ubicación → enviar. 
+                Tus observaciones ayudan a <strong>calibrar y validar</strong> índices satelitales (NDVI, LST, PM₂.₅, NDWI).
+              </p>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 16px;">
+                <div style="background: rgba(255,255,255,0.5); padding: 10px; border-radius: 8px; text-align: center;">
+                  <div style="font-size: 1.5rem; margin-bottom: 4px;">📊</div>
+                  <div style="font-size: 0.75rem; font-weight: 600; color: var(--text);">Validación de modelos</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.5); padding: 10px; border-radius: 8px; text-align: center;">
+                  <div style="font-size: 1.5rem; margin-bottom: 4px;">🗺️</div>
+                  <div style="font-size: 0.75rem; font-weight: 600; color: var(--text);">Datos georref.</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.5); padding: 10px; border-radius: 8px; text-align: center;">
+                  <div style="font-size: 1.5rem; margin-bottom: 4px;">📸</div>
+                  <div style="font-size: 0.75rem; font-weight: 600; color: var(--text);">Evidencia visual</div>
+                </div>
               </div>
+            </div>
 
-              <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
-                <button type="button" class="button-secondary" id="citizenReportSelectOnMap" style="padding: 6px 12px; font-size: 0.75rem;">Marcar en el mapa</button>
-                <span class="row-subtext" id="citizenReportLocationHelp">Haz click en el mapa para fijar la ubicación.</span>
+            <div class="card" style="padding: 16px; margin-bottom: 20px; border-left: 4px solid #10b981;">
+              <h3 style="margin: 0 0 10px; font-size: 0.9rem; color: #10b981; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                ✅ Datos capturados
+              </h3>
+              <div style="display: grid; gap: 6px; font-size: 0.8rem; color: var(--text-muted);">
+                <div>• <strong>Ubicación:</strong> Lat/Lon, intersección espacial con barrios</div>
+                <div>• <strong>Categoría:</strong> Árboles, Calor, Inundación, Basura, Olores, Aire</div>
+                <div>• <strong>Evidencia:</strong> Foto opcional, descripción, severidad</div>
+                <div>• <strong>Seguimiento:</strong> Estado (Recibido → Validado → Derivado → Resuelto)</div>
+                <div>• <strong>Cruce automático:</strong> SEDAC SUHI, PM₂.₅, acceso a espacio público</div>
               </div>
+            </div>
+          </section>
 
-              <label>
-                URL de foto (opcional)
-                <input type="url" name="photoUrl" id="citizenReportPhotoUrl" placeholder="https://...">
-              </label>
+          <section class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h2 class="section-title" style="margin: 0;">Reportes Recientes</h2>
+              <button type="button" class="button-secondary" id="refreshCitizenReports" style="padding: 6px 12px; font-size: 0.8rem;">
+                🔄 Actualizar
+              </button>
+            </div>
+            
+            <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+              <select id="citizenReportsFilterCategory" style="padding: 6px 10px; font-size: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface);">
+                <option value="">Todas las categorías</option>
+                <option value="green">🌳 Áreas verdes</option>
+                <option value="heat">🔥 Calor</option>
+                <option value="flooding">💧 Inundación</option>
+                <option value="waste">🗑️ Basura</option>
+                <option value="air">🌫️ Aire</option>
+                <option value="water">🚰 Agua</option>
+                <option value="other">📌 Otro</option>
+              </select>
+              
+              <select id="citizenReportsFilterStatus" style="padding: 6px 10px; font-size: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface);">
+                <option value="">Todos los estados</option>
+                <option value="received">Recibido</option>
+                <option value="validated">Validado</option>
+                <option value="in_progress">En ejecución</option>
+                <option value="resolved">Resuelto</option>
+              </select>
+            </div>
 
-              <label>
-                Nombre de contacto (opcional)
-                <input type="text" name="contactName" id="citizenReportContactName" maxlength="120" placeholder="Quién reporta la incidencia">
-              </label>
-
-              <label>
-                Correo electrónico (opcional)
-                <input type="email" name="contactEmail" id="citizenReportContactEmail" maxlength="120" placeholder="nombre@correo.com">
-              </label>
-
-              <button type="submit" id="citizenReportSubmit">Enviar reporte</button>
-              <p class="row-subtext" id="citizenReportStatus" style="margin: 0; min-height: 18px;"></p>
-            </form>
-
-            <div id="citizenReportsEmpty" class="row-subtext" style="margin-top: 12px;">Aún no hay reportes ciudadanos registrados.</div>
-            <ul id="citizenReportsList" style="margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px;"></ul>
+            <div id="citizenReportsStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-bottom: 16px;"></div>
+            
+            <div id="citizenReportsEmpty" class="row-subtext" style="margin-top: 12px; text-align: center; padding: 32px; background: rgba(148, 163, 184, 0.05); border-radius: 8px; display: none;">
+              <div style="font-size: 3rem; margin-bottom: 12px;">�</div>
+              <div style="font-size: 0.95rem; color: var(--text); font-weight: 600; margin-bottom: 6px;">No hay reportes aún</div>
+              <div style="font-size: 0.8rem;">Presiona "➕ Reportar" para crear el primer reporte</div>
+            </div>
+            <ul id="citizenReportsList" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px;"></ul>
           </section>
         </aside>
       </div>
@@ -1262,6 +1407,178 @@
       <div class="modal-body" id="reportRunDetailsBody"></div>
       <div class="modal-footer">
         <button type="button" class="button-secondary" data-action="close-report-run-details">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal simplificado MVP para reportes ciudadanos -->
+  <div id="newReportModal" class="modal-overlay" hidden tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog" role="dialog" aria-modal="true" style="max-width: 520px;">
+      <button type="button" class="modal-close-button" id="closeNewReportModal" aria-label="Cerrar">×</button>
+      
+      <div class="modal-header" style="border-bottom: 2px solid var(--border); padding-bottom: 16px;">
+        <div>
+          <h3 class="modal-title" style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.8rem;">📝</span>
+            Nuevo Reporte
+          </h3>
+          <p style="margin: 6px 0 0; font-size: 0.85rem; color: var(--text-muted);">
+            3 pasos simples para reportar
+          </p>
+        </div>
+      </div>
+
+      <div class="modal-body" style="padding: 24px 0;">
+        <!-- Indicador de pasos -->
+        <div id="reportStepsIndicator" style="display: flex; justify-content: center; gap: 12px; margin-bottom: 24px;">
+          <div class="step-indicator active" data-step="1">
+            <div class="step-number">1</div>
+            <div class="step-label">Categoría</div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="step-indicator" data-step="2">
+            <div class="step-number">2</div>
+            <div class="step-label">Ubicación</div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="step-indicator" data-step="3">
+            <div class="step-number">3</div>
+            <div class="step-label">Detalles</div>
+          </div>
+        </div>
+
+        <form id="newReportForm">
+          <!-- PASO 1: Categoría -->
+          <div class="report-step" data-step="1">
+            <h4 style="margin: 0 0 16px; font-size: 1.1rem; text-align: center; color: var(--text);">
+              ¿Qué tipo de problema observas?
+            </h4>
+            <div id="categoryGrid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+              <button type="button" class="category-card" data-category="green">
+                <span class="category-icon">🌳</span>
+                <span class="category-name">Árboles / Áreas verdes</span>
+              </button>
+              <button type="button" class="category-card" data-category="heat">
+                <span class="category-icon">🔥</span>
+                <span class="category-name">Calor extremo</span>
+              </button>
+              <button type="button" class="category-card" data-category="flooding">
+                <span class="category-icon">💧</span>
+                <span class="category-name">Inundación</span>
+              </button>
+              <button type="button" class="category-card" data-category="waste">
+                <span class="category-icon">🗑️</span>
+                <span class="category-name">Basura</span>
+              </button>
+              <button type="button" class="category-card" data-category="air">
+                <span class="category-icon">🌫️</span>
+                <span class="category-name">Aire / Olores</span>
+              </button>
+              <button type="button" class="category-card" data-category="water">
+                <span class="category-icon">🚰</span>
+                <span class="category-name">Agua</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- PASO 2: Ubicación -->
+          <div class="report-step hidden" data-step="2">
+            <h4 style="margin: 0 0 12px; font-size: 1.1rem; text-align: center; color: var(--text);">
+              ¿Dónde ocurre el problema?
+            </h4>
+            
+            <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 10px; padding: 16px; margin-bottom: 16px;">
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                <span style="font-size: 2rem;">📍</span>
+                <div>
+                  <div style="font-weight: 600; font-size: 0.95rem;">Marca el punto en el mapa</div>
+                  <div style="font-size: 0.8rem; color: var(--text-muted);">Haz clic en la ubicación exacta</div>
+                </div>
+              </div>
+              <button type="button" id="modalSelectLocation" class="button-primary" style="width: 100%; padding: 12px; font-size: 0.95rem;">
+                🗺️ Seleccionar en el mapa
+              </button>
+            </div>
+
+            <div id="locationPreview" style="display: none; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-weight: 600; color: #10b981;">✓ Ubicación seleccionada</span>
+                <button type="button" id="changeLocation" style="background: none; border: none; color: #3b82f6; cursor: pointer; font-size: 0.8rem; text-decoration: underline;">Cambiar</button>
+              </div>
+              <div style="font-size: 0.85rem; color: var(--text-muted); font-family: monospace;">
+                <div>Lat: <span id="previewLat">-</span></div>
+                <div>Lon: <span id="previewLon">-</span></div>
+              </div>
+            </div>
+
+            <input type="hidden" name="latitude" id="modalLatitude">
+            <input type="hidden" name="longitude" id="modalLongitude">
+
+            <div style="margin-top: 16px; padding: 12px; background: rgba(251, 191, 36, 0.1); border-radius: 8px; font-size: 0.8rem; color: var(--text-muted);">
+              <strong style="color: #f59e0b;">💡 Permiso de ubicación:</strong> Si lo permites, podemos usar tu ubicación actual automáticamente.
+            </div>
+          </div>
+
+          <!-- PASO 3: Detalles -->
+          <div class="report-step hidden" data-step="3">
+            <h4 style="margin: 0 0 16px; font-size: 1.1rem; text-align: center; color: var(--text);">
+              Agrega más información (opcional)
+            </h4>
+
+            <label style="display: block; margin-bottom: 16px;">
+              <span style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem;">Descripción</span>
+              <textarea name="description" id="modalDescription" rows="3" maxlength="500" placeholder="¿Qué observas? ¿Desde cuándo? ¿Qué tan grave es?" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; resize: vertical;"></textarea>
+              <small style="display: block; margin-top: 4px; color: var(--text-muted); font-size: 0.75rem;">
+                <span id="modalCharCount">0</span>/500 caracteres
+              </small>
+            </label>
+
+            <label style="display: block; margin-bottom: 16px;">
+              <span style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem;">📸 Foto (URL)</span>
+              <input type="url" name="photoUrl" id="modalPhotoUrl" placeholder="https://..." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem;">
+              <small style="display: block; margin-top: 4px; color: var(--text-muted); font-size: 0.75rem;">
+                Sube tu foto a imgur.com o similar y pega el enlace
+              </small>
+            </label>
+
+            <label style="display: block; margin-bottom: 16px;">
+              <span style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem;">Severidad</span>
+              <select name="severity" id="modalSeverity" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem;">
+                <option value="low">🟢 Baja - Molestia menor</option>
+                <option value="medium" selected>🟡 Media - Problema recurrente</option>
+                <option value="high">🔴 Alta - Urgente</option>
+              </select>
+            </label>
+
+            <div style="background: rgba(59, 130, 246, 0.08); border-radius: 8px; padding: 12px; font-size: 0.8rem; color: var(--text-muted);">
+              <strong style="color: #3b82f6;">🔐 Privacidad:</strong> Los reportes son anónimos. Solo guardamos ubicación, categoría y descripción para análisis.
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer" style="display: flex; gap: 10px; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 16px;">
+        <button type="button" id="prevStepBtn" class="button-secondary" style="display: none;">
+          ← Anterior
+        </button>
+        <div style="flex: 1;"></div>
+        <button type="button" id="nextStepBtn" class="button-primary" disabled>
+          Siguiente →
+        </button>
+        <button type="submit" form="newReportForm" id="submitReportBtn" class="button-primary" style="display: none;">
+          📤 Enviar Reporte
+        </button>
+      </div>
+
+      <div id="reportSuccess" style="display: none; text-align: center; padding: 32px;">
+        <div style="font-size: 4rem; margin-bottom: 16px;">✅</div>
+        <h3 style="margin: 0 0 8px; color: #10b981;">¡Reporte Enviado!</h3>
+        <p style="margin: 0 0 16px; font-size: 0.9rem; color: var(--text-muted);">
+          Código: <strong id="reportCode" style="font-family: monospace; color: var(--text);">-</strong>
+        </p>
+        <button type="button" id="closeSuccessBtn" class="button-primary">
+          Cerrar
+        </button>
       </div>
     </div>
   </div>
@@ -1450,6 +1767,27 @@
     waste: { label: 'Residuos / basura', color: '#6b7280' },
     other: { label: 'Otra incidencia', color: '#f59e0b' }
   };
+
+  // Variables para el nuevo modal MVP
+  const newReportModal = document.getElementById('newReportModal');
+  const openNewReportModalBtn = document.getElementById('openNewReportModal');
+  const closeNewReportModalBtn = document.getElementById('closeNewReportModal');
+  const newReportForm = document.getElementById('newReportForm');
+  const prevStepBtn = document.getElementById('prevStepBtn');
+  const nextStepBtn = document.getElementById('nextStepBtn');
+  const submitReportBtn = document.getElementById('submitReportBtn');
+  const modalSelectLocationBtn = document.getElementById('modalSelectLocation');
+  const changeLocationBtn = document.getElementById('changeLocation');
+  const locationPreview = document.getElementById('locationPreview');
+  const reportSuccess = document.getElementById('reportSuccess');
+  const closeSuccessBtn = document.getElementById('closeSuccessBtn');
+  const modalDescriptionInput = document.getElementById('modalDescription');
+  const modalCharCount = document.getElementById('modalCharCount');
+  
+  let currentStep = 1;
+  let selectedCategory = null;
+  let modalSelectedLocation = { lat: null, lon: null };
+  let isSelectingLocationForModal = false;
 
     function varColor(name) {
       return getComputedStyle(document.body).getPropertyValue(name).trim();
@@ -2213,6 +2551,223 @@
       }
     }
 
+    // ========== FUNCIONES PARA EL NUEVO MODAL MVP ==========
+    
+    function openNewReportModal() {
+      if (!newReportModal) return;
+      currentStep = 1;
+      selectedCategory = null;
+      modalSelectedLocation = { lat: null, lon: null };
+      isSelectingLocationForModal = false;
+      
+      // Reset form
+      if (newReportForm) newReportForm.reset();
+      document.querySelectorAll('.category-card').forEach(card => card.classList.remove('selected'));
+      if (locationPreview) locationPreview.style.display = 'none';
+      
+      // Mostrar el modal y el paso 1
+      newReportModal.hidden = false;
+      newReportModal.removeAttribute('aria-hidden');
+      newReportModal.style.display = 'flex';
+      document.body.classList.add('modal-open');
+      document.body.style.overflow = 'hidden';
+      
+      showReportStep(1);
+      updateNavigationButtons();
+    }
+    
+    function closeNewReportModal() {
+      if (!newReportModal) return;
+      newReportModal.hidden = true;
+      newReportModal.setAttribute('aria-hidden', 'true');
+      newReportModal.style.display = 'none';
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      isSelectingLocationForModal = false;
+      
+      // Ocultar éxito si está visible
+      if (reportSuccess) reportSuccess.style.display = 'none';
+      document.querySelectorAll('.report-step').forEach(step => {
+        step.classList.remove('hidden');
+      });
+    }
+    
+    function showReportStep(step) {
+      currentStep = step;
+      
+      // Actualizar indicadores de pasos
+      document.querySelectorAll('.step-indicator').forEach((indicator, index) => {
+        const stepNum = index + 1;
+        indicator.classList.remove('active', 'completed');
+        if (stepNum < currentStep) {
+          indicator.classList.add('completed');
+        } else if (stepNum === currentStep) {
+          indicator.classList.add('active');
+        }
+      });
+      
+      // Mostrar/ocultar pasos
+      document.querySelectorAll('.report-step').forEach(stepEl => {
+        const stepNum = parseInt(stepEl.dataset.step);
+        stepEl.classList.toggle('hidden', stepNum !== currentStep);
+      });
+      
+      updateNavigationButtons();
+    }
+    
+    function updateNavigationButtons() {
+      if (!prevStepBtn || !nextStepBtn || !submitReportBtn) return;
+      
+      // Botón anterior
+      prevStepBtn.style.display = currentStep > 1 ? 'block' : 'none';
+      
+      // Validar si se puede avanzar
+      let canAdvance = false;
+      if (currentStep === 1) {
+        canAdvance = selectedCategory !== null;
+      } else if (currentStep === 2) {
+        canAdvance = modalSelectedLocation.lat !== null && modalSelectedLocation.lon !== null;
+      } else if (currentStep === 3) {
+        canAdvance = true; // El paso 3 es opcional
+      }
+      
+      if (currentStep < 3) {
+        nextStepBtn.style.display = 'block';
+        nextStepBtn.disabled = !canAdvance;
+        submitReportBtn.style.display = 'none';
+      } else {
+        nextStepBtn.style.display = 'none';
+        submitReportBtn.style.display = 'block';
+        submitReportBtn.disabled = !canAdvance;
+      }
+    }
+    
+    function selectCategory(category) {
+      selectedCategory = category;
+      document.querySelectorAll('.category-card').forEach(card => {
+        card.classList.toggle('selected', card.dataset.category === category);
+      });
+      updateNavigationButtons();
+    }
+    
+    function startModalLocationSelection() {
+      isSelectingLocationForModal = true;
+      closeNewReportModal();
+      
+      // Cambiar al modo citizen si no estamos ahí
+      if (currentMode !== 'citizen') {
+        setMode('citizen');
+      }
+      
+      logStatus('Haz clic en el mapa para marcar la ubicación del reporte.', 'info', 'ecoplan');
+      
+      // Mostrar un overlay temporal indicando que hay que hacer clic
+      const overlay = document.createElement('div');
+      overlay.id = 'locationSelectionOverlay';
+      overlay.style.cssText = 'position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 9998; background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.3);';
+      overlay.innerHTML = '📍 Haz clic en el mapa para seleccionar la ubicación';
+      document.body.appendChild(overlay);
+      
+      setTimeout(() => {
+        const el = document.getElementById('locationSelectionOverlay');
+        if (el) el.remove();
+      }, 5000);
+    }
+    
+    function setModalLocation(lat, lon) {
+      modalSelectedLocation = { lat, lon };
+      
+      if (locationPreview) {
+        locationPreview.style.display = 'block';
+        document.getElementById('previewLat').textContent = lat.toFixed(6);
+        document.getElementById('previewLon').textContent = lon.toFixed(6);
+      }
+      
+      document.getElementById('modalLatitude').value = lat;
+      document.getElementById('modalLongitude').value = lon;
+      
+      // Marcar en el mapa
+      if (map) {
+        if (!citizenReportLocationMarker) {
+          citizenReportLocationMarker = L.circleMarker([lat, lon], {
+            radius: 10,
+            color: '#3b82f6',
+            weight: 3,
+            fillColor: '#3b82f6',
+            fillOpacity: 0.5
+          }).addTo(map);
+        } else {
+          citizenReportLocationMarker.setLatLng([lat, lon]);
+        }
+        map.setView([lat, lon], 15);
+      }
+      
+      updateNavigationButtons();
+      
+      // Reabrir el modal
+      if (isSelectingLocationForModal) {
+        isSelectingLocationForModal = false;
+        setTimeout(() => {
+          openNewReportModal();
+          showReportStep(2);
+        }, 300);
+      }
+    }
+    
+    async function submitNewReport(event) {
+      event.preventDefault();
+      
+      if (!selectedCategory || !modalSelectedLocation.lat || !modalSelectedLocation.lon) {
+        alert('Por favor completa todos los pasos requeridos.');
+        return;
+      }
+      
+      const formData = new FormData(newReportForm);
+      const payload = {
+        category: selectedCategory,
+        latitude: modalSelectedLocation.lat,
+        longitude: modalSelectedLocation.lon,
+        description: formData.get('description') || '',
+        photoUrl: formData.get('photoUrl') || undefined,
+        severity: formData.get('severity') || 'medium'
+      };
+      
+      submitReportBtn.disabled = true;
+      submitReportBtn.textContent = '⏳ Enviando...';
+      
+      try {
+        const response = await fetch('/api/citizen-reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Error al enviar el reporte');
+        }
+        
+        const data = await response.json();
+        
+        // Mostrar éxito
+        document.querySelectorAll('.report-step').forEach(step => step.classList.add('hidden'));
+        document.querySelector('.modal-header').style.display = 'none';
+        document.querySelector('.modal-footer').style.display = 'none';
+        reportSuccess.style.display = 'block';
+        document.getElementById('reportCode').textContent = data.report?.id || 'N/A';
+        
+        // Actualizar lista de reportes
+        await fetchCitizenReports({ announce: false });
+        
+        logStatus('Reporte enviado correctamente.', 'success', 'ecoplan');
+      } catch (error) {
+        console.error('Error al enviar reporte:', error);
+        alert('Error al enviar el reporte: ' + error.message);
+        submitReportBtn.disabled = false;
+        submitReportBtn.textContent = '📤 Enviar Reporte';
+      }
+    }
+
     function parseAutoRefreshInterval(value) {
       const parsed = Number(value);
       if (!Number.isFinite(parsed)) {
@@ -2485,15 +3040,35 @@
       if (!reportRunDetailsOverlay) {
         return;
       }
-      reportRunDetailsActiveId = null;
-      reportRunDetailsOverlay.hidden = true;
-      reportRunDetailsOverlay.setAttribute('aria-hidden', 'true');
-      document.body.classList.remove('modal-open');
-      if (reportRunDetailsBody) {
-        reportRunDetailsBody.innerHTML = '';
-      }
-      if (!silent) {
-        logStatus('Detalle cerrado.', 'info', 'ecoplan');
+      
+      try {
+        reportRunDetailsActiveId = null;
+        reportRunDetailsOverlay.hidden = true;
+        reportRunDetailsOverlay.setAttribute('aria-hidden', 'true');
+        reportRunDetailsOverlay.style.display = 'none';
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        
+        // Remover foco del modal
+        if (document.activeElement && reportRunDetailsOverlay.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
+        
+        if (reportRunDetailsBody) {
+          reportRunDetailsBody.innerHTML = '';
+        }
+        
+        if (!silent) {
+          logStatus('Detalle cerrado.', 'info', 'ecoplan');
+        }
+      } catch (error) {
+        console.error('Error al cerrar modal:', error);
+        // Forzar cierre
+        if (reportRunDetailsOverlay) {
+          reportRunDetailsOverlay.style.display = 'none';
+        }
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
       }
     }
 
@@ -2501,6 +3076,7 @@
       closeReportRunDetailsButton.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         closeReportRunDetails();
       });
     }
@@ -2508,8 +3084,17 @@
     if (reportRunDetailsOverlay) {
       reportRunDetailsOverlay.addEventListener('click', (event) => {
         if (event.target === reportRunDetailsOverlay) {
+          event.preventDefault();
+          event.stopPropagation();
           closeReportRunDetails({ silent: true });
         }
+      });
+      
+      // Agregar doble-click en cualquier parte del overlay para cerrar
+      reportRunDetailsOverlay.addEventListener('dblclick', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        closeReportRunDetails({ silent: true });
       });
     }
 
@@ -2669,11 +3254,17 @@
       reportRunDetailsBody.replaceChildren(...sections);
 
       reportRunDetailsOverlay.hidden = false;
-      reportRunDetailsOverlay.setAttribute('aria-hidden', 'false');
+      reportRunDetailsOverlay.removeAttribute('aria-hidden');
+      reportRunDetailsOverlay.style.display = 'flex';
       document.body.classList.add('modal-open');
-      if (closeReportRunDetailsButton) {
-        closeReportRunDetailsButton.focus();
-      }
+      document.body.style.overflow = 'hidden';
+      
+      // Usar setTimeout para asegurar que el DOM se actualice antes de enfocar
+      setTimeout(() => {
+        if (closeReportRunDetailsButton) {
+          closeReportRunDetailsButton.focus();
+        }
+      }, 100);
 
       const descriptor = getStatusDescriptor(run.status);
       logStatus(`Detalles listos · ${run.jobId || 'job'} (${descriptor.label})`, 'info', 'ecoplan');
@@ -3226,10 +3817,19 @@
       L.control.zoom({ position: 'topright' }).addTo(map);
 
       map.on('click', (event) => {
-        if (!citizenReportCaptureMode || currentMode !== 'ecoplan') {
+        const { lat, lng } = event.latlng;
+        
+        // Si estamos seleccionando ubicación para el modal MVP
+        if (isSelectingLocationForModal) {
+          setModalLocation(lat, lng);
           return;
         }
-        const { lat, lng } = event.latlng;
+        
+        // Modo antiguo de captura para formulario legacy
+        if (!citizenReportCaptureMode || (currentMode !== 'ecoplan' && currentMode !== 'citizen')) {
+          return;
+        }
+        
         setCitizenReportLocation(lat, lng, { center: false });
         updateCitizenReportStatus('Ubicación capturada. Completa el formulario para enviar.', 'success');
       });
@@ -3813,7 +4413,8 @@
     }
 
     function setMode(mode, { reRender = true, silent = false } = {}) {
-      const normalized = mode === 'ecoplan' ? 'ecoplan' : 'bloom';
+      const validModes = ['bloom', 'ecoplan', 'citizen'];
+      const normalized = validModes.includes(mode) ? mode : 'bloom';
       currentMode = normalized;
 
       modeButtons.forEach((button) => {
@@ -3823,15 +4424,29 @@
       });
 
       const isBloom = normalized === 'bloom';
+      const isEcoplan = normalized === 'ecoplan';
+      const isCitizen = normalized === 'citizen';
+      
       bloomControls.classList.toggle('hidden', !isBloom);
       bloomSummarySection.classList.toggle('hidden', !isBloom);
-      ecoControls.classList.toggle('hidden', isBloom);
-      ecoSummarySection.classList.toggle('hidden', isBloom);
+      ecoControls.classList.toggle('hidden', !isEcoplan);
+      ecoSummarySection.classList.toggle('hidden', !isEcoplan);
+      
+      const citizenControls = document.getElementById('citizenControls');
+      if (citizenControls) {
+        citizenControls.classList.toggle('hidden', !isCitizen);
+      }
 
       if (normalized === 'ecoplan') {
         ensureReportRunsLoaded();
         ensureCitizenReportsLoaded();
         scheduleReportRunsAutoRefresh({ fetchImmediately: reportRunsAutoRefreshEnabled });
+        setCitizenReportCaptureMode(false);
+      } else if (normalized === 'citizen') {
+        ensureCitizenReportsLoaded();
+        clearReportRunsAutoRefreshTimer();
+        // Activar modo de captura automáticamente en la pestaña de ciudadanos
+        setCitizenReportCaptureMode(true);
       } else {
         clearReportRunsAutoRefreshTimer();
         setCitizenReportCaptureMode(false);
@@ -3855,6 +4470,10 @@
           renderEcoResult(lastEcoResult, { silent: true });
         } else if (!silent) {
           logStatus('Completa el formulario EcoPlan para obtener indicadores urbanos.', 'info', 'ecoplan');
+        }
+      } else if (normalized === 'citizen') {
+        if (!silent) {
+          logStatus('Haz clic en el mapa para marcar la ubicación de tu reporte.', 'info', 'ecoplan');
         }
       }
     }
@@ -4226,12 +4845,12 @@
       }
       if (citizenReportSelectOnMapButton) {
         citizenReportSelectOnMapButton.addEventListener('click', () => {
-          if (currentMode !== 'ecoplan') {
-            setMode('ecoplan');
+          if (currentMode !== 'citizen' && currentMode !== 'ecoplan') {
+            setMode('citizen');
           }
           setCitizenReportCaptureMode(true);
-          updateCitizenReportStatus('Selecciona un punto en el mapa.', 'info');
-          logStatus('Haz click en el mapa para fijar la ubicación del reporte ciudadano.', 'info', 'ecoplan');
+          updateCitizenReportStatus('Haz clic en el mapa para marcar la ubicación.', 'info');
+          logStatus('Haz clic en el mapa para fijar la ubicación del reporte ciudadano.', 'info', 'ecoplan');
         });
       }
       if (refreshCitizenReportsButton) {
@@ -4239,6 +4858,25 @@
           fetchCitizenReports({ announce: true });
         });
       }
+      
+      // Contador de caracteres para la descripción
+      if (citizenReportDescriptionInput) {
+        const charCountEl = document.getElementById('charCount');
+        if (charCountEl) {
+          citizenReportDescriptionInput.addEventListener('input', () => {
+            const count = citizenReportDescriptionInput.value.length;
+            charCountEl.textContent = count;
+            if (count > 1900) {
+              charCountEl.style.color = '#ef4444';
+            } else if (count > 1500) {
+              charCountEl.style.color = '#f59e0b';
+            } else {
+              charCountEl.style.color = 'var(--text-muted)';
+            }
+          });
+        }
+      }
+      
       if (citizenReportLatitudeInput && citizenReportLongitudeInput) {
         const handleManualLocationUpdate = () => {
           const lat = Number(citizenReportLatitudeInput.value);
@@ -4250,6 +4888,90 @@
         citizenReportLatitudeInput.addEventListener('change', handleManualLocationUpdate);
         citizenReportLongitudeInput.addEventListener('change', handleManualLocationUpdate);
       }
+      
+      // ========== EVENT LISTENERS PARA EL NUEVO MODAL MVP ==========
+      if (openNewReportModalBtn) {
+        openNewReportModalBtn.addEventListener('click', openNewReportModal);
+      }
+      
+      if (closeNewReportModalBtn) {
+        closeNewReportModalBtn.addEventListener('click', closeNewReportModal);
+      }
+      
+      if (newReportModal) {
+        newReportModal.addEventListener('click', (event) => {
+          if (event.target === newReportModal) {
+            closeNewReportModal();
+          }
+        });
+      }
+      
+      // Selección de categoría
+      document.querySelectorAll('.category-card').forEach(card => {
+        card.addEventListener('click', () => {
+          selectCategory(card.dataset.category);
+        });
+      });
+      
+      // Navegación entre pasos
+      if (prevStepBtn) {
+        prevStepBtn.addEventListener('click', () => {
+          if (currentStep > 1) {
+            showReportStep(currentStep - 1);
+          }
+        });
+      }
+      
+      if (nextStepBtn) {
+        nextStepBtn.addEventListener('click', () => {
+          if (currentStep < 3) {
+            showReportStep(currentStep + 1);
+          }
+        });
+      }
+      
+      // Selección de ubicación
+      if (modalSelectLocationBtn) {
+        modalSelectLocationBtn.addEventListener('click', startModalLocationSelection);
+      }
+      
+      if (changeLocationBtn) {
+        changeLocationBtn.addEventListener('click', startModalLocationSelection);
+      }
+      
+      // Submit del formulario
+      if (newReportForm) {
+        newReportForm.addEventListener('submit', submitNewReport);
+      }
+      
+      // Contador de caracteres en el modal
+      if (modalDescriptionInput && modalCharCount) {
+        modalDescriptionInput.addEventListener('input', () => {
+          const count = modalDescriptionInput.value.length;
+          modalCharCount.textContent = count;
+          if (count > 450) {
+            modalCharCount.style.color = '#ef4444';
+          } else if (count > 350) {
+            modalCharCount.style.color = '#f59e0b';
+          } else {
+            modalCharCount.style.color = 'var(--text-muted)';
+          }
+        });
+      }
+      
+      // Botón de cerrar después de éxito
+      if (closeSuccessBtn) {
+        closeSuccessBtn.addEventListener('click', () => {
+          closeNewReportModal();
+          // Resetear el modal
+          document.querySelector('.modal-header').style.display = '';
+          document.querySelector('.modal-footer').style.display = '';
+          reportSuccess.style.display = 'none';
+          submitReportBtn.disabled = false;
+          submitReportBtn.textContent = '📤 Enviar Reporte';
+        });
+      }
+      
       document.addEventListener('visibilitychange', handleVisibilityChange);
   setCitizenReportCaptureMode(false);
       setMode(currentMode, { reRender: false, silent: true });
