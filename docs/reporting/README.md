@@ -83,6 +83,7 @@ El panel `public/index.html` incluye un modo **EcoPlan** con botones para descar
 2. Ajusta preset, fechas, nubosidad y otros campos igual que para el análisis interactivo.
 3. Usa los botones **Descargar PDF**, **Abrir HTML** o **Descargar CSV** para generar el reporte. El PDF/CSV se descargan directamente y el HTML se abre en una nueva pestaña.
 4. El dashboard muestra mensajes de estado en la sección “Estado EcoPlan”; si configuraste entrega en GCS desde el backend, el download continúa siendo local pero el servidor también devolverá la ruta almacenada.
+5. Consulta la tarjeta **Historial de reportes** para ver las últimas ejecuciones del scheduler (hasta 20). Puedes filtrar por `jobId` y estado, pulsar **Actualizar** para reconsultar el API y abrir un modal con detalles completos (cronología, archivos generados con enlaces públicos, estado de notificaciones, métricas e incluso el payload enviado) haciendo clic en cualquier fila.
 
 ## Próximos pasos
 
@@ -115,5 +116,27 @@ El panel `public/index.html` incluye un modo **EcoPlan** con botones para descar
    - Definir política de retención y permisos en GCS (lifecycle para archivar a los 180 días, ACL por grupo municipal) y documentarla en `docs/security/storage.md`.
 
 > **Resultado esperado:** al finalizar los cuatro sprints, los reportes EcoPlan se generan según calendario, se notifican automáticamente a los actores clave, quedan catalogados con trazabilidad completa y cuentan con monitoreo/seguridad alineados a las necesidades municipales.
+
+### Scheduler operativo (Sprint 1 implementado)
+
+- **Manifiesto configurable**: el archivo `config/report-distribution.json` lista cada job con `id`, `cron`, `formats`, `payload`, `delivery` y `notifications`. Se admiten *placeholders* como `"rolling:-30d"` (últimos 30 días) o `"today"` en los parámetros de fecha.
+- **Orquestador reutilizable**: `services/reportDistributionOrchestrator.js` genera un solo reporte base por job y produce las variantes HTML/PDF/CSV/JSON, subiéndolas automáticamente a GCS si está configurado.
+- **Scheduling integrado**: `server.js` carga el manifiesto al arrancar, programa los cron con `node-cron` (respeta `job.timezone`, `defaults.timezone` o la variable `REPORTS_DISTRIBUTION_TZ`) y vuelve a cargarlos cuando el archivo cambia.
+- **Hooks manuales / Cloud Scheduler**: `POST /api/reports/distribution/run` permite ejecutar todos los jobs o uno específico (enviar `{ "jobId": "ecoplan-trimestral" }`). Si defines `REPORTS_DISTRIBUTION_TOKEN`, el endpoint exige el encabezado `x-distribution-token` (ideal para Cloud Scheduler o GitHub Actions).
+- **Variables de entorno**:
+   - `REPORTS_DISTRIBUTION_ENABLED` (`true` por defecto): desactiva todo el scheduler cuando es `false`.
+   - `REPORT_DISTRIBUTION_CONFIG`: ruta alternativa del manifiesto (por defecto `config/report-distribution.json`).
+   - `REPORTS_DISTRIBUTION_TZ`: zona horaria global (fallback para jobs sin `timezone`).
+   - `REPORTS_DISTRIBUTION_RUN_ON_BOOT`: ejecuta cada job una vez al iniciar si se establece en `true` (o `runOnStart: true` por job).
+   - `REPORTS_SLACK_WEBHOOK`: se usa como destino cuando el manifiesto define `notifications.slack.webhookEnv`.
+- **Logs estructurados**: toda ejecución escribe prefijos como `[distribution][ecoplan-trimestral][cron]` en consola (aprovechables por Cloud Logging). Cuando Earth Engine no está inicializado o el manifiesto no existe, el job se marca como `skipped` y se registra el motivo.
+
+### Notificaciones multicanal (Sprint 2 implementado)
+
+- **Correo electrónico (SendGrid)**: si `notifications.email.enabled` es `true`, el orquestador sintetiza un resumen con indicadores clave, recomendaciones y enlaces de GCS por formato. Se requiere `SENDGRID_API_KEY` y un remitente (`REPORTS_EMAIL_FROM`, opcionalmente `REPORTS_EMAIL_NAME`). El asunto se puede fijar con `notifications.email.subject` o mediante la variable `REPORTS_EMAIL_SUBJECT_PREFIX`.
+- **Slack/Webhooks**: si `notifications.slack.enabled` es `true`, se publica un mensaje (texto plano) en el webhook definido por `notifications.slack.webhookUrl`, `notifications.slack.webhookEnv` o `REPORTS_SLACK_WEBHOOK`. Se incluye el estado del job, hora de generación, recursos disponibles y el canal opcional (`notifications.slack.channel`).
+- **Merge de configuración**: los arreglos `recipients`, `cc` y `bcc` se combinan entre `defaults.notifications` y cada job. Los placeholders `rolling:-30d` o `today` en `payload` se resuelven antes de enviar el reporte, por lo que es seguro incluirlos en la notificación.
+- **Resultados en la API**: la respuesta de `/api/reports/distribution/run` agrega un campo `notifications` por job con el estado de envío (`sent`, `skipped`, `error`), útil para debugging.
+- **Fallback seguro**: si falta API key, remitente o webhook, el job continúa marcando la notificación como omitida y registrando el motivo en los logs (`[distribution][job][trigger]`).
 
 Contribuciones: abrir issues con etiqueta `reports` para definir nuevos formatos o requerimientos.

@@ -2,13 +2,36 @@ const express = require('express');
 const ee = require('@google/earthengine');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+const cron = require('node-cron');
 const { configureReportsService, generateEcoPlanReport, renderEcoPlanReportHtml, renderEcoPlanReportCsv } = require('./services/reportsService');
 const { uploadReportToGcs } = require('./services/reportDeliveryService');
 const { renderHtmlToPdfBuffer } = require('./services/pdfService');
+const {
+  loadDistributionConfig,
+  executeJob: runDistributionJobInternal,
+  DEFAULT_CONFIG_PATH: DISTRIBUTION_CONFIG_PATH
+} = require('./services/reportDistributionOrchestrator');
+const reportRunsRepository = require('./services/reportRunsRepository');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+const DISTRIBUTION_ENABLED = process.env.REPORTS_DISTRIBUTION_ENABLED !== 'false';
+const DISTRIBUTION_TOKEN = process.env.REPORTS_DISTRIBUTION_TOKEN || null;
+
+let distributionManifestCache = null;
+let distributionManifestLoadedAt = null;
+let distributionManifestLastError = null;
+let distributionWatcher = null;
+const scheduledDistributionTasks = new Map();
+
+const distributionBaseLogger = {
+  info: (...args) => console.log('[distribution]', ...args),
+  warn: (...args) => console.warn('[distribution]', ...args),
+  error: (...args) => console.error('[distribution]', ...args)
+};
 
 const DEFAULT_EE_SCOPES = [
   'https://www.googleapis.com/auth/earthengine',
@@ -115,6 +138,213 @@ async function initializeEarthEngine() {
     console.error('Failed to initialize Earth Engine:', error);
     return false;
   }
+}
+
+function loadDistributionManifest(forceReload = false) {
+  if (!DISTRIBUTION_ENABLED) {
+    return null;
+  }
+
+  if (!forceReload && distributionManifestCache) {
+    return distributionManifestCache;
+  }
+
+  try {
+    const manifest = loadDistributionConfig();
+    distributionManifestCache = manifest;
+    distributionManifestLoadedAt = new Date();
+    distributionManifestLastError = null;
+    return manifest;
+  } catch (error) {
+    if (distributionManifestLastError !== error.message) {
+      distributionBaseLogger.warn(`No se pudo cargar el manifiesto de distribución (${error.message})`);
+    }
+    distributionManifestLastError = error.message;
+    distributionManifestCache = null;
+    return null;
+  }
+}
+
+function makeDistributionLogger(jobId = 'job', trigger = 'manual') {
+  const prefix = `[distribution][${jobId}][${trigger}]`;
+  return {
+    info: (...args) => console.log(prefix, ...args),
+    warn: (...args) => console.warn(prefix, ...args),
+    error: (...args) => console.error(prefix, ...args)
+  };
+}
+
+async function runDistributionJobConfig(jobConfig, defaults = {}, trigger = 'manual') {
+  const jobId = jobConfig?.id || 'sin-id';
+  const logger = makeDistributionLogger(jobId, trigger);
+
+  if (!eeInitialized) {
+    logger.warn('Earth Engine no inicializado; se omite ejecución.');
+    return {
+      jobId,
+      status: 'skipped',
+      reason: 'earth-engine-not-initialized',
+      trigger
+    };
+  }
+
+  try {
+    const execution = await runDistributionJobInternal(jobConfig, defaults, { logger, trigger });
+    return { ...execution, trigger };
+  } catch (error) {
+    logger.error(`Error al ejecutar job: ${error.message}`);
+    return {
+      jobId,
+      status: 'error',
+      error: error.message,
+      trigger
+    };
+  }
+}
+
+async function runDistributionJobById(jobId, { trigger = 'manual', forceReload = false } = {}) {
+  const manifest = loadDistributionManifest(forceReload);
+  if (!manifest || !Array.isArray(manifest.jobs)) {
+    return {
+      jobId,
+      status: 'skipped',
+      reason: 'manifest-not-found',
+      trigger
+    };
+  }
+
+  const jobConfig = manifest.jobs.find((job) => job.id === jobId);
+  if (!jobConfig) {
+    return {
+      jobId,
+      status: 'not-found',
+      trigger
+    };
+  }
+
+  return runDistributionJobConfig(jobConfig, manifest.defaults || {}, trigger);
+}
+
+function clearDistributionSchedule() {
+  for (const task of scheduledDistributionTasks.values()) {
+    try {
+      task.stop();
+    } catch (error) {
+      distributionBaseLogger.warn(`No se pudo detener tarea programada: ${error.message}`);
+    }
+  }
+  scheduledDistributionTasks.clear();
+}
+
+function scheduleDistributionJobs(manifest) {
+  clearDistributionSchedule();
+
+  if (!manifest || !Array.isArray(manifest.jobs) || !manifest.jobs.length) {
+    distributionBaseLogger.warn('No hay jobs de distribución configurados; scheduler inactivo.');
+    return;
+  }
+
+  const defaults = manifest.defaults || {};
+  const timezoneFallback = defaults.timezone || process.env.REPORTS_DISTRIBUTION_TZ;
+
+  manifest.jobs.forEach((jobConfig, index) => {
+    if (!jobConfig || !jobConfig.cron) {
+      return;
+    }
+
+    const jobId = jobConfig.id || `job-${index + 1}`;
+    const timezone = jobConfig.timezone || timezoneFallback;
+
+    try {
+      const task = cron.schedule(jobConfig.cron, () => {
+        const handler = jobConfig.id
+          ? runDistributionJobById(jobConfig.id, { trigger: 'cron' })
+          : runDistributionJobConfig(jobConfig, defaults, 'cron');
+
+        handler.catch((error) => {
+          distributionBaseLogger.error(`Error en job ${jobId} programado: ${error.message}`);
+        });
+      }, {
+        scheduled: true,
+        timezone
+      });
+
+      scheduledDistributionTasks.set(jobId, task);
+      distributionBaseLogger.info(`Programado job ${jobId} (${jobConfig.cron})${timezone ? ` TZ ${timezone}` : ''}`);
+
+      const runOnBoot = jobConfig.runOnStart ?? defaults.runOnStart ?? process.env.REPORTS_DISTRIBUTION_RUN_ON_BOOT === 'true';
+      if (runOnBoot) {
+        setTimeout(() => {
+          const handler = jobConfig.id
+            ? runDistributionJobById(jobConfig.id, { trigger: 'startup' })
+            : runDistributionJobConfig(jobConfig, defaults, 'startup');
+
+          handler.catch((error) => {
+            distributionBaseLogger.error(`Error en ejecución inicial de ${jobId}: ${error.message}`);
+          });
+        }, 2000);
+      }
+    } catch (error) {
+      distributionBaseLogger.error(`No se pudo programar job ${jobId}: ${error.message}`);
+    }
+  });
+}
+
+function watchDistributionManifest() {
+  if (!DISTRIBUTION_ENABLED) {
+    return;
+  }
+
+  const configPath = DISTRIBUTION_CONFIG_PATH;
+  if (!fs.existsSync(configPath)) {
+    distributionBaseLogger.warn(`Archivo de manifiesto no encontrado en ${configPath}, watcher omitido.`);
+    return;
+  }
+
+  if (distributionWatcher) {
+    distributionWatcher.close();
+  }
+
+  distributionWatcher = fs.watch(configPath, { persistent: false }, (eventType) => {
+    if (eventType === 'change' || eventType === 'rename') {
+      setTimeout(() => {
+        distributionBaseLogger.info('Manifiesto de distribución actualizado; recargando jobs...');
+        const manifest = loadDistributionManifest(true);
+        if (manifest) {
+          scheduleDistributionJobs(manifest);
+        }
+      }, 100);
+    }
+  });
+}
+
+function initializeReportDistributionScheduler() {
+  if (!DISTRIBUTION_ENABLED) {
+    distributionBaseLogger.info('Scheduler de distribución deshabilitado (REPORTS_DISTRIBUTION_ENABLED=false)');
+    return;
+  }
+
+  const manifest = loadDistributionManifest(true);
+  if (!manifest) {
+    distributionBaseLogger.warn('No se pudo cargar el manifiesto de distribución; scheduler desactivado.');
+    return;
+  }
+
+  scheduleDistributionJobs(manifest);
+  watchDistributionManifest();
+}
+
+function isDistributionAuthorized(req) {
+  if (!DISTRIBUTION_TOKEN) {
+    return true;
+  }
+
+  const token = req.headers['x-distribution-token']
+    || req.headers['x-api-key']
+    || req.query?.token
+    || req.body?.token;
+
+  return token === DISTRIBUTION_TOKEN;
 }
 
 // Helper function to get default dataset (Landsat 8 composite)
@@ -1617,6 +1847,116 @@ app.post('/api/ecoplan/analyze', async (req, res) => {
     }
   });
 
+app.post('/api/reports/distribution/run', async (req, res) => {
+  if (!DISTRIBUTION_ENABLED) {
+    return res.status(503).json({
+      error: 'Report distribution disabled'
+    });
+  }
+
+  if (!isDistributionAuthorized(req)) {
+    return res.status(401).json({
+      error: 'Unauthorized'
+    });
+  }
+
+  const trigger = req.headers['x-cloudscheduler'] ? 'scheduler' : 'manual';
+  const { jobId, reload } = req.body || {};
+
+  try {
+    if (jobId) {
+      const execution = await runDistributionJobById(jobId, {
+        trigger,
+        forceReload: Boolean(reload)
+      });
+
+      const statusCode = execution.status === 'not-found' ? 404 : 200;
+      return res.status(statusCode).json({
+        ok: execution.status !== 'not-found',
+        trigger,
+        manifestLoadedAt: distributionManifestLoadedAt,
+        execution
+      });
+    }
+
+    const manifest = loadDistributionManifest(Boolean(reload));
+    if (!manifest || !Array.isArray(manifest.jobs) || !manifest.jobs.length) {
+      return res.status(404).json({
+        error: 'No distribution jobs configured'
+      });
+    }
+
+    const defaults = manifest.defaults || {};
+    const executions = [];
+    for (const jobConfig of manifest.jobs) {
+      const execution = await runDistributionJobConfig(jobConfig, defaults, trigger);
+      executions.push(execution);
+    }
+
+    return res.json({
+      ok: true,
+      trigger,
+      manifestLoadedAt: distributionManifestLoadedAt,
+      executions
+    });
+  } catch (error) {
+    console.error('Error al ejecutar distribución de reportes:', error);
+    res.status(500).json({
+      error: 'Failed to execute distribution',
+      message: error.message
+    });
+  }
+});
+
+  app.get('/api/reports/history', async (req, res) => {
+    try {
+      const { jobId, status, limit } = req.query || {};
+      const parsedLimit = Number.parseInt(limit, 10);
+      const finalLimit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 200) : 50;
+
+      const runs = await reportRunsRepository.listRuns({
+        jobId: typeof jobId === 'string' && jobId.trim() ? jobId.trim() : undefined,
+        status: typeof status === 'string' && status.trim() ? status.trim() : undefined,
+        limit: finalLimit
+      });
+
+      res.json({
+        runs,
+        meta: {
+          count: runs.length,
+          limit: finalLimit
+        }
+      });
+    } catch (error) {
+      console.error('Error al listar historial de reportes:', error);
+      res.status(500).json({
+        error: 'Failed to list report history',
+        message: error.message
+      });
+    }
+  });
+
+  app.get('/api/reports/history/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const run = await reportRunsRepository.getRun(id);
+
+      if (!run) {
+        return res.status(404).json({
+          error: 'Run not found'
+        });
+      }
+
+      res.json(run);
+    } catch (error) {
+      console.error('Error al obtener run de reportes:', error);
+      res.status(500).json({
+        error: 'Failed to get report run',
+        message: error.message
+      });
+    }
+  });
+
 // Obtener presets de ROI disponibles
 app.get('/api/bloom/presets', (req, res) => {
   res.json({
@@ -1923,6 +2263,7 @@ async function startServer() {
   
   // Initialize Earth Engine
   await initializeEarthEngine();
+  initializeReportDistributionScheduler();
   
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);

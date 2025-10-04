@@ -1,0 +1,79 @@
+{
+  "defaults": {
+    "preset": "lima_metropolitana",
+    "formats": ["pdf", "csv"],
+    "delivery": {
+      "gcs": {
+        "bucketEnv": "REPORTS_GCS_BUCKET",
+        "prefix": "reports/ecoplan"
+      }
+    },
+    "notifications": {
+      "email": {
+        "enabled": false,
+        "recipients": []
+      },
+      "slack": {
+        "enabled": false,
+        "webhookEnv": "REPORTS_SLACK_WEBHOOK"
+      }
+    }
+  },
+  "jobs": [
+    {
+      "id": "ecoplan-trimestral",
+      "description": "Reporte ejecutivo trimestral EcoPlan Urbano",
+      "cron": "0 7 1 */3 *",
+      "formats": ["pdf", "csv"],
+      "payload": {
+        "preset": "lima_metropolitana",
+        "start": "rolling:-90d",
+        "end": "today",
+        "cloudPercentage": 20,
+        "format": "pdf"
+      },
+      "delivery": {
+        "gcs": {
+          "prefix": "reports/ecoplan/trimestral"
+        }
+      },
+      "notifications": {
+        "email": {
+          "enabled": true,
+          "recipients": [
+            "equipo.ecoplan@municipio.gob.pe",
+            "planeamiento@metropolitana.pe"
+          ]
+        }
+      }
+    },
+    {
+      "id": "ecoplan-alerta-calor",
+      "description": "Alerta mensual de islas de calor",
+      "cron": "0 6 1 * *",
+      "formats": ["json"],
+      "payload": {
+        "preset": "lima_metropolitana",
+        "start": "rolling:-30d",
+        "end": "today",
+        "format": "json",
+        "thresholds": {
+          "lst": {
+            "percentile": 95
+          }
+        }
+      },
+      "delivery": {
+        "gcs": {
+          "prefix": "alerts/ecoplan/lst"
+        }
+      },
+      "notifications": {
+        "slack": {
+          "enabled": true,
+          "channel": "#alertas-clima"
+        }
+      }
+    }
+  ]
+}

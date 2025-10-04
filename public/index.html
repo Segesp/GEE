@@ -82,6 +82,9 @@
       margin-bottom: 24px;
     }
 
+    body.modal-open {
+      overflow: hidden;
+    }
     .mode-button {
       border: none;
       background: transparent;
@@ -91,6 +94,176 @@
       cursor: pointer;
       color: var(--text-muted);
       transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.78);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(16px, 5vw, 32px);
+      z-index: 999;
+      backdrop-filter: blur(6px);
+    }
+    .modal-dialog {
+      width: min(780px, 100%);
+      max-height: 90vh;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.45);
+      padding: clamp(20px, 4vw, 28px);
+      position: relative;
+    }
+    .modal-close-button {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      background: rgba(15, 23, 42, 0.4);
+      color: var(--text-muted);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      border-radius: 999px;
+      width: 36px;
+      height: 36px;
+      font-size: 1.4rem;
+      font-weight: 700;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .modal-close-button:hover {
+      color: var(--text);
+      border-color: rgba(148, 163, 184, 0.8);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .modal-subtitle {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .modal-title {
+      margin: 0;
+      font-size: 1.35rem;
+    }
+    .modal-body {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .modal-section h4 {
+      margin: 0 0 8px;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+    .key-value-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px 18px;
+    }
+    .key-value-grid .key-label {
+      display: block;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .key-value-grid .key-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    .metrics-card {
+      background: rgba(15, 23, 42, 0.25);
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .metrics-card h5 {
+      margin: 0 0 6px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .metrics-card .metric-value {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .json-block {
+      background: rgba(15, 23, 42, 0.35);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 12px;
+      padding: 12px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.8rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      max-height: 240px;
+    }
+    .results-list,
+    .notifications-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .result-item,
+    .notification-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.18);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 12px;
+      padding: 10px 14px;
+    }
+    .result-item-main,
+    .notification-item-main {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .result-item-actions,
+    .notification-item-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .result-item-actions a {
+      color: var(--primary);
+      font-size: 0.8rem;
+      text-decoration: none;
+    }
+    .result-item-actions a:hover {
+      text-decoration: underline;
+    }
+    .clickable-row {
+      cursor: pointer;
+    }
+    .clickable-row:focus {
+      outline: 2px solid var(--primary);
+      outline-offset: -2px;
     }
 
     .mode-button.active {
@@ -224,6 +397,73 @@
       flex: 1 1 140px;
     }
 
+    .history-filters {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+
+    .history-filters label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .history-filters select {
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.12);
+      color: inherit;
+      font-size: 0.82rem;
+    }
+
+    .history-controls {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .history-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: rgba(15, 23, 42, 0.22);
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      user-select: none;
+      transition: border 0.2s ease, background 0.2s ease;
+    }
+
+    .history-toggle input {
+      accent-color: var(--primary);
+    }
+
+    .history-toggle:hover {
+      border-color: rgba(148, 163, 184, 0.4);
+    }
+
+    .history-controls select {
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.12);
+      color: inherit;
+      font-size: 0.82rem;
+    }
+
     .map-panel {
       display: flex;
       flex-direction: column;
@@ -288,6 +528,35 @@
       margin-top: 12px;
     }
 
+    .history-summary {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+
+    .summary-pill {
+      background: rgba(15, 23, 42, 0.2);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .summary-pill .summary-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .summary-pill .summary-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -309,6 +578,79 @@
 
     table tbody tr:hover {
       background: rgba(30, 123, 182, 0.08);
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      background: rgba(15, 23, 42, 0.45);
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    .tag.success {
+      background: rgba(22, 163, 74, 0.22);
+      color: #bbf7d0;
+    }
+
+    .tag.error {
+      background: rgba(248, 113, 113, 0.22);
+      color: #fecaca;
+    }
+
+    .tag.warning {
+      background: rgba(234, 179, 8, 0.2);
+      color: #fef08a;
+    }
+
+    .tag.neutral {
+      background: rgba(148, 163, 184, 0.25);
+      color: var(--text-muted);
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .status-pill.success {
+      background: rgba(22, 163, 74, 0.18);
+      color: #bbf7d0;
+    }
+
+    .status-pill.warning {
+      background: rgba(234, 179, 8, 0.2);
+      color: #fef08a;
+    }
+
+    .status-pill.error {
+      background: rgba(248, 113, 113, 0.22);
+      color: #fecaca;
+    }
+
+    .status-pill.neutral {
+      background: rgba(148, 163, 184, 0.22);
+      color: var(--text-muted);
+    }
+
+    .row-subtext {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.7rem;
+      color: var(--text-muted);
     }
 
     .layer-badges {
@@ -333,6 +675,21 @@
       color: var(--text-muted);
       text-align: center;
     }
+      .modal-dialog {
+        padding: 18px;
+      }
+
+      .result-item,
+      .notification-item {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .result-item-actions,
+      .notification-item-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
 
     .loader {
       display: inline-flex;
@@ -359,6 +716,29 @@
     a {
       color: inherit;
       text-decoration: underline dashed;
+    }
+
+    @media (max-width: 640px) {
+      footer {
+        padding: 18px 20px 28px;
+        font-size: 0.8rem;
+      }
+
+      .modal-dialog {
+        padding: 18px;
+      }
+
+      .result-item,
+      .notification-item {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .result-item-actions,
+      .notification-item-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
     }
   </style>
 </head>
@@ -554,6 +934,81 @@
             </div>
             <small style="color: var(--text-muted); display: block; margin-top: 8px;">Los reportes se generan usando Google Earth Engine y pueden tardar algunos segundos.</small>
           </section>
+
+          <section class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+              <h2 class="section-title" style="margin-bottom: 0;">Historial de reportes</h2>
+              <button type="button" class="button-secondary" id="refreshReportRuns" style="padding: 8px 14px; font-size: 0.8rem;">Actualizar</button>
+            </div>
+            <p style="margin: 8px 0 0; color: var(--text-muted); font-size: 0.8rem;">Últimas ejecuciones del scheduler (máx. 20). Los enlaces aparecen cuando los archivos están disponibles en Cloud Storage.</p>
+            <div class="history-filters" aria-label="Filtros historial reportes">
+              <label>
+                Job
+                <select id="reportRunsJobFilter">
+                  <option value="">Todos los jobs</option>
+                </select>
+              </label>
+              <label>
+                Estado
+                <select id="reportRunsStatusFilter">
+                  <option value="">Todos los estados</option>
+                </select>
+              </label>
+            </div>
+            <div class="history-controls" aria-label="Controles de actualización">
+              <label class="history-toggle">
+                <input type="checkbox" id="reportRunsAutoRefreshToggle">
+                <span>Auto-actualizar</span>
+              </label>
+              <label style="display: flex; flex-direction: column; gap: 6px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
+                Frecuencia
+                <select id="reportRunsAutoRefreshInterval">
+                  <option value="60000">1 minuto</option>
+                  <option value="180000">3 minutos</option>
+                  <option value="300000" selected>5 minutos</option>
+                  <option value="600000">10 minutos</option>
+                </select>
+              </label>
+              <span class="row-subtext" id="reportRunsAutoRefreshStatus">Actualización manual.</span>
+            </div>
+            <div class="history-summary" id="reportRunsSummary" hidden>
+              <div class="summary-pill">
+                <span class="summary-label">Total runs</span>
+                <span class="summary-value" id="reportRunsTotal">0</span>
+                <span class="row-subtext" id="reportRunsRange">–</span>
+              </div>
+              <div class="summary-pill">
+                <span class="summary-label">Éxitos</span>
+                <span class="summary-value" id="reportRunsSuccess">0</span>
+                <span class="row-subtext" id="reportRunsSuccessPct">0%</span>
+              </div>
+              <div class="summary-pill">
+                <span class="summary-label">Fallos</span>
+                <span class="summary-value" id="reportRunsErrors">0</span>
+                <span class="row-subtext" id="reportRunsErrorsPct">0%</span>
+              </div>
+              <div class="summary-pill">
+                <span class="summary-label">Último estado</span>
+                <span class="summary-value" id="reportRunsLastStatus">–</span>
+                <span class="row-subtext" id="reportRunsLastWhen">–</span>
+              </div>
+            </div>
+            <div class="table-wrapper" style="margin-top: 12px; max-height: 240px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Job / Preset</th>
+                    <th>Estado</th>
+                    <th>Formatos</th>
+                    <th>Notifs.</th>
+                  </tr>
+                </thead>
+                <tbody id="reportRunsTableBody"></tbody>
+              </table>
+            </div>
+            <p id="reportRunsEmpty" style="margin: 12px 0 0; font-size: 0.8rem; color: var(--text-muted);" hidden>Usa el botón «Actualizar» para cargar ejecuciones recientes.</p>
+          </section>
         </aside>
       </div>
 
@@ -718,6 +1173,20 @@
     Construido con Google Earth Engine, Sentinel-2 SR, MODIS Aqua (L3SMI) y NOAA OISST V2. Ajusta parámetros por zona y valida con datos in situ.
   </footer>
 
+  <div id="reportRunDetailsOverlay" class="modal-overlay" hidden tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="reportRunDetailsTitle">
+      <button type="button" class="modal-close-button" id="closeReportRunDetails" aria-label="Cerrar detalles">×</button>
+      <div class="modal-header">
+        <div>
+          <div class="modal-subtitle" id="reportRunDetailsJob">Job</div>
+          <h3 class="modal-title" id="reportRunDetailsTitle">Detalle de ejecución</h3>
+        </div>
+        <span class="status-pill neutral" id="reportRunDetailsStatus">Estado</span>
+      </div>
+      <div class="modal-body" id="reportRunDetailsBody"></div>
+    </div>
+  </div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha512-vmI1Qy1SgdWzxjaUoil58x2oylZMhUlCT3VkOITkkpFmS6r30YIOCwVDDDeWGPA7eGRIDcH+xM3aMc1hQE8fkw==" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script>
@@ -828,7 +1297,49 @@
       boundaryBody: document.getElementById('ecoBoundaryBody')
     };
 
-    const ecoReportButtons = Array.from(document.querySelectorAll('[data-report-format]'));
+  const ecoReportButtons = Array.from(document.querySelectorAll('[data-report-format]'));
+  const reportRunsTableBody = document.getElementById('reportRunsTableBody');
+  const reportRunsEmptyMessage = document.getElementById('reportRunsEmpty');
+  const refreshReportRunsButton = document.getElementById('refreshReportRuns');
+  const reportRunsJobFilter = document.getElementById('reportRunsJobFilter');
+  const reportRunsStatusFilter = document.getElementById('reportRunsStatusFilter');
+  const reportRunsAutoRefreshToggle = document.getElementById('reportRunsAutoRefreshToggle');
+  const reportRunsAutoRefreshIntervalSelect = document.getElementById('reportRunsAutoRefreshInterval');
+  const reportRunsAutoRefreshStatusEl = document.getElementById('reportRunsAutoRefreshStatus');
+  const reportRunsSummary = document.getElementById('reportRunsSummary');
+  const reportRunsTotalEl = document.getElementById('reportRunsTotal');
+  const reportRunsRangeEl = document.getElementById('reportRunsRange');
+  const reportRunsSuccessEl = document.getElementById('reportRunsSuccess');
+  const reportRunsSuccessPctEl = document.getElementById('reportRunsSuccessPct');
+  const reportRunsErrorsEl = document.getElementById('reportRunsErrors');
+  const reportRunsErrorsPctEl = document.getElementById('reportRunsErrorsPct');
+  const reportRunsLastStatusEl = document.getElementById('reportRunsLastStatus');
+  const reportRunsLastWhenEl = document.getElementById('reportRunsLastWhen');
+  const reportRunDetailsOverlay = document.getElementById('reportRunDetailsOverlay');
+  const reportRunDetailsBody = document.getElementById('reportRunDetailsBody');
+  const reportRunDetailsTitle = document.getElementById('reportRunDetailsTitle');
+  const reportRunDetailsJob = document.getElementById('reportRunDetailsJob');
+  const reportRunDetailsStatus = document.getElementById('reportRunDetailsStatus');
+  const closeReportRunDetailsButton = document.getElementById('closeReportRunDetails');
+  const refreshReportRunsDefaultText = refreshReportRunsButton ? refreshReportRunsButton.textContent : '';
+  const defaultReportRunsEmptyText = reportRunsEmptyMessage ? reportRunsEmptyMessage.textContent : '';
+  let reportRunsLoaded = false;
+  let reportRunsLoading = false;
+  let reportRunsFetchQueued = false;
+  const REPORT_RUNS_LIMIT = 20;
+  let reportRunsCurrentLimit = REPORT_RUNS_LIMIT;
+  const reportRunsFilterState = { jobId: '', status: '' };
+  const reportRunsJobLabels = new Map();
+  const reportRunsStatusSet = new Set();
+  let reportRunsLastResponse = [];
+  const MODE_STORAGE_KEY = 'gee-dashboard-mode';
+  const REPORT_RUNS_AUTO_REFRESH_STORAGE_KEY = 'ecoplan-report-runs-auto-refresh';
+  const DEFAULT_AUTO_REFRESH_INTERVAL_MS = 300000;
+  let reportRunsAutoRefreshEnabled = false;
+  let reportRunsAutoRefreshIntervalMs = DEFAULT_AUTO_REFRESH_INTERVAL_MS;
+  let reportRunsAutoRefreshTimer = null;
+  let reportRunsLastUpdatedAt = null;
+  let reportRunDetailsActiveId = null;
 
     function varColor(name) {
       return getComputedStyle(document.body).getPropertyValue(name).trim();
@@ -895,6 +1406,1092 @@
       headerLoader.hidden = !isLoading;
       if (isLoading) {
         logStatus('Procesando solicitud...', 'info', mode);
+      }
+    }
+
+    function formatDateTimeLabel(value) {
+      if (!value) {
+        return '—';
+      }
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return String(value);
+      }
+      try {
+        return date.toLocaleString('es-PE', {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        });
+      } catch (error) {
+        return date.toISOString();
+      }
+    }
+
+    function formatDurationLabel(durationMs) {
+      if (!Number.isFinite(durationMs) || durationMs <= 0) {
+        return null;
+      }
+      const totalSeconds = Math.round(durationMs / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      const parts = [];
+      if (hours) parts.push(`${hours}h`);
+      if (minutes) parts.push(`${minutes}m`);
+      if (seconds || parts.length === 0) parts.push(`${seconds}s`);
+      return parts.join(' ');
+    }
+
+    function getStatusDescriptor(status) {
+      const normalized = typeof status === 'string' ? status.toLowerCase() : '';
+      switch (normalized) {
+        case 'success':
+          return { label: 'Completado', variant: 'success' };
+        case 'partial':
+          return { label: 'Parcial', variant: 'warning' };
+        case 'error':
+          return { label: 'Error', variant: 'error' };
+        case 'running':
+          return { label: 'En progreso', variant: 'neutral' };
+        case 'queued':
+          return { label: 'En cola', variant: 'neutral' };
+        default:
+          return { label: status ? status.toString() : 'Desconocido', variant: 'neutral' };
+      }
+    }
+
+    function mapTagVariant(status) {
+      const normalized = typeof status === 'string' ? status.toLowerCase() : '';
+      if (normalized === 'success' || normalized === 'sent' || normalized === 'ok') {
+        return 'success';
+      }
+      if (normalized === 'error' || normalized === 'failed') {
+        return 'error';
+      }
+      if (normalized === 'partial' || normalized === 'warning' || normalized === 'pending') {
+        return 'warning';
+      }
+      return 'neutral';
+    }
+
+    function renderReportRunsFilters() {
+      if (reportRunsJobFilter) {
+        const selectedJob = reportRunsFilterState.jobId || '';
+        const jobEntries = Array.from(reportRunsJobLabels.entries())
+          .map(([jobId, label]) => ({ jobId, label: label || jobId }))
+          .sort((a, b) => a.label.localeCompare(b.label, 'es-PE', { sensitivity: 'base' }));
+
+        reportRunsJobFilter.innerHTML = '';
+        const allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.textContent = 'Todos los jobs';
+        reportRunsJobFilter.appendChild(allOption);
+
+        let hasCurrentJob = selectedJob === '';
+        jobEntries.forEach(({ jobId, label }) => {
+          const option = document.createElement('option');
+          option.value = jobId;
+          option.textContent = label;
+          reportRunsJobFilter.appendChild(option);
+          if (jobId === selectedJob) {
+            hasCurrentJob = true;
+          }
+        });
+
+        if (!hasCurrentJob && selectedJob) {
+          const fallbackOption = document.createElement('option');
+          fallbackOption.value = selectedJob;
+          fallbackOption.textContent = selectedJob;
+          fallbackOption.hidden = true;
+          reportRunsJobFilter.appendChild(fallbackOption);
+        }
+
+        reportRunsJobFilter.value = selectedJob;
+      }
+
+      if (reportRunsStatusFilter) {
+        const selectedStatus = reportRunsFilterState.status || '';
+        const statuses = Array.from(reportRunsStatusSet)
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b, 'es-PE', { sensitivity: 'base' }));
+
+        reportRunsStatusFilter.innerHTML = '';
+        const allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.textContent = 'Todos los estados';
+        reportRunsStatusFilter.appendChild(allOption);
+
+        let hasCurrentStatus = selectedStatus === '';
+        statuses.forEach((statusValue) => {
+          const descriptor = getStatusDescriptor(statusValue);
+          const option = document.createElement('option');
+          option.value = statusValue;
+          option.textContent = descriptor.label || statusValue;
+          reportRunsStatusFilter.appendChild(option);
+          if (statusValue === selectedStatus) {
+            hasCurrentStatus = true;
+          }
+        });
+
+        if (!hasCurrentStatus && selectedStatus) {
+          const descriptor = getStatusDescriptor(selectedStatus);
+          const fallbackOption = document.createElement('option');
+          fallbackOption.value = selectedStatus;
+          fallbackOption.textContent = descriptor.label || selectedStatus;
+          fallbackOption.hidden = true;
+          reportRunsStatusFilter.appendChild(fallbackOption);
+        }
+
+        reportRunsStatusFilter.value = selectedStatus;
+      }
+    }
+
+    function updateReportRunsFilterOptions(runs) {
+      if (!Array.isArray(runs)) {
+        renderReportRunsFilters();
+        return;
+      }
+
+      runs.forEach((run) => {
+        if (run?.jobId) {
+          const presetLabel = run?.presetName || run?.presetId;
+          const displayLabel = presetLabel ? `${run.jobId} · ${presetLabel}` : run.jobId;
+          const existingLabel = reportRunsJobLabels.get(run.jobId);
+          if (!existingLabel || existingLabel === run.jobId) {
+            reportRunsJobLabels.set(run.jobId, displayLabel);
+          }
+        }
+        if (run?.status) {
+          reportRunsStatusSet.add(run.status);
+        }
+      });
+
+      renderReportRunsFilters();
+    }
+
+    function formatBytes(bytes) {
+      const value = Number(bytes);
+      if (!Number.isFinite(value) || value < 0) {
+        return null;
+      }
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let size = value;
+      let index = 0;
+      while (size >= 1024 && index < units.length - 1) {
+        size /= 1024;
+        index += 1;
+      }
+      const decimals = size < 10 && index > 0 ? 1 : 0;
+      return `${size.toFixed(decimals)} ${units[index]}`;
+    }
+
+    function humanizeKey(key) {
+      if (!key) {
+        return '';
+      }
+      const withSpaces = key
+        .toString()
+        .replace(/[_-]+/g, ' ')
+        .replace(/([a-z\d])([A-Z])/g, '$1 $2')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      return withSpaces.split(' ').map((word) => {
+        if (!word.length) return word;
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      }).join(' ');
+    }
+
+    function buildKeyValueGrid(entries = []) {
+      const container = document.createElement('div');
+      container.className = 'key-value-grid';
+      entries.forEach(({ label, value }) => {
+        if (value === undefined || value === null || value === '') {
+          return;
+        }
+        const wrapper = document.createElement('div');
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'key-label';
+        labelSpan.textContent = label;
+        const valueSpan = document.createElement('span');
+        valueSpan.className = 'key-value';
+        valueSpan.textContent = value;
+        wrapper.append(labelSpan, valueSpan);
+        container.appendChild(wrapper);
+      });
+      return container;
+    }
+
+    function createEmptyMessage(text) {
+      const paragraph = document.createElement('p');
+      paragraph.className = 'row-subtext';
+      paragraph.style.margin = '0';
+      paragraph.textContent = text;
+      return paragraph;
+    }
+
+    function createResultsList(results) {
+      if (!Array.isArray(results) || !results.length) {
+        return null;
+      }
+
+      const list = document.createElement('div');
+      list.className = 'results-list';
+
+      results.forEach((result) => {
+        const item = document.createElement('div');
+        item.className = 'result-item';
+
+        const main = document.createElement('div');
+        main.className = 'result-item-main';
+        const title = document.createElement('div');
+        title.style.fontWeight = '600';
+  title.textContent = (result?.format || 'Formato').toString().toUpperCase();
+        main.appendChild(title);
+
+        const metaParts = [];
+        const sizeLabel = formatBytes(result?.bytes);
+        if (sizeLabel) {
+          metaParts.push(sizeLabel);
+        }
+        if (result?.gcs?.bucket && result?.gcs?.path) {
+          metaParts.push(`${result.gcs.bucket}/${result.gcs.path}`);
+        }
+        if (result?.error) {
+          metaParts.push(`Error: ${result.error}`);
+        }
+        if (metaParts.length) {
+          const subtitle = document.createElement('span');
+          subtitle.className = 'row-subtext';
+          subtitle.textContent = metaParts.join(' · ');
+          main.appendChild(subtitle);
+        }
+
+        item.appendChild(main);
+
+        const actions = document.createElement('div');
+        actions.className = 'result-item-actions';
+        const descriptor = getStatusDescriptor(result?.status);
+        const statusTag = createTagElement(descriptor.label, mapTagVariant(result?.status));
+        actions.appendChild(statusTag);
+        if (result?.gcs?.publicUrl) {
+          const link = document.createElement('a');
+          link.href = result.gcs.publicUrl;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = 'Abrir';
+          actions.appendChild(link);
+        }
+        item.appendChild(actions);
+
+        list.appendChild(item);
+      });
+
+      return list;
+    }
+
+    function createNotificationsList(notifications) {
+      if (!notifications || typeof notifications !== 'object' || !Object.keys(notifications).length) {
+        return null;
+      }
+
+      const list = document.createElement('div');
+      list.className = 'notifications-list';
+
+      Object.entries(notifications).forEach(([channel, info]) => {
+        const item = document.createElement('div');
+        item.className = 'notification-item';
+
+        const main = document.createElement('div');
+        main.className = 'notification-item-main';
+        const title = document.createElement('div');
+        title.style.fontWeight = '600';
+        title.textContent = channel === 'email' ? 'Email' : channel === 'slack' ? 'Slack' : humanizeKey(channel);
+        main.appendChild(title);
+
+        const details = [];
+        if (Array.isArray(info?.recipients) && info.recipients.length) {
+          details.push(`Destinatarios: ${info.recipients.join(', ')}`);
+        }
+        if (info?.error) {
+          details.push(`Error: ${info.error}`);
+        } else if (info?.reason) {
+          details.push(`Motivo: ${info.reason}`);
+        }
+        if (details.length) {
+          const subtitle = document.createElement('span');
+          subtitle.className = 'row-subtext';
+          subtitle.textContent = details.join(' · ');
+          main.appendChild(subtitle);
+        }
+
+        item.appendChild(main);
+
+        const actions = document.createElement('div');
+        actions.className = 'notification-item-actions';
+        const statusTag = createTagElement(translateNotificationStatus(info?.status), mapTagVariant(info?.status));
+        actions.appendChild(statusTag);
+        item.appendChild(actions);
+
+        list.appendChild(item);
+      });
+
+      return list;
+    }
+
+    function formatPercentage(part, total) {
+      if (!Number.isFinite(part) || !Number.isFinite(total) || total <= 0) {
+        return '0%';
+      }
+      const percentage = (part / total) * 100;
+      return `${percentage.toFixed(percentage >= 99 || percentage === 0 ? 0 : 1)}%`;
+    }
+
+    function parseAutoRefreshInterval(value) {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) {
+        return DEFAULT_AUTO_REFRESH_INTERVAL_MS;
+      }
+      return Math.min(Math.max(parsed, 60000), 3600000);
+    }
+
+    function loadModePreference() {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return null;
+      }
+      try {
+        const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
+        if (stored === 'bloom' || stored === 'ecoplan') {
+          return stored;
+        }
+      } catch (error) {
+        console.warn('No se pudo cargar el modo preferido:', error);
+      }
+      return null;
+    }
+
+    function persistModePreference(mode) {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return;
+      }
+      try {
+        window.localStorage.setItem(MODE_STORAGE_KEY, mode);
+      } catch (error) {
+        console.warn('No se pudo guardar el modo preferido:', error);
+      }
+    }
+
+    function loadReportRunsAutoRefreshSettings() {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return;
+      }
+      try {
+        const raw = window.localStorage.getItem(REPORT_RUNS_AUTO_REFRESH_STORAGE_KEY);
+        if (!raw) {
+          return;
+        }
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === 'object' && parsed) {
+          if (typeof parsed.enabled === 'boolean') {
+            reportRunsAutoRefreshEnabled = parsed.enabled;
+          }
+          if (parsed.interval !== undefined) {
+            reportRunsAutoRefreshIntervalMs = parseAutoRefreshInterval(parsed.interval);
+          }
+        }
+      } catch (error) {
+        console.warn('No se pudo cargar la configuración de auto-actualización:', error);
+      }
+    }
+
+    function persistReportRunsAutoRefreshSettings() {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return;
+      }
+      try {
+        window.localStorage.setItem(REPORT_RUNS_AUTO_REFRESH_STORAGE_KEY, JSON.stringify({
+          enabled: reportRunsAutoRefreshEnabled,
+          interval: reportRunsAutoRefreshIntervalMs
+        }));
+      } catch (error) {
+        console.warn('No se pudo guardar la configuración de auto-actualización:', error);
+      }
+    }
+
+    function applyReportRunsAutoRefreshDomState() {
+      if (reportRunsAutoRefreshToggle) {
+        reportRunsAutoRefreshToggle.checked = reportRunsAutoRefreshEnabled;
+      }
+      if (reportRunsAutoRefreshIntervalSelect) {
+        reportRunsAutoRefreshIntervalSelect.value = reportRunsAutoRefreshIntervalMs.toString();
+      }
+      updateReportRunsAutoRefreshStatusLabel();
+    }
+
+    function updateReportRunsAutoRefreshStatusLabel() {
+      if (!reportRunsAutoRefreshStatusEl) {
+        return;
+      }
+      const documentHidden = typeof document !== 'undefined' && document.hidden;
+      const activeNow = reportRunsAutoRefreshEnabled && currentMode === 'ecoplan' && !documentHidden;
+      let modeLabel = 'Actualización manual';
+      if (reportRunsAutoRefreshEnabled) {
+        modeLabel = activeNow ? 'Auto-actualización activa' : 'Auto-actualización pausada';
+        if (!activeNow && currentMode !== 'ecoplan') {
+          modeLabel = 'Auto-actualización en espera (modo Bloom)';
+        } else if (!activeNow && documentHidden) {
+          modeLabel = 'Auto-actualización pausada (pestaña inactiva)';
+        }
+      }
+
+      if (!reportRunsLastUpdatedAt) {
+        reportRunsAutoRefreshStatusEl.textContent = `${modeLabel}.`;
+        return;
+      }
+
+      reportRunsAutoRefreshStatusEl.textContent = `${modeLabel}. Última actualización: ${formatDateTimeLabel(reportRunsLastUpdatedAt)}`;
+    }
+
+    function clearReportRunsAutoRefreshTimer() {
+      if (reportRunsAutoRefreshTimer) {
+        clearInterval(reportRunsAutoRefreshTimer);
+        reportRunsAutoRefreshTimer = null;
+      }
+      updateReportRunsAutoRefreshStatusLabel();
+    }
+
+    function scheduleReportRunsAutoRefresh({ fetchImmediately = false } = {}) {
+      clearReportRunsAutoRefreshTimer();
+
+      if (!reportRunsAutoRefreshEnabled || currentMode !== 'ecoplan') {
+        return;
+      }
+
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
+
+      reportRunsAutoRefreshTimer = setInterval(() => {
+        fetchReportRuns({ announce: false });
+      }, reportRunsAutoRefreshIntervalMs);
+
+      if (fetchImmediately) {
+        fetchReportRuns({ announce: false });
+      }
+
+      updateReportRunsAutoRefreshStatusLabel();
+    }
+
+    function handleVisibilityChange() {
+      if (!reportRunsAutoRefreshEnabled) {
+        return;
+      }
+      if (document.hidden) {
+        clearReportRunsAutoRefreshTimer();
+      } else {
+        scheduleReportRunsAutoRefresh();
+      }
+      updateReportRunsAutoRefreshStatusLabel();
+    }
+
+  function updateReportRunsSummary(runs = []) {
+      if (!reportRunsSummary) {
+        return;
+      }
+
+      if (!Array.isArray(runs) || !runs.length) {
+        reportRunsSummary.hidden = true;
+        if (reportRunsTotalEl) reportRunsTotalEl.textContent = '0';
+        if (reportRunsRangeEl) reportRunsRangeEl.textContent = '–';
+        if (reportRunsSuccessEl) reportRunsSuccessEl.textContent = '0';
+        if (reportRunsSuccessPctEl) reportRunsSuccessPctEl.textContent = '0%';
+        if (reportRunsErrorsEl) reportRunsErrorsEl.textContent = '0';
+        if (reportRunsErrorsPctEl) reportRunsErrorsPctEl.textContent = '0%';
+        if (reportRunsLastStatusEl) reportRunsLastStatusEl.textContent = '–';
+        if (reportRunsLastWhenEl) reportRunsLastWhenEl.textContent = '–';
+        return;
+      }
+
+      const total = runs.length;
+      const successCount = runs.filter((run) => run?.status === 'success').length;
+      const errorCount = runs.filter((run) => run?.status === 'error').length;
+
+      if (reportRunsTotalEl) {
+        reportRunsTotalEl.textContent = String(total);
+      }
+
+      if (reportRunsSuccessEl) {
+        reportRunsSuccessEl.textContent = String(successCount);
+      }
+      if (reportRunsSuccessPctEl) {
+        reportRunsSuccessPctEl.textContent = formatPercentage(successCount, total);
+      }
+
+      if (reportRunsErrorsEl) {
+        reportRunsErrorsEl.textContent = String(errorCount);
+      }
+      if (reportRunsErrorsPctEl) {
+        reportRunsErrorsPctEl.textContent = formatPercentage(errorCount, total);
+      }
+
+      const latest = runs[0];
+      const earliest = runs[runs.length - 1];
+
+      if (reportRunsRangeEl) {
+        const startLabel = earliest ? formatDateTimeLabel(earliest.generatedAt || earliest.completedAt || earliest.startedAt) : null;
+        const endLabel = latest ? formatDateTimeLabel(latest.generatedAt || latest.completedAt || latest.startedAt) : null;
+        if (startLabel && endLabel && startLabel !== endLabel) {
+          reportRunsRangeEl.textContent = `${startLabel} → ${endLabel}`;
+        } else {
+          reportRunsRangeEl.textContent = endLabel || startLabel || '–';
+        }
+      }
+
+      if (reportRunsLastStatusEl || reportRunsLastWhenEl) {
+        const descriptor = getStatusDescriptor(latest?.status);
+        if (reportRunsLastStatusEl) {
+          reportRunsLastStatusEl.textContent = descriptor.label;
+        }
+        if (reportRunsLastWhenEl) {
+          const lastInstant = latest?.generatedAt || latest?.completedAt || latest?.startedAt;
+          reportRunsLastWhenEl.textContent = lastInstant ? formatDateTimeLabel(lastInstant) : '–';
+        }
+      }
+
+      reportRunsSummary.hidden = false;
+    }
+
+    function createMetricsSection(metrics) {
+      if (!metrics || typeof metrics !== 'object') {
+        return null;
+      }
+      const entries = Object.entries(metrics).filter(([, value]) => value !== null && value !== undefined);
+      if (!entries.length) {
+        return null;
+      }
+
+      const section = document.createElement('div');
+      section.className = 'modal-section';
+      const heading = document.createElement('h4');
+      heading.textContent = 'Indicadores clave';
+      section.appendChild(heading);
+
+      const grid = document.createElement('div');
+      grid.className = 'metrics-grid';
+
+      entries.forEach(([key, value]) => {
+        const card = document.createElement('div');
+        card.className = 'metrics-card';
+        const title = document.createElement('h5');
+        title.textContent = humanizeKey(key);
+        const metricValue = document.createElement('div');
+        metricValue.className = 'metric-value';
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          const decimals = Math.abs(value) >= 100 ? 0 : 2;
+          metricValue.textContent = formatNumber(value, decimals);
+        } else {
+          metricValue.textContent = String(value);
+        }
+        card.append(title, metricValue);
+        grid.appendChild(card);
+      });
+
+      section.appendChild(grid);
+      return section;
+    }
+
+    function createJsonBlock(data) {
+      const pre = document.createElement('pre');
+      pre.className = 'json-block';
+      try {
+        if (typeof data === 'string') {
+          pre.textContent = data;
+        } else {
+          pre.textContent = JSON.stringify(data, null, 2);
+        }
+      } catch (error) {
+        pre.textContent = String(data);
+      }
+      return pre;
+    }
+
+    function closeReportRunDetails({ silent = false } = {}) {
+      if (!reportRunDetailsOverlay) {
+        return;
+      }
+      reportRunDetailsActiveId = null;
+      reportRunDetailsOverlay.hidden = true;
+      reportRunDetailsOverlay.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('modal-open');
+      if (reportRunDetailsBody) {
+        reportRunDetailsBody.innerHTML = '';
+      }
+      if (!silent) {
+        logStatus('Detalle cerrado.', 'info', 'ecoplan');
+      }
+    }
+
+    function openReportRunDetails(run) {
+      if (!run || !reportRunDetailsOverlay || !reportRunDetailsBody) {
+        logStatus('No hay detalles disponibles para esta ejecución.', 'warning', 'ecoplan');
+        return;
+      }
+
+      reportRunDetailsActiveId = run.id || null;
+
+      const jobParts = [];
+      if (run.jobId) {
+        jobParts.push(run.jobId);
+      }
+      if (run.presetName) {
+        jobParts.push(run.presetName);
+      } else if (run.presetId) {
+        jobParts.push(run.presetId);
+      }
+      if (reportRunDetailsJob) {
+        reportRunDetailsJob.textContent = jobParts.length ? jobParts.join(' · ') : 'Ejecución EcoPlan';
+      }
+
+      if (reportRunDetailsTitle) {
+        const presetLabel = run.presetName || run.presetId || 'Detalle de ejecución';
+        reportRunDetailsTitle.textContent = `EcoPlan · ${presetLabel}`;
+      }
+
+      if (reportRunDetailsStatus) {
+        const descriptor = getStatusDescriptor(run.status);
+        reportRunDetailsStatus.textContent = descriptor.label;
+        reportRunDetailsStatus.className = `status-pill ${descriptor.variant}`;
+      }
+
+      const sections = [];
+      const timelineItems = [];
+      if (run.startedAt) {
+        timelineItems.push({ label: 'Inicio', value: formatDateTimeLabel(run.startedAt) });
+      }
+      if (run.completedAt) {
+        timelineItems.push({ label: 'Fin', value: formatDateTimeLabel(run.completedAt) });
+      }
+      if (run.generatedAt) {
+        timelineItems.push({ label: 'Generado', value: formatDateTimeLabel(run.generatedAt) });
+      }
+      const durationLabel = formatDurationLabel(run.durationMs);
+      if (durationLabel) {
+        timelineItems.push({ label: 'Duración', value: durationLabel });
+      }
+      if (run.trigger) {
+        timelineItems.push({ label: 'Disparador', value: humanizeKey(run.trigger) });
+      }
+      if (run.hash) {
+        timelineItems.push({ label: 'Hash', value: run.hash });
+      }
+      if (run.id) {
+        timelineItems.push({ label: 'ID interno', value: run.id });
+      }
+
+      if (timelineItems.length) {
+        const timelineSection = document.createElement('div');
+        timelineSection.className = 'modal-section';
+        const timelineHeading = document.createElement('h4');
+        timelineHeading.textContent = 'Cronología';
+        timelineSection.appendChild(timelineHeading);
+        timelineSection.appendChild(buildKeyValueGrid(timelineItems));
+        sections.push(timelineSection);
+      }
+
+      const resultsSection = document.createElement('div');
+      resultsSection.className = 'modal-section';
+      const resultsHeading = document.createElement('h4');
+      resultsHeading.textContent = 'Archivos generados';
+      resultsSection.appendChild(resultsHeading);
+      const resultsList = createResultsList(run.results);
+      if (resultsList) {
+        resultsSection.appendChild(resultsList);
+      } else {
+        const message = run.status === 'running'
+          ? 'Los formatos aún se están generando.'
+          : 'No se registraron formatos para esta ejecución.';
+        resultsSection.appendChild(createEmptyMessage(message));
+      }
+      sections.push(resultsSection);
+
+      const notificationsSection = document.createElement('div');
+      notificationsSection.className = 'modal-section';
+      const notificationsHeading = document.createElement('h4');
+      notificationsHeading.textContent = 'Notificaciones';
+      notificationsSection.appendChild(notificationsHeading);
+      const notificationsList = createNotificationsList(run.notifications);
+      if (notificationsList) {
+        notificationsSection.appendChild(notificationsList);
+      } else {
+        notificationsSection.appendChild(createEmptyMessage('No se registraron notificaciones para esta ejecución.'));
+      }
+      sections.push(notificationsSection);
+
+      const metricsSection = createMetricsSection(run.metrics);
+      if (metricsSection) {
+        sections.push(metricsSection);
+      }
+
+      if (run.delivery && Object.keys(run.delivery).length) {
+        const deliverySection = document.createElement('div');
+        deliverySection.className = 'modal-section';
+        const heading = document.createElement('h4');
+        heading.textContent = 'Entrega';
+        deliverySection.appendChild(heading);
+        deliverySection.appendChild(createJsonBlock(run.delivery));
+        sections.push(deliverySection);
+      }
+
+      if (run.request && Object.keys(run.request).length) {
+        const requestSection = document.createElement('div');
+        requestSection.className = 'modal-section';
+        const heading = document.createElement('h4');
+        heading.textContent = 'Payload efectivo';
+        requestSection.appendChild(heading);
+        requestSection.appendChild(createJsonBlock(run.request));
+        sections.push(requestSection);
+      }
+
+      if (run.error && (run.error.message || run.error.stack)) {
+        const errorSection = document.createElement('div');
+        errorSection.className = 'modal-section';
+        const heading = document.createElement('h4');
+        heading.textContent = 'Errores reportados';
+        errorSection.appendChild(heading);
+        const errorText = [];
+        if (run.error.message) {
+          errorText.push(`Mensaje: ${run.error.message}`);
+        }
+        if (run.error.stack) {
+          errorText.push(run.error.stack);
+        }
+        errorSection.appendChild(createJsonBlock(errorText.join('\n')));
+        sections.push(errorSection);
+      }
+
+      reportRunDetailsBody.replaceChildren(...sections);
+
+      reportRunDetailsOverlay.hidden = false;
+      reportRunDetailsOverlay.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('modal-open');
+      if (closeReportRunDetailsButton) {
+        closeReportRunDetailsButton.focus();
+      }
+
+      const descriptor = getStatusDescriptor(run.status);
+      logStatus(`Detalles listos · ${run.jobId || 'job'} (${descriptor.label})`, 'info', 'ecoplan');
+    }
+
+    function translateNotificationStatus(status) {
+      const normalized = typeof status === 'string' ? status.toLowerCase() : '';
+      switch (normalized) {
+        case 'sent':
+          return 'OK';
+        case 'skipped':
+          return 'Omitido';
+        case 'error':
+          return 'Error';
+        case 'pending':
+          return 'Pendiente';
+        case 'queued':
+          return 'En cola';
+        default:
+          return status ? status.toString() : '—';
+      }
+    }
+
+    function createTagElement(label, variant = 'neutral', href = null, tooltip = '') {
+      const element = href ? document.createElement('a') : document.createElement('span');
+      element.className = `tag ${variant}`;
+      element.textContent = label;
+      if (href) {
+        element.href = href;
+        element.target = '_blank';
+        element.rel = 'noopener noreferrer';
+      }
+      if (tooltip) {
+        element.title = tooltip;
+      }
+      return element;
+    }
+
+    function renderFormatsCell(cell, run) {
+      cell.textContent = '';
+      const results = Array.isArray(run?.results) ? run.results : [];
+      if (!results.length) {
+        cell.textContent = run?.status === 'running' ? 'Procesando…' : '—';
+        return;
+      }
+
+      const container = document.createElement('div');
+      container.style.display = 'flex';
+      container.style.flexWrap = 'wrap';
+      container.style.gap = '6px';
+
+      results.forEach((result) => {
+        const formatLabel = (result?.format || '').toString().toUpperCase() || 'FORMATO';
+        const href = result?.gcs?.publicUrl || null;
+        const variant = mapTagVariant(result?.status);
+        const tooltipParts = [];
+        if (href) {
+          tooltipParts.push('Abrir en pestaña nueva');
+        } else if (result?.status === 'success') {
+          tooltipParts.push('Generado localmente');
+        }
+        if (result?.error) {
+          tooltipParts.push(`Error: ${result.error}`);
+        }
+        const tooltip = tooltipParts.join(' · ');
+        const tag = createTagElement(formatLabel, variant, href, tooltip);
+        container.appendChild(tag);
+      });
+
+      cell.appendChild(container);
+    }
+
+    function renderNotificationsCell(cell, run) {
+      cell.textContent = '';
+      const notifications = run?.notifications;
+      if (!notifications || typeof notifications !== 'object' || !Object.keys(notifications).length) {
+        cell.textContent = run?.status === 'running' ? 'Pendiente' : '—';
+        return;
+      }
+
+      const container = document.createElement('div');
+      container.style.display = 'flex';
+      container.style.flexWrap = 'wrap';
+      container.style.gap = '6px';
+
+      Object.entries(notifications).forEach(([channel, info]) => {
+        const baseLabel = channel === 'email' ? 'Email' : channel === 'slack' ? 'Slack' : channel;
+        const statusLabel = translateNotificationStatus(info?.status);
+        const text = `${baseLabel}${statusLabel ? ` · ${statusLabel}` : ''}`;
+        const tooltipParts = [];
+        if (Array.isArray(info?.recipients) && info.recipients.length) {
+          tooltipParts.push(`Destinatarios: ${info.recipients.join(', ')}`);
+        }
+        if (info?.reason) {
+          tooltipParts.push(`Motivo: ${info.reason}`);
+        }
+        if (info?.error) {
+          tooltipParts.push(`Error: ${info.error}`);
+        }
+        const tooltip = tooltipParts.join(' | ');
+        const variant = mapTagVariant(info?.status);
+        const tag = createTagElement(text, variant, null, tooltip);
+        container.appendChild(tag);
+      });
+
+      cell.appendChild(container);
+    }
+
+    function renderReportRunsTable(runs = []) {
+      if (!reportRunsTableBody) {
+        return;
+      }
+
+      reportRunsTableBody.innerHTML = '';
+
+      if (!Array.isArray(runs) || !runs.length) {
+        if (reportRunsEmptyMessage) {
+          const filtersApplied = Boolean(reportRunsFilterState.jobId || reportRunsFilterState.status);
+          reportRunsEmptyMessage.hidden = false;
+          reportRunsEmptyMessage.textContent = filtersApplied
+            ? 'No hay ejecuciones que coincidan con los filtros seleccionados.'
+            : (defaultReportRunsEmptyText || 'Sin ejecuciones registradas.');
+        }
+        updateReportRunsSummary([]);
+        return;
+      }
+
+      if (reportRunsEmptyMessage) {
+        reportRunsEmptyMessage.hidden = true;
+        reportRunsEmptyMessage.textContent = defaultReportRunsEmptyText;
+      }
+
+      runs.forEach((run) => {
+        const row = document.createElement('tr');
+        row.classList.add('clickable-row');
+        row.tabIndex = 0;
+        row.setAttribute('role', 'button');
+        row.setAttribute('aria-label', `Ver detalles de ${run?.jobId || run?.presetName || 'la ejecución'}`);
+        row.addEventListener('click', () => {
+          openReportRunDetails(run);
+        });
+        row.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openReportRunDetails(run);
+          }
+        });
+
+        const dateCell = document.createElement('td');
+        const datePrimary = document.createElement('div');
+        datePrimary.textContent = formatDateTimeLabel(run?.generatedAt || run?.completedAt || run?.startedAt);
+        dateCell.appendChild(datePrimary);
+        const metaParts = [];
+        if (run?.trigger) {
+          metaParts.push(`Trigger: ${run.trigger}`);
+        }
+        const durationLabel = formatDurationLabel(run?.durationMs);
+        if (durationLabel) {
+          metaParts.push(`Duración: ${durationLabel}`);
+        }
+        if (metaParts.length) {
+          const metaSpan = document.createElement('span');
+          metaSpan.className = 'row-subtext';
+          metaSpan.textContent = metaParts.join(' · ');
+          dateCell.appendChild(metaSpan);
+        }
+        row.appendChild(dateCell);
+
+        const jobCell = document.createElement('td');
+        const jobTitle = document.createElement('div');
+        jobTitle.textContent = run?.jobId || '—';
+        jobTitle.style.fontWeight = '600';
+        jobCell.appendChild(jobTitle);
+        const presetLabel = run?.presetName || run?.presetId;
+        if (presetLabel) {
+          const presetSpan = document.createElement('span');
+          presetSpan.className = 'row-subtext';
+          presetSpan.textContent = presetLabel;
+          jobCell.appendChild(presetSpan);
+        }
+        const periodStart = run?.request?.start;
+        const periodEnd = run?.request?.end;
+        if (periodStart || periodEnd) {
+          const periodSpan = document.createElement('span');
+          periodSpan.className = 'row-subtext';
+          if (periodStart && periodEnd) {
+            periodSpan.textContent = `${periodStart} → ${periodEnd}`;
+          } else if (periodStart) {
+            periodSpan.textContent = `Desde ${periodStart}`;
+          } else {
+            periodSpan.textContent = `Hasta ${periodEnd}`;
+          }
+          jobCell.appendChild(periodSpan);
+        }
+        row.appendChild(jobCell);
+
+        const statusCell = document.createElement('td');
+        const descriptor = getStatusDescriptor(run?.status);
+        const statusPill = document.createElement('span');
+        statusPill.className = `status-pill ${descriptor.variant}`;
+        statusPill.textContent = descriptor.label;
+        statusCell.appendChild(statusPill);
+        if (run?.error?.message) {
+          const errorSpan = document.createElement('span');
+          errorSpan.className = 'row-subtext';
+          errorSpan.textContent = run.error.message;
+          statusCell.appendChild(errorSpan);
+        }
+        row.appendChild(statusCell);
+
+        const formatsCell = document.createElement('td');
+        renderFormatsCell(formatsCell, run);
+        row.appendChild(formatsCell);
+
+        const notificationsCell = document.createElement('td');
+        renderNotificationsCell(notificationsCell, run);
+        row.appendChild(notificationsCell);
+
+        reportRunsTableBody.appendChild(row);
+      });
+
+      updateReportRunsSummary(runs);
+    }
+
+    function setReportRunsLoadingState(isLoading) {
+      reportRunsLoading = isLoading;
+      if (!refreshReportRunsButton) {
+        return;
+      }
+      refreshReportRunsButton.disabled = isLoading;
+      refreshReportRunsButton.textContent = isLoading
+        ? 'Actualizando…'
+        : (refreshReportRunsDefaultText || 'Actualizar');
+    }
+
+    async function fetchReportRuns({ announce = true, limit = REPORT_RUNS_LIMIT } = {}) {
+      if (!reportRunsTableBody) {
+        return;
+      }
+
+      const safeLimit = Math.max(1, Math.min(200, Number(limit) || REPORT_RUNS_LIMIT));
+      reportRunsCurrentLimit = safeLimit;
+
+      if (reportRunsLoading) {
+        reportRunsFetchQueued = true;
+        return;
+      }
+
+      setReportRunsLoadingState(true);
+
+      if (announce) {
+        logStatus('Consultando historial de reportes...', 'info', 'ecoplan');
+      }
+
+      try {
+        const params = new URLSearchParams();
+        params.set('limit', safeLimit.toString());
+        if (reportRunsFilterState.jobId) {
+          params.set('jobId', reportRunsFilterState.jobId);
+        }
+        if (reportRunsFilterState.status) {
+          params.set('status', reportRunsFilterState.status);
+        }
+
+        const response = await fetch(`/api/reports/history?${params.toString()}`, { cache: 'no-store' });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || response.statusText || 'Error desconocido');
+        }
+        const data = await response.json();
+        const runs = Array.isArray(data?.runs) ? data.runs : [];
+        reportRunsLastResponse = runs;
+        if (runs.length) {
+          updateReportRunsFilterOptions(runs);
+        } else {
+          renderReportRunsFilters();
+        }
+        renderReportRunsTable(runs);
+        reportRunsLastUpdatedAt = new Date().toISOString();
+        updateReportRunsAutoRefreshStatusLabel();
+        reportRunsLoaded = true;
+        if (announce) {
+          const appliedFilters = [];
+          if (reportRunsFilterState.jobId) {
+            appliedFilters.push(`job ${reportRunsFilterState.jobId}`);
+          }
+          if (reportRunsFilterState.status) {
+            const statusDescriptor = getStatusDescriptor(reportRunsFilterState.status);
+            appliedFilters.push(`estado ${statusDescriptor.label}`);
+          }
+          const filtersText = appliedFilters.length ? ` (${appliedFilters.join(', ')})` : '';
+          logStatus(`Historial actualizado (${runs.length})${filtersText}.`, 'success', 'ecoplan');
+        }
+      } catch (error) {
+        console.error('No se pudo cargar el historial de reportes:', error);
+        reportRunsLoaded = false;
+        if (reportRunsEmptyMessage) {
+          reportRunsEmptyMessage.hidden = false;
+          reportRunsEmptyMessage.textContent = `Error al cargar historial: ${error.message}`;
+        }
+        if (announce) {
+          logStatus(`No se pudo cargar el historial: ${error.message}`, 'error', 'ecoplan');
+        }
+      } finally {
+        setReportRunsLoadingState(false);
+        if (reportRunsFetchQueued) {
+          reportRunsFetchQueued = false;
+          fetchReportRuns({ announce: false, limit: reportRunsCurrentLimit });
+        }
+        updateReportRunsAutoRefreshStatusLabel();
+      }
+    }
+
+    function ensureReportRunsLoaded() {
+      if (!reportRunsLoaded && !reportRunsLoading) {
+        fetchReportRuns({ announce: false });
       }
     }
 
@@ -1724,6 +3321,16 @@
       ecoControls.classList.toggle('hidden', isBloom);
       ecoSummarySection.classList.toggle('hidden', isBloom);
 
+      if (normalized === 'ecoplan') {
+        ensureReportRunsLoaded();
+        scheduleReportRunsAutoRefresh({ fetchImmediately: reportRunsAutoRefreshEnabled });
+      } else {
+        clearReportRunsAutoRefreshTimer();
+      }
+
+      persistModePreference(normalized);
+      updateReportRunsAutoRefreshStatusLabel();
+
       if (!reRender) {
         return;
       }
@@ -2046,6 +3653,12 @@
       createMap();
       loadGeeBasemap();
       fetchPresets();
+      loadReportRunsAutoRefreshSettings();
+      applyReportRunsAutoRefreshDomState();
+      const savedModePreference = loadModePreference();
+      if (savedModePreference && savedModePreference !== currentMode) {
+        currentMode = savedModePreference;
+      }
 
       document.getElementById('controlForm').addEventListener('submit', runBloomAnalysis);
       document.getElementById('presetSelect').addEventListener('change', updateBufferPlaceholder);
@@ -2067,6 +3680,54 @@
           }
         });
       });
+      if (refreshReportRunsButton) {
+        refreshReportRunsButton.addEventListener('click', () => {
+          fetchReportRuns({ announce: true });
+        });
+      }
+      if (reportRunsJobFilter) {
+        reportRunsJobFilter.addEventListener('change', () => {
+          reportRunsFilterState.jobId = reportRunsJobFilter.value;
+          fetchReportRuns({ announce: true });
+        });
+      }
+      if (reportRunsStatusFilter) {
+        reportRunsStatusFilter.addEventListener('change', () => {
+          reportRunsFilterState.status = reportRunsStatusFilter.value;
+          fetchReportRuns({ announce: true });
+        });
+      }
+      if (reportRunsAutoRefreshToggle) {
+        reportRunsAutoRefreshToggle.addEventListener('change', () => {
+          reportRunsAutoRefreshEnabled = reportRunsAutoRefreshToggle.checked;
+          persistReportRunsAutoRefreshSettings();
+          scheduleReportRunsAutoRefresh({ fetchImmediately: reportRunsAutoRefreshEnabled && currentMode === 'ecoplan' });
+          updateReportRunsAutoRefreshStatusLabel();
+        });
+      }
+      if (reportRunsAutoRefreshIntervalSelect) {
+        reportRunsAutoRefreshIntervalSelect.addEventListener('change', () => {
+          reportRunsAutoRefreshIntervalMs = parseAutoRefreshInterval(reportRunsAutoRefreshIntervalSelect.value);
+          persistReportRunsAutoRefreshSettings();
+          scheduleReportRunsAutoRefresh({ fetchImmediately: reportRunsAutoRefreshEnabled && currentMode === 'ecoplan' });
+        });
+      }
+      if (closeReportRunDetailsButton) {
+        closeReportRunDetailsButton.addEventListener('click', () => closeReportRunDetails());
+      }
+      if (reportRunDetailsOverlay) {
+        reportRunDetailsOverlay.addEventListener('click', (event) => {
+          if (event.target === reportRunDetailsOverlay) {
+            closeReportRunDetails({ silent: true });
+          }
+        });
+      }
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && reportRunDetailsOverlay && !reportRunDetailsOverlay.hidden) {
+          closeReportRunDetails({ silent: true });
+        }
+      });
+      document.addEventListener('visibilitychange', handleVisibilityChange);
       setMode(currentMode, { reRender: false, silent: true });
       if (quickViewButton) {
         quickViewButton.addEventListener('click', loadQuickView);

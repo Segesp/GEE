@@ -10,10 +10,15 @@ yarn-error.log*
 # Service account credentials
 service-account.json
 *.json
+!package.json
+!package-lock.json
+!config/report-distribution.json
+!config/report-distribution.json.example
 
 # Logs
 logs
 *.log
+.data/
 
 # Runtime data
 pids
