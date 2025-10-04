@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha512-sA+4psJ1BLwh7QJHsQ6bUaz2+miFjCwXTlzAIXazhbugzuDUFcPRl1b/HFB70dNFuPuE6iu+/g9A5lH0p9fQ==" crossorigin="">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <style>
     :root {
       --bg: #0b1120;
@@ -135,6 +135,7 @@
       justify-content: center;
       cursor: pointer;
       transition: all 0.2s ease;
+      z-index: 10;
     }
     .modal-close-button:hover {
       color: var(--text);
@@ -145,6 +146,7 @@
       justify-content: space-between;
       align-items: flex-start;
       gap: 12px;
+      padding-right: 48px;
       margin-bottom: 18px;
     }
     .modal-subtitle {
@@ -162,6 +164,14 @@
       display: flex;
       flex-direction: column;
       gap: 18px;
+    }
+    .modal-footer {
+      margin-top: 24px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .modal-footer .button-secondary {
+      min-width: 120px;
     }
     .modal-section h4 {
       margin: 0 0 8px;
@@ -1241,7 +1251,7 @@
 
   <div id="reportRunDetailsOverlay" class="modal-overlay" hidden tabindex="-1" aria-hidden="true">
     <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="reportRunDetailsTitle">
-      <button type="button" class="modal-close-button" id="closeReportRunDetails" aria-label="Cerrar detalles">×</button>
+  <button type="button" class="modal-close-button" id="closeReportRunDetails" data-action="close-report-run-details" aria-label="Cerrar detalles">×</button>
       <div class="modal-header">
         <div>
           <div class="modal-subtitle" id="reportRunDetailsJob">Job</div>
@@ -1250,11 +1260,14 @@
         <span class="status-pill neutral" id="reportRunDetailsStatus">Estado</span>
       </div>
       <div class="modal-body" id="reportRunDetailsBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="button-secondary" data-action="close-report-run-details">Cerrar</button>
+      </div>
     </div>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha512-vmI1Qy1SgdWzxjaUoil58x2oylZMhUlCT3VkOITkkpFmS6r30YIOCwVDDDeWGPA7eGRIDcH+xM3aMc1hQE8fkw==" crossorigin=""></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/chart/chart.umd.js"></script>
   <script>
     const BLOOM_PRESETS_LOCAL = [
       {
@@ -2483,6 +2496,37 @@
         logStatus('Detalle cerrado.', 'info', 'ecoplan');
       }
     }
+
+    if (closeReportRunDetailsButton) {
+      closeReportRunDetailsButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeReportRunDetails();
+      });
+    }
+
+    if (reportRunDetailsOverlay) {
+      reportRunDetailsOverlay.addEventListener('click', (event) => {
+        if (event.target === reportRunDetailsOverlay) {
+          closeReportRunDetails({ silent: true });
+        }
+      });
+    }
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && reportRunDetailsOverlay && !reportRunDetailsOverlay.hidden) {
+        closeReportRunDetails({ silent: true });
+      }
+    });
+
+    document.addEventListener('click', (event) => {
+      const closeTrigger = event.target.closest('[data-action="close-report-run-details"]');
+      if (closeTrigger) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeReportRunDetails();
+      }
+    }, true);
 
     function openReportRunDetails(run) {
       if (!run || !reportRunDetailsOverlay || !reportRunDetailsBody) {
@@ -4177,16 +4221,6 @@
           scheduleReportRunsAutoRefresh({ fetchImmediately: reportRunsAutoRefreshEnabled && currentMode === 'ecoplan' });
         });
       }
-      if (closeReportRunDetailsButton) {
-        closeReportRunDetailsButton.addEventListener('click', () => closeReportRunDetails());
-      }
-      if (reportRunDetailsOverlay) {
-        reportRunDetailsOverlay.addEventListener('click', (event) => {
-          if (event.target === reportRunDetailsOverlay) {
-            closeReportRunDetails({ silent: true });
-          }
-        });
-      }
       if (citizenReportForm) {
         citizenReportForm.addEventListener('submit', submitCitizenReport);
       }
@@ -4216,11 +4250,6 @@
         citizenReportLatitudeInput.addEventListener('change', handleManualLocationUpdate);
         citizenReportLongitudeInput.addEventListener('change', handleManualLocationUpdate);
       }
-      document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && reportRunDetailsOverlay && !reportRunDetailsOverlay.hidden) {
-          closeReportRunDetails({ silent: true });
-        }
-      });
       document.addEventListener('visibilitychange', handleVisibilityChange);
   setCitizenReportCaptureMode(false);
       setMode(currentMode, { reRender: false, silent: true });

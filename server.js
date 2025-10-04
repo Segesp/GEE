@@ -1115,8 +1115,21 @@ async function buildEcoPlanAnalysis(options) {
       return image.addBands([ndvi, ndwi]);
     });
 
-  const ndviComposite = sentinelCollection.qualityMosaic('NDVI').select('NDVI').clip(roi);
-  const ndwiComposite = sentinelCollection.mean().select('NDWI').clip(roi);
+  let sentinelImageCount = 0;
+  try {
+    sentinelImageCount = await evaluateEeObject(sentinelCollection.size());
+  } catch (error) {
+    console.warn('Sentinel-2 collection unavailable for EcoPlan ROI:', error.message || error);
+  }
+  const hasSentinelData = sentinelImageCount && Number(sentinelImageCount) > 0;
+
+  const ndviComposite = hasSentinelData
+    ? sentinelCollection.qualityMosaic('NDVI').select('NDVI').clip(roi)
+    : ee.Image.constant(0).rename('NDVI').clip(roi);
+
+  const ndwiComposite = hasSentinelData
+    ? sentinelCollection.mean().select('NDWI').clip(roi)
+    : ee.Image.constant(0).rename('NDWI').clip(roi);
 
   const landsatCollection = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
     .filterBounds(roi)
@@ -1124,10 +1137,25 @@ async function buildEcoPlanAnalysis(options) {
     .map(maskL8sr)
     .map(addLstCelsius);
 
-  const lstComposite = landsatCollection.median().select('LST_C').clip(roi);
+  let landsatImageCount = 0;
+  try {
+    landsatImageCount = await evaluateEeObject(landsatCollection.size());
+  } catch (error) {
+    console.warn('Landsat collection unavailable for EcoPlan ROI:', error.message || error);
+  }
+  const hasLandsatData = landsatImageCount && Number(landsatImageCount) > 0;
 
-  const ndviSeries = createTimeSeries(sentinelCollection.select('NDVI'), 'NDVI', roi, 20, 'ndvi');
-  const lstSeries = createTimeSeries(landsatCollection.select('LST_C'), 'LST_C', roi, 30, 'lst_c');
+  const lstComposite = hasLandsatData
+    ? landsatCollection.median().select('LST_C').clip(roi)
+    : ee.Image.constant(0).rename('LST_C').clip(roi);
+
+  const ndviSeries = hasSentinelData
+    ? createTimeSeries(sentinelCollection.select('NDVI'), 'NDVI', roi, 20, 'ndvi')
+    : ee.FeatureCollection([]);
+
+  const lstSeries = hasLandsatData
+    ? createTimeSeries(landsatCollection.select('LST_C'), 'LST_C', roi, 30, 'lst_c')
+    : ee.FeatureCollection([]);
 
   const populationDensityCollection = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Density')
     .filter(ee.Filter.eq('year', populationYear));
@@ -1170,10 +1198,15 @@ async function buildEcoPlanAnalysis(options) {
   const aodImage = aodCollection.mean().rename('AOD').clip(roi);
   const aodSeries = createTimeSeries(aodCollection, aodBand, roi, 1000, 'aod');
 
-  const ndbiCollection = sentinelCollection.map((image) =>
-    image.normalizedDifference(['B11', 'B8']).rename('NDBI')
-  );
-  const ndbiComposite = ndbiCollection.median().rename('NDBI').clip(roi);
+  let ndbiComposite;
+  if (hasSentinelData) {
+    const ndbiCollection = sentinelCollection.map((image) =>
+      image.normalizedDifference(['B11', 'B8']).rename('NDBI')
+    );
+    ndbiComposite = ndbiCollection.median().rename('NDBI').clip(roi);
+  } else {
+    ndbiComposite = ee.Image.constant(0).rename('NDBI').clip(roi);
+  }
   const imperviousImage = normalizeImage(ndbiComposite, -0.2, 0.4).rename('Impervious');
 
   let srtmImage = safeImage(srtmDataset);
@@ -1215,25 +1248,55 @@ async function buildEcoPlanAnalysis(options) {
     no2Series = createTimeSeries(filteredNo2, no2Band, roi, 1113, 'no2');
   }
 
+  const PM25_FROM_AOD_FACTOR = 160;
   let pm25Image = null;
   let pm25Series = null;
-  const pm25CollectionCandidate = safeImageCollection(pm25Dataset);
-  if (pm25CollectionCandidate) {
-    const filteredPm25 = pm25CollectionCandidate
-      .select(pm25Band)
-      .filterBounds(roi)
-      .filterDate(start, end);
-    pm25Image = filteredPm25.mean().rename('PM25').clip(roi);
-    pm25Series = createTimeSeries(filteredPm25, pm25Band, roi, 1000, 'pm25');
-  } else {
-    const pm25ImageCandidate = safeImage(pm25Dataset);
-    if (pm25ImageCandidate) {
-      pm25Image = ee.Image(pm25ImageCandidate).select(pm25Band).rename('PM25').clip(roi);
+
+  if (pm25Dataset) {
+    try {
+      const pm25Collection = ee.ImageCollection(pm25Dataset)
+        .select(pm25Band)
+        .filterBounds(roi)
+        .filterDate(start, end);
+
+      const pm25Count = await evaluateEeObject(pm25Collection.size());
+      if (pm25Count && Number(pm25Count) > 0) {
+        pm25Image = pm25Collection.mean().rename('PM25').clip(roi);
+        pm25Series = createTimeSeries(pm25Collection, pm25Band, roi, 1000, 'pm25');
+      }
+    } catch (error) {
+      console.warn(`PM2.5 dataset unavailable (${pm25Dataset}):`, error.message || error);
+    }
+
+    if (!pm25Image) {
+      try {
+        const pm25ImageCandidate = ee.Image(pm25Dataset).select(pm25Band);
+        const pm25Sample = await evaluateEeObject(pm25ImageCandidate.reduceRegion({
+          reducer: ee.Reducer.mean(),
+          geometry: roi,
+          scale: 5000,
+          maxPixels: 1e13,
+          bestEffort: true
+        }));
+
+        if (pm25Sample && Object.keys(pm25Sample).length) {
+          pm25Image = pm25ImageCandidate.rename('PM25').clip(roi);
+        }
+      } catch (error) {
+        console.warn(`PM2.5 single-image fallback unavailable (${pm25Dataset}):`, error.message || error);
+      }
     }
   }
 
   if (!pm25Image && aodImage) {
-    pm25Image = aodImage.multiply(160).rename('PM25_est');
+    pm25Image = aodImage.multiply(PM25_FROM_AOD_FACTOR).rename('PM25_est');
+  }
+
+  if (!pm25Series && aodSeries) {
+    pm25Series = aodSeries.map((feature) => ee.Feature(null, {
+      date: feature.get('date'),
+      pm25: ee.Number(feature.get('aod')).multiply(PM25_FROM_AOD_FACTOR)
+    })).filter(ee.Filter.notNull(['pm25']));
   }
 
   let airQualityIndexImage = null;

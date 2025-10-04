@@ -391,18 +391,22 @@ The server supports any Google Earth Engine dataset. Common examples include:
 
 ## Testing
 
-Las pruebas automáticas validan los endpoints principales (tiles, mapas personalizados y bloom completo). Para ejecutarlas:
+Las pruebas automáticas validan los endpoints principales (tiles, mapas personalizados y bloom completo) y ahora incluyen un smoke test de la interfaz.
 
-1. Abre una terminal y levanta el servidor:
-   ```bash
-   npm start
-   ```
-2. En otra terminal ejecuta la suite:
+1. Pruebas de API (arrancan el servidor temporalmente):
    ```bash
    npm test
    ```
+2. Smoke test de interfaz (abre el dashboard con Puppeteer y verifica el modal de detalles):
+   ```bash
+   npm run test:ui
+   ```
+3. Para ejecutar ambas de forma secuencial:
+   ```bash
+   npm run test:all
+   ```
 
-Las pruebas esperan respuestas 200/302 cuando Earth Engine está configurado. Si faltan credenciales, verás `503` como resultado esperado para la mayoría de endpoints.
+Los tests de API esperan respuestas 200/302 cuando Earth Engine está configurado. Si faltan credenciales, verás `503` como resultado esperado para la mayoría de endpoints. El smoke test requiere que las dependencias del sistema para Chromium estén instaladas (ya incluidas en el contenedor Dev). 
 
 ## Development
 
