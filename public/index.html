@@ -1009,6 +1009,72 @@
             </div>
             <p id="reportRunsEmpty" style="margin: 12px 0 0; font-size: 0.8rem; color: var(--text-muted);" hidden>Usa el botón «Actualizar» para cargar ejecuciones recientes.</p>
           </section>
+
+          <section class="card" id="citizenReportsCard">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+              <h2 class="section-title" style="margin-bottom: 0;">Participación ciudadana</h2>
+              <button type="button" class="button-secondary" id="refreshCitizenReports" style="padding: 8px 14px; font-size: 0.8rem;">Actualizar</button>
+            </div>
+            <p style="margin: 8px 0 16px; color: var(--text-muted); font-size: 0.8rem;">Registra observaciones desde el territorio para complementar los indicadores satelitales. Selecciona la ubicación en el mapa (modo EcoPlan) y describe la incidencia.</p>
+
+            <form id="citizenReportForm" class="form-grid" style="display: flex; flex-direction: column; gap: 12px;">
+              <label>
+                Tipo de incidencia
+                <select name="category" id="citizenReportCategory" required>
+                  <option value="" disabled selected>Selecciona una categoría</option>
+                  <option value="heat">Calor extremo / isla de calor</option>
+                  <option value="green">Falta de áreas verdes</option>
+                  <option value="flooding">Inundación / aniego</option>
+                  <option value="water">Calidad del agua / olores</option>
+                  <option value="air">Aire contaminado / humo</option>
+                  <option value="waste">Residuos / basura</option>
+                  <option value="other">Otra incidencia</option>
+                </select>
+              </label>
+
+              <label>
+                Descripción
+                <textarea name="description" id="citizenReportDescription" rows="3" maxlength="2000" placeholder="Describe qué ocurre, frecuencia, personas afectadas, etc." required></textarea>
+              </label>
+
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end;">
+                <label>
+                  Latitud
+                  <input type="number" name="latitude" id="citizenReportLatitude" step="0.000001" placeholder="Haz click en el mapa" required>
+                </label>
+                <label>
+                  Longitud
+                  <input type="number" name="longitude" id="citizenReportLongitude" step="0.000001" placeholder="Haz click en el mapa" required>
+                </label>
+              </div>
+
+              <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                <button type="button" class="button-secondary" id="citizenReportSelectOnMap" style="padding: 6px 12px; font-size: 0.75rem;">Marcar en el mapa</button>
+                <span class="row-subtext" id="citizenReportLocationHelp">Haz click en el mapa para fijar la ubicación.</span>
+              </div>
+
+              <label>
+                URL de foto (opcional)
+                <input type="url" name="photoUrl" id="citizenReportPhotoUrl" placeholder="https://...">
+              </label>
+
+              <label>
+                Nombre de contacto (opcional)
+                <input type="text" name="contactName" id="citizenReportContactName" maxlength="120" placeholder="Quién reporta la incidencia">
+              </label>
+
+              <label>
+                Correo electrónico (opcional)
+                <input type="email" name="contactEmail" id="citizenReportContactEmail" maxlength="120" placeholder="nombre@correo.com">
+              </label>
+
+              <button type="submit" id="citizenReportSubmit">Enviar reporte</button>
+              <p class="row-subtext" id="citizenReportStatus" style="margin: 0; min-height: 18px;"></p>
+            </form>
+
+            <div id="citizenReportsEmpty" class="row-subtext" style="margin-top: 12px;">Aún no hay reportes ciudadanos registrados.</div>
+            <ul id="citizenReportsList" style="margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px;"></ul>
+          </section>
         </aside>
       </div>
 
@@ -1321,6 +1387,21 @@
   const reportRunDetailsJob = document.getElementById('reportRunDetailsJob');
   const reportRunDetailsStatus = document.getElementById('reportRunDetailsStatus');
   const closeReportRunDetailsButton = document.getElementById('closeReportRunDetails');
+  const citizenReportForm = document.getElementById('citizenReportForm');
+  const citizenReportCategorySelect = document.getElementById('citizenReportCategory');
+  const citizenReportDescriptionInput = document.getElementById('citizenReportDescription');
+  const citizenReportLatitudeInput = document.getElementById('citizenReportLatitude');
+  const citizenReportLongitudeInput = document.getElementById('citizenReportLongitude');
+  const citizenReportPhotoUrlInput = document.getElementById('citizenReportPhotoUrl');
+  const citizenReportContactNameInput = document.getElementById('citizenReportContactName');
+  const citizenReportContactEmailInput = document.getElementById('citizenReportContactEmail');
+  const citizenReportSelectOnMapButton = document.getElementById('citizenReportSelectOnMap');
+  const citizenReportStatusEl = document.getElementById('citizenReportStatus');
+  const citizenReportLocationHelp = document.getElementById('citizenReportLocationHelp');
+  const citizenReportsList = document.getElementById('citizenReportsList');
+  const citizenReportsEmptyMessage = document.getElementById('citizenReportsEmpty');
+  const refreshCitizenReportsButton = document.getElementById('refreshCitizenReports');
+  const citizenReportSubmitButton = document.getElementById('citizenReportSubmit');
   const refreshReportRunsDefaultText = refreshReportRunsButton ? refreshReportRunsButton.textContent : '';
   const defaultReportRunsEmptyText = reportRunsEmptyMessage ? reportRunsEmptyMessage.textContent : '';
   let reportRunsLoaded = false;
@@ -1340,6 +1421,22 @@
   let reportRunsAutoRefreshTimer = null;
   let reportRunsLastUpdatedAt = null;
   let reportRunDetailsActiveId = null;
+  let citizenReports = [];
+  let citizenReportsLoaded = false;
+  let citizenReportsLoading = false;
+  let citizenReportCaptureMode = false;
+  let citizenReportMarkersLayer = null;
+  let citizenReportLocationMarker = null;
+  let citizenReportSubmitting = false;
+  const citizenReportCategoryDescriptors = {
+    heat: { label: 'Calor extremo', color: '#f97316' },
+    green: { label: 'Déficit de áreas verdes', color: '#16a34a' },
+    flooding: { label: 'Inundación / aniego', color: '#0ea5e9' },
+    water: { label: 'Calidad del agua', color: '#2563eb' },
+    air: { label: 'Calidad del aire', color: '#8b5cf6' },
+    waste: { label: 'Residuos / basura', color: '#6b7280' },
+    other: { label: 'Otra incidencia', color: '#f59e0b' }
+  };
 
     function varColor(name) {
       return getComputedStyle(document.body).getPropertyValue(name).trim();
@@ -1372,6 +1469,13 @@
       if (Array.isArray(collectionOrArray)) return collectionOrArray;
       if (Array.isArray(collectionOrArray.features)) return collectionOrArray.features;
       return [];
+    }
+
+    function capitalize(word) {
+      if (typeof word !== 'string' || !word.length) {
+        return '';
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
     }
 
     function averageNumeric(values) {
@@ -1744,6 +1848,356 @@
       }
       const percentage = (part / total) * 100;
       return `${percentage.toFixed(percentage >= 99 || percentage === 0 ? 0 : 1)}%`;
+    }
+
+    function formatCoordinate(value) {
+      if (!Number.isFinite(Number(value))) {
+        return '—';
+      }
+      return Number(value).toFixed(4);
+    }
+
+    function getCitizenReportCategoryDescriptor(category) {
+      const key = typeof category === 'string' ? category.toLowerCase() : '';
+      return citizenReportCategoryDescriptors[key] || {
+        label: key ? capitalize(key) : 'Incidencia',
+        color: '#64748b'
+      };
+    }
+
+    function updateCitizenReportStatus(message, type = 'info') {
+      if (!citizenReportStatusEl) {
+        return;
+      }
+      const palette = {
+        info: varColor('--text-muted'),
+        success: varColor('--success'),
+        warning: varColor('--warning'),
+        error: varColor('--error')
+      };
+      const resolvedType = type === 'idle' ? 'info' : type;
+      citizenReportStatusEl.style.color = palette[resolvedType] || palette.info;
+      citizenReportStatusEl.textContent = message || '';
+    }
+
+    function setCitizenReportCaptureMode(enabled) {
+      citizenReportCaptureMode = Boolean(enabled);
+      if (!citizenReportLocationHelp) {
+        return;
+      }
+      if (citizenReportCaptureMode) {
+        citizenReportLocationHelp.textContent = 'Haz click en el mapa para fijar la ubicación del reporte.';
+        citizenReportLocationHelp.style.color = varColor('--warning');
+      } else {
+        citizenReportLocationHelp.textContent = 'Haz click en el mapa para fijar la ubicación.';
+        citizenReportLocationHelp.style.color = varColor('--text-muted');
+      }
+    }
+
+    function setCitizenReportLocation(lat, lng, { center = false } = {}) {
+      if (!citizenReportLatitudeInput || !citizenReportLongitudeInput) {
+        return;
+      }
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return;
+      }
+
+      citizenReportLatitudeInput.value = Number(lat).toFixed(6);
+      citizenReportLongitudeInput.value = Number(lng).toFixed(6);
+
+      if (map) {
+        if (!citizenReportLocationMarker) {
+          citizenReportLocationMarker = L.circleMarker([lat, lng], {
+            radius: 8,
+            color: '#facc15',
+            weight: 2,
+            fillColor: '#facc15',
+            fillOpacity: 0.35
+          }).addTo(map);
+        } else {
+          citizenReportLocationMarker.setLatLng([lat, lng]);
+        }
+
+        if (center) {
+          map.flyTo([lat, lng], Math.max(map.getZoom(), 15), { duration: 0.6 });
+        }
+      }
+
+      setCitizenReportCaptureMode(false);
+    }
+
+    function focusCitizenReport(report) {
+      if (!report || !map || !Number.isFinite(report.latitude) || !Number.isFinite(report.longitude)) {
+        return;
+      }
+      const descriptor = getCitizenReportCategoryDescriptor(report.category);
+      const latLng = [report.latitude, report.longitude];
+      const targetZoom = Math.max(map.getZoom(), 15);
+      map.flyTo(latLng, targetZoom, { duration: 0.7 });
+
+      const popupContent = document.createElement('div');
+      popupContent.style.maxWidth = '240px';
+      const title = document.createElement('strong');
+      title.textContent = descriptor.label;
+      popupContent.appendChild(title);
+
+      const body = document.createElement('div');
+      body.style.marginTop = '6px';
+      body.textContent = report.description;
+      popupContent.appendChild(body);
+
+      if (report.photoUrl) {
+        const link = document.createElement('a');
+        link.href = report.photoUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'Ver evidencia';
+        link.style.display = 'inline-block';
+        link.style.marginTop = '6px';
+        popupContent.appendChild(link);
+      }
+
+      const time = document.createElement('div');
+      time.className = 'row-subtext';
+      time.style.marginTop = '6px';
+      time.textContent = `Reportado: ${formatDateTimeLabel(report.createdAt)}`;
+      popupContent.appendChild(time);
+
+      L.popup({ maxWidth: 280 })
+        .setLatLng(latLng)
+        .setContent(popupContent)
+        .openOn(map);
+    }
+
+    function renderCitizenReportMarkers(reports = []) {
+      if (!map) {
+        return;
+      }
+      if (!citizenReportMarkersLayer) {
+        citizenReportMarkersLayer = L.layerGroup().addTo(map);
+      } else {
+        citizenReportMarkersLayer.clearLayers();
+      }
+
+      reports.forEach((report) => {
+        if (!Number.isFinite(report?.latitude) || !Number.isFinite(report?.longitude)) {
+          return;
+        }
+        const descriptor = getCitizenReportCategoryDescriptor(report.category);
+        const marker = L.circleMarker([report.latitude, report.longitude], {
+          radius: 6,
+          color: descriptor.color,
+          weight: 2,
+          fillColor: descriptor.color,
+          fillOpacity: 0.6
+        });
+        marker.on('click', () => focusCitizenReport(report));
+  marker.bindTooltip(`${descriptor.label} · ${formatCoordinate(report.latitude)}, ${formatCoordinate(report.longitude)}`);
+        citizenReportMarkersLayer.addLayer(marker);
+      });
+    }
+
+    function createCitizenReportListItem(report) {
+      const descriptor = getCitizenReportCategoryDescriptor(report.category);
+      const item = document.createElement('li');
+      item.style.display = 'flex';
+      item.style.flexDirection = 'column';
+      item.style.gap = '6px';
+      item.style.padding = '10px 12px';
+      item.style.border = `1px solid ${colorWithAlpha(descriptor.color, 0.35)}`;
+      item.style.borderRadius = '8px';
+      item.style.background = colorWithAlpha(descriptor.color, 0.12);
+
+      const header = document.createElement('div');
+      header.style.display = 'flex';
+      header.style.justifyContent = 'space-between';
+      header.style.alignItems = 'center';
+      header.style.gap = '8px';
+
+      const badge = document.createElement('span');
+      badge.textContent = descriptor.label;
+      badge.style.fontSize = '0.75rem';
+      badge.style.fontWeight = '600';
+      badge.style.padding = '4px 8px';
+      badge.style.borderRadius = '999px';
+      badge.style.background = colorWithAlpha(descriptor.color, 0.2);
+      badge.style.color = descriptor.color;
+      header.appendChild(badge);
+
+      const coords = document.createElement('span');
+      coords.className = 'row-subtext';
+      coords.textContent = `${formatCoordinate(report.latitude)}, ${formatCoordinate(report.longitude)}`;
+      header.appendChild(coords);
+
+      item.appendChild(header);
+
+      const description = document.createElement('div');
+      description.style.fontSize = '0.85rem';
+      description.style.lineHeight = '1.4';
+      description.textContent = report.description;
+      item.appendChild(description);
+
+      if (report.contactName || report.contactEmail) {
+        const contact = document.createElement('div');
+        contact.className = 'row-subtext';
+        const parts = [];
+        if (report.contactName) {
+          parts.push(report.contactName);
+        }
+        if (report.contactEmail) {
+          parts.push(report.contactEmail);
+        }
+        contact.textContent = `Contacto: ${parts.join(' · ')}`;
+        item.appendChild(contact);
+      }
+
+      const footer = document.createElement('div');
+      footer.style.display = 'flex';
+      footer.style.justifyContent = 'space-between';
+      footer.style.alignItems = 'center';
+      footer.style.gap = '8px';
+
+      const time = document.createElement('span');
+      time.className = 'row-subtext';
+      time.textContent = formatDateTimeLabel(report.createdAt);
+      footer.appendChild(time);
+
+      const centerButton = document.createElement('button');
+      centerButton.type = 'button';
+      centerButton.className = 'button-secondary';
+      centerButton.style.padding = '4px 10px';
+      centerButton.style.fontSize = '0.75rem';
+      centerButton.textContent = 'Ver en mapa';
+      centerButton.addEventListener('click', () => focusCitizenReport(report));
+      footer.appendChild(centerButton);
+
+      item.appendChild(footer);
+
+      return item;
+    }
+
+    function renderCitizenReportsList(reports = []) {
+      if (!citizenReportsList || !citizenReportsEmptyMessage) {
+        return;
+      }
+
+      citizenReportsList.innerHTML = '';
+
+      if (!Array.isArray(reports) || !reports.length) {
+        citizenReportsEmptyMessage.hidden = false;
+        return;
+      }
+
+      citizenReportsEmptyMessage.hidden = true;
+      reports.slice(0, 8).forEach((report) => {
+        citizenReportsList.appendChild(createCitizenReportListItem(report));
+      });
+    }
+
+    function ensureCitizenReportsLoaded() {
+      if (!citizenReportsLoaded && !citizenReportsLoading) {
+        fetchCitizenReports({ announce: false });
+      }
+    }
+
+    async function fetchCitizenReports({ announce = true } = {}) {
+      if (citizenReportsLoading) {
+        return;
+      }
+      citizenReportsLoading = true;
+      if (announce) {
+        logStatus('Cargando reportes ciudadanos...', 'info', 'ecoplan');
+      }
+      updateCitizenReportStatus('Cargando reportes ciudadanos…', 'info');
+
+      try {
+        const response = await fetch('/api/citizen-reports?limit=200', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`Respuesta ${response.status}`);
+        }
+        const data = await response.json();
+        const reports = Array.isArray(data?.reports) ? data.reports : [];
+        citizenReports = reports;
+        citizenReportsLoaded = true;
+        renderCitizenReportsList(reports);
+        renderCitizenReportMarkers(reports);
+        updateCitizenReportStatus('', 'idle');
+        if (announce) {
+          logStatus(`Reportes ciudadanos actualizados (${reports.length}).`, 'success', 'ecoplan');
+        }
+      } catch (error) {
+        console.error('No se pudo cargar el listado de reportes ciudadanos:', error);
+        updateCitizenReportStatus(`Error al cargar reportes: ${error.message}`, 'error');
+        if (announce) {
+          logStatus(`No se pudieron cargar los reportes ciudadanos: ${error.message}`, 'error', 'ecoplan');
+        }
+      } finally {
+        citizenReportsLoading = false;
+      }
+    }
+
+    async function submitCitizenReport(event) {
+      event?.preventDefault();
+      if (citizenReportSubmitting) {
+        return;
+      }
+      if (!citizenReportForm) {
+        return;
+      }
+
+      const formData = new FormData(citizenReportForm);
+      const payload = {
+        category: formData.get('category'),
+        description: formData.get('description'),
+        latitude: formData.get('latitude'),
+        longitude: formData.get('longitude'),
+        photoUrl: formData.get('photoUrl') || undefined,
+        contactName: formData.get('contactName') || undefined,
+        contactEmail: formData.get('contactEmail') || undefined
+      };
+
+      citizenReportSubmitting = true;
+      if (citizenReportSubmitButton) citizenReportSubmitButton.disabled = true;
+      updateCitizenReportStatus('Enviando reporte…', 'info');
+
+      try {
+        const response = await fetch('/api/citizen-reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.status === 400) {
+          const data = await response.json();
+          const message = Array.isArray(data?.errors) && data.errors.length
+            ? data.errors.join(' ') : 'Datos inválidos.';
+          updateCitizenReportStatus(message, 'error');
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(`Respuesta ${response.status}`);
+        }
+
+        const data = await response.json();
+        updateCitizenReportStatus('Reporte registrado. ¡Gracias por el aporte comunitario!', 'success');
+        logStatus('Reporte ciudadano registrado correctamente.', 'success', 'ecoplan');
+        citizenReportForm.reset();
+        if (citizenReportLocationMarker) {
+          citizenReportLocationMarker.remove();
+          citizenReportLocationMarker = null;
+        }
+        setCitizenReportCaptureMode(false);
+        setTimeout(() => updateCitizenReportStatus('', 'idle'), 4000);
+        await fetchCitizenReports({ announce: false });
+      } catch (error) {
+        console.error('No se pudo registrar el reporte ciudadano:', error);
+        updateCitizenReportStatus(`Error al registrar reporte: ${error.message}`, 'error');
+        logStatus(`Error al registrar reporte ciudadano: ${error.message}`, 'error', 'ecoplan');
+      } finally {
+        citizenReportSubmitting = false;
+        if (citizenReportSubmitButton) citizenReportSubmitButton.disabled = false;
+      }
     }
 
     function parseAutoRefreshInterval(value) {
@@ -2726,6 +3180,15 @@
       layerControl = L.control.layers(baseLayers, overlayLayers, { collapsed: false }).addTo(map);
       L.control.scale({ metric: true }).addTo(map);
       L.control.zoom({ position: 'topright' }).addTo(map);
+
+      map.on('click', (event) => {
+        if (!citizenReportCaptureMode || currentMode !== 'ecoplan') {
+          return;
+        }
+        const { lat, lng } = event.latlng;
+        setCitizenReportLocation(lat, lng, { center: false });
+        updateCitizenReportStatus('Ubicación capturada. Completa el formulario para enviar.', 'success');
+      });
     }
 
     async function loadGeeBasemap() {
@@ -3323,9 +3786,11 @@
 
       if (normalized === 'ecoplan') {
         ensureReportRunsLoaded();
+        ensureCitizenReportsLoaded();
         scheduleReportRunsAutoRefresh({ fetchImmediately: reportRunsAutoRefreshEnabled });
       } else {
         clearReportRunsAutoRefreshTimer();
+        setCitizenReportCaptureMode(false);
       }
 
       persistModePreference(normalized);
@@ -3722,12 +4187,42 @@
           }
         });
       }
+      if (citizenReportForm) {
+        citizenReportForm.addEventListener('submit', submitCitizenReport);
+      }
+      if (citizenReportSelectOnMapButton) {
+        citizenReportSelectOnMapButton.addEventListener('click', () => {
+          if (currentMode !== 'ecoplan') {
+            setMode('ecoplan');
+          }
+          setCitizenReportCaptureMode(true);
+          updateCitizenReportStatus('Selecciona un punto en el mapa.', 'info');
+          logStatus('Haz click en el mapa para fijar la ubicación del reporte ciudadano.', 'info', 'ecoplan');
+        });
+      }
+      if (refreshCitizenReportsButton) {
+        refreshCitizenReportsButton.addEventListener('click', () => {
+          fetchCitizenReports({ announce: true });
+        });
+      }
+      if (citizenReportLatitudeInput && citizenReportLongitudeInput) {
+        const handleManualLocationUpdate = () => {
+          const lat = Number(citizenReportLatitudeInput.value);
+          const lng = Number(citizenReportLongitudeInput.value);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            setCitizenReportLocation(lat, lng, { center: false });
+          }
+        };
+        citizenReportLatitudeInput.addEventListener('change', handleManualLocationUpdate);
+        citizenReportLongitudeInput.addEventListener('change', handleManualLocationUpdate);
+      }
       document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && reportRunDetailsOverlay && !reportRunDetailsOverlay.hidden) {
           closeReportRunDetails({ silent: true });
         }
       });
       document.addEventListener('visibilitychange', handleVisibilityChange);
+  setCitizenReportCaptureMode(false);
       setMode(currentMode, { reRender: false, silent: true });
       if (quickViewButton) {
         quickViewButton.addEventListener('click', loadQuickView);

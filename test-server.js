@@ -424,6 +424,59 @@ async function testBloomContextEndpoint() {
   }
 }
 
+async function testCitizenReportsListEndpoint() {
+  console.log('🧑‍🤝‍🧑 Testing citizen reports list endpoint...');
+  try {
+    const result = await makeRequest(`${BASE_URL}/api/citizen-reports`);
+    console.log(`   Citizen reports list: Status ${result.status}`);
+
+    if (result.status === 200 && result.data && Array.isArray(result.data.reports)) {
+      console.log(`✅ Citizen reports list returned ${result.data.reports.length} items`);
+      return true;
+    }
+
+    console.log('❌ Unexpected response');
+    return false;
+  } catch (error) {
+    console.log(`❌ Citizen reports list test failed: ${error.message}`);
+    return false;
+  }
+}
+
+async function testCitizenReportsCreateEndpoint() {
+  console.log('📝 Testing citizen reports create endpoint...');
+  try {
+    const payload = {
+      category: 'other',
+      description: 'Incidencia de prueba automatizada para el dashboard EcoPlan',
+      latitude: -12.05 + (Math.random() - 0.5) * 0.1,
+      longitude: -77.05 + (Math.random() - 0.5) * 0.1
+    };
+
+    const result = await makeRequest(`${BASE_URL}/api/citizen-reports`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    console.log(`   Citizen reports create: Status ${result.status}`);
+
+    if (result.status === 201 && result.data && result.data.report && result.data.report.id) {
+      console.log('✅ Citizen report created successfully');
+      return true;
+    } else if (result.status === 400) {
+      console.log('❌ Validation failed when creating citizen report');
+      return false;
+    }
+
+    console.log('❌ Unexpected response');
+    return false;
+  } catch (error) {
+    console.log(`❌ Citizen reports create test failed: ${error.message}`);
+    return false;
+  }
+}
+
 async function runAllTests() {
   console.log('🚀 Starting GEE Tiles Server API Tests\n');
 
@@ -436,7 +489,9 @@ async function runAllTests() {
     testCustomMapEndpoint,
     testBloomMapEndpoint,
     testBloomStatsEndpoint,
-    testBloomContextEndpoint
+    testBloomContextEndpoint,
+    testCitizenReportsListEndpoint,
+    testCitizenReportsCreateEndpoint
   ];
   
   let passed = 0;
@@ -496,6 +551,8 @@ module.exports = {
   testBloomMapEndpoint,
   testBloomStatsEndpoint,
   testBloomContextEndpoint,
+  testCitizenReportsListEndpoint,
+  testCitizenReportsCreateEndpoint,
   startServer,
   stopServer,
   waitForEarthEngineReady

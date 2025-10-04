@@ -14,6 +14,7 @@ A Node.js server that provides XYZ tile service for Google Earth Engine datasets
 - 🧭 **Contexto Regional**: Mapas y series temporales MODIS (clorofila) + NOAA OISST (temperatura)
 - 📘 **Manual EcoPlan Urbano**: Guía metodológica y playbook operativo ([manual](docs/manual-ecoplan-gee.md) + [playbook](docs/ecoplan-project-playbook.md))
 - 🧩 **Fases completas**: Planificación estratégica, conformación de equipo, infraestructura, ingestión de datos, índices compuestos, participación ciudadana, reportes y mantenimiento documentados.
+- 🧑‍🤝‍🧑 **Participación ciudadana**: Captura de reportes georreferenciados desde el dashboard y almacenamiento listo para integrarse con municipalidades.
 
 ## Quick Start Checklist
 
@@ -206,6 +207,38 @@ Devuelve un paquete con:
 - `summary`: Estadísticos básicos (mínimo/máximo/promedio) para cada variable
 - `contextGeometry`: Geometría del buffer en GeoJSON para sobreponer en el visor
 
+### Reportes ciudadanos (Participación)
+
+#### Listar reportes
+```
+GET /api/citizen-reports
+```
+Query params opcionales:
+
+- `limit` (1-500, por defecto 100)
+- `status` (`open`, `resolved`, etc. según flujo operacional)
+- `category` (`heat`, `green`, `flooding`, `water`, `air`, `waste`, `other`)
+- `bbox` (`minLon,minLat,maxLon,maxLat`) para filtrar por ventana geográfica
+
+La respuesta devuelve `reports` con entradas georreferenciadas (latitud, longitud, descripción, contacto, fecha).
+
+#### Crear reporte
+```
+POST /api/citizen-reports
+Content-Type: application/json
+
+{
+   "category": "green",
+   "description": "Parque sin riego desde hace 3 semanas",
+   "latitude": -12.0685,
+   "longitude": -77.0372,
+   "photoUrl": "https://ejemplo.org/foto.jpg",
+   "contactName": "Vecina organización",
+   "contactEmail": "contacto@barrio.pe"
+}
+```
+Los campos `category`, `description`, `latitude` y `longitude` son obligatorios. El backend valida rangos y formato de correo antes de almacenarlos en el repositorio (`.data/citizen-reports.json` por defecto o Firestore si está configurado).
+
 ## Usage Examples
 
 ### Leaflet Integration
@@ -273,6 +306,20 @@ El archivo `public/index.html` ofrece un panel moderno con mapa Leaflet y gráfi
 4. Explora los resultados: mapa principal, tarjetas de resumen y series temporales.
 5. Ajusta el buffer regional (km) para ampliar/restringir el contexto MODIS/NOAA.
 
+## Participación ciudadana EcoPlan
+
+El mismo dashboard incorpora un módulo de participación para documentar observaciones de campo:
+
+1. Cambia al modo **EcoPlan Urbano**.
+2. En la tarjeta *Participación ciudadana*, selecciona la categoría de incidencia y describe la situación.
+3. Pulsa **Marcar en el mapa** y haz click sobre la ubicación exacta (latitud/longitud se llenan automáticamente).
+4. Adjunta un enlace a evidencia (foto o video) y datos de contacto si deseas seguimiento.
+5. Envía el formulario: el mapa mostrará un marcador temático y el reporte aparecerá en la lista de la misma tarjeta.
+
+Además, puedes usar el botón **Actualizar** para sincronizar reportes recientes y centrar el mapa en cualquier elemento con la acción *Ver en mapa*. Los datos quedan respaldados en `.data/citizen-reports.json` o en Firestore si defines `CITIZEN_REPORTS_STORE=firestore`.
+
+> Consulta la guía detallada en [`docs/participation/README.md`](docs/participation/README.md) para ampliar el flujo operativo y las opciones de almacenamiento.
+
 ## Configuration
 
 ### Environment Variables
@@ -294,6 +341,10 @@ PORT=3000
 
 # Optional: Google Cloud Storage for exports
 GCS_BUCKET_NAME=your-bucket-name
+
+# Citizen reports storage (optional)
+# CITIZEN_REPORTS_STORE=file
+# CITIZEN_REPORTS_COLLECTION=citizenReports
 ```
 
 ### Service Account Permissions

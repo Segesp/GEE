@@ -13,6 +13,7 @@ const {
   DEFAULT_CONFIG_PATH: DISTRIBUTION_CONFIG_PATH
 } = require('./services/reportDistributionOrchestrator');
 const reportRunsRepository = require('./services/reportRunsRepository');
+const citizenReportsRepository = require('./services/citizenReportsRepository');
 require('dotenv').config();
 
 const app = express();
@@ -37,6 +38,18 @@ const DEFAULT_EE_SCOPES = [
   'https://www.googleapis.com/auth/earthengine',
   'https://www.googleapis.com/auth/devstorage.full_control'
 ];
+
+const CITIZEN_REPORT_CATEGORIES = new Set([
+  'heat',
+  'green',
+  'flooding',
+  'waste',
+  'air',
+  'water',
+  'other'
+]);
+const MAX_CITIZEN_REPORT_DESCRIPTION_LENGTH = 2000;
+
 
 // Middleware
 app.use(cors());
@@ -358,6 +371,100 @@ function getDefaultDataset() {
       max: 0.3,
       gamma: 1.4
     });
+}
+
+function isValidLatitude(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= -90 && numeric <= 90;
+}
+
+function isValidLongitude(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= -180 && numeric <= 180;
+}
+
+function isValidEmail(value) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return false;
+  }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(value.trim());
+}
+
+function normalizeOptionalString(value, { maxLength = 200 } = {}) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.slice(0, maxLength);
+}
+
+function validateCitizenReportPayload(payload = {}) {
+  const errors = [];
+
+  const rawCategory = typeof payload.category === 'string' ? payload.category.trim().toLowerCase() : '';
+  const category = rawCategory && CITIZEN_REPORT_CATEGORIES.has(rawCategory) ? rawCategory : null;
+  if (!category) {
+    errors.push('Categoría inválida. Usa: heat, green, flooding, waste, air, water u other.');
+  }
+
+  const description = typeof payload.description === 'string' ? payload.description.trim() : '';
+  if (!description) {
+    errors.push('La descripción es obligatoria.');
+  } else if (description.length > MAX_CITIZEN_REPORT_DESCRIPTION_LENGTH) {
+    errors.push(`La descripción supera el máximo de ${MAX_CITIZEN_REPORT_DESCRIPTION_LENGTH} caracteres.`);
+  }
+
+  const latitude = Number(payload.latitude);
+  const longitude = Number(payload.longitude);
+  if (!isValidLatitude(latitude) || !isValidLongitude(longitude)) {
+    errors.push('Ubicación inválida. Proporciona latitud y longitud válidas.');
+  }
+
+  const photoUrl = normalizeOptionalString(payload.photoUrl, { maxLength: 1000 });
+  const contactName = normalizeOptionalString(payload.contactName, { maxLength: 120 });
+  const contactEmailRaw = normalizeOptionalString(payload.contactEmail, { maxLength: 120 });
+  const contactEmail = contactEmailRaw && isValidEmail(contactEmailRaw) ? contactEmailRaw : null;
+  if (contactEmailRaw && !contactEmail) {
+    errors.push('El correo de contacto no tiene un formato válido.');
+  }
+
+  return {
+    errors,
+    data: {
+      category,
+      description,
+      latitude,
+      longitude,
+      photoUrl,
+      contactName,
+      contactEmail,
+      status: 'open',
+      source: 'citizen'
+    }
+  };
+}
+
+function mapCitizenReportToResponse(report) {
+  if (!report) {
+    return null;
+  }
+  return {
+    id: report.id,
+    category: report.category,
+    description: report.description,
+    latitude: report.latitude,
+    longitude: report.longitude,
+    photoUrl: report.photoUrl || null,
+    contactName: report.contactName || null,
+    contactEmail: report.contactEmail || null,
+    status: report.status || 'open',
+    createdAt: report.createdAt,
+    updatedAt: report.updatedAt
+  };
 }
 
 // Presets de áreas de interés para Lima, Perú
@@ -1715,8 +1822,67 @@ app.post('/api/ecoplan/analyze', async (req, res) => {
   }
 });
 
-  // Generación de reportes EcoPlan
-  app.post('/api/reports/generate', async (req, res) => {
+// Reportes ciudadanos
+app.get('/api/citizen-reports', async (req, res) => {
+  try {
+    const { limit, status, category, bbox } = req.query || {};
+    const options = {};
+
+    if (limit !== undefined) {
+      const parsedLimit = Number(limit);
+      if (Number.isFinite(parsedLimit)) {
+        options.limit = Math.max(1, Math.min(parsedLimit, 500));
+      }
+    }
+
+    if (status && typeof status === 'string') {
+      options.status = status.trim().toLowerCase();
+    }
+
+    if (category && typeof category === 'string') {
+      options.category = category.trim().toLowerCase();
+    }
+
+    if (bbox && typeof bbox === 'string') {
+      const parts = bbox.split(',').map((value) => Number(value.trim()));
+      if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
+        options.bbox = parts;
+      }
+    }
+
+    const reports = await citizenReportsRepository.listReports(options);
+    res.json({
+      reports: (reports || []).map(mapCitizenReportToResponse)
+    });
+  } catch (error) {
+    console.error('Error en GET /api/citizen-reports:', error);
+    res.status(500).json({ error: 'No se pudo obtener el listado de reportes' });
+  }
+});
+
+app.post('/api/citizen-reports', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const { errors, data } = validateCitizenReportPayload(payload);
+
+    if (errors.length) {
+      return res.status(400).json({ errors });
+    }
+
+    const report = await citizenReportsRepository.createReport(data, { logger: console });
+    if (!report) {
+      return res.status(500).json({ error: 'No se pudo registrar el reporte' });
+    }
+
+    res.status(201).json({ report: mapCitizenReportToResponse(report) });
+  } catch (error) {
+    console.error('Error en POST /api/citizen-reports:', error);
+    res.status(500).json({ error: 'No se pudo registrar el reporte' });
+  }
+});
+
+// Generación de reportes EcoPlan
+app.post('/api/reports/generate', async (req, res) => {
     if (!eeInitialized) {
       return res.status(503).json({
         error: 'Earth Engine not initialized'
