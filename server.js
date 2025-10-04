@@ -2,6 +2,9 @@ const express = require('express');
 const ee = require('@google/earthengine');
 const cors = require('cors');
 const path = require('path');
+const { configureReportsService, generateEcoPlanReport, renderEcoPlanReportHtml, renderEcoPlanReportCsv } = require('./services/reportsService');
+const { uploadReportToGcs } = require('./services/reportDeliveryService');
+const { renderHtmlToPdfBuffer } = require('./services/pdfService');
 require('dotenv').config();
 
 const app = express();
@@ -422,18 +425,65 @@ function normalizeImage(image, minValue, maxValue) {
   return image.subtract(min).divide(safeRange).clamp(0, 1);
 }
 
+function safeImageCollection(datasetId) {
+  if (!datasetId) {
+    return null;
+  }
+  try {
+    return ee.ImageCollection(datasetId);
+  } catch (error) {
+    console.warn(`Dataset not available: ${datasetId}`, error);
+    return null;
+  }
+}
+
+function safeImage(datasetId) {
+  if (!datasetId) {
+    return null;
+  }
+  try {
+    return ee.Image(datasetId);
+  } catch (error) {
+    console.warn(`Dataset not available: ${datasetId}`, error);
+    return null;
+  }
+}
+
 function addWaterMask(image, roiType = 'mar') {
   const ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI');
-  const water = ndwi.gt(0.1).or(image.select('SCL').eq(6));
+  const ndvi = image.normalizedDifference(['B8', 'B4']);
+  const scl = image.select('SCL');
+
+  const baseWater = scl.eq(6);
+  const expandedWater = baseWater.focal_max(1, 'square', 'pixels');
+  const notCloud = scl.neq(3)
+    .and(scl.neq(7))
+    .and(scl.neq(8))
+    .and(scl.neq(9))
+    .and(scl.neq(10))
+    .and(scl.neq(11));
+
+  let waterMask = expandedWater;
 
   if (roiType === 'humedal') {
-    const ndvi = image.normalizedDifference(['B8', 'B4']);
-    return image.addBands(
-      water.and(ndvi.lt(0.3)).rename('waterMask')
-    );
+    const wetlandWater = ndwi.gt(0.15).and(ndvi.lt(0.4));
+    waterMask = waterMask.or(wetlandWater);
+  } else if (roiType === 'mar') {
+    const spectralWater = ndwi.gt(0).and(ndvi.lt(0.2)).and(scl.eq(5).not());
+    waterMask = waterMask.or(spectralWater);
+  } else {
+    const generalWater = ndwi.gt(0.1).and(ndvi.lt(0.25));
+    waterMask = waterMask.or(generalWater);
   }
 
-  return image.addBands(water.rename('waterMask'));
+  waterMask = waterMask.and(notCloud)
+    .focal_max(1, 'square', 'pixels')
+    .focal_min(1, 'square', 'pixels');
+
+  return image.addBands([
+    ndwi,
+    waterMask.rename('waterMask')
+  ]);
 }
 
 function addAlgaeBands(image) {
@@ -707,7 +757,12 @@ async function buildEcoPlanAnalysis(options) {
     cloudPercentage = 20,
     populationYear = 2020,
     districtsAsset,
-    tileScale = 4
+    tileScale = 4,
+    no2Dataset = 'COPERNICUS/S5P/OFFL/L3_NO2',
+    no2Band = 'tropospheric_NO2_column_number_density',
+    pm25Dataset = 'NASA/SEDAC/SDG/SDG11_6_2/PM2_5',
+    pm25Band = 'PM2_5',
+    srtmDataset = 'USGS/SRTMGL1_003'
   } = options || {};
 
   const { roi, meta } = getEcoPlanRoiFromRequest({ preset, geometry, buffer });
@@ -737,20 +792,31 @@ async function buildEcoPlanAnalysis(options) {
   const ndviSeries = createTimeSeries(sentinelCollection.select('NDVI'), 'NDVI', roi, 20, 'ndvi');
   const lstSeries = createTimeSeries(landsatCollection.select('LST_C'), 'LST_C', roi, 30, 'lst_c');
 
-  const populationCollection = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Density')
+  const populationDensityCollection = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Density')
     .filter(ee.Filter.eq('year', populationYear));
 
-  let populationImage = populationCollection.first();
-  populationImage = ee.Image(ee.Algorithms.If(
-    populationImage,
-    populationImage,
+  let populationDensityImage = populationDensityCollection.first();
+  populationDensityImage = ee.Image(ee.Algorithms.If(
+    populationDensityImage,
+    populationDensityImage,
     ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Density').sort('year', false).first()
   ));
-  populationImage = ee.Image(populationImage).select('population_density').clip(roi);
+  populationDensityImage = ee.Image(populationDensityImage).select('population_density').clip(roi);
+
+  const populationCountCollection = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count')
+    .filter(ee.Filter.eq('year', populationYear));
+
+  let populationCountImage = populationCountCollection.first();
+  populationCountImage = ee.Image(ee.Algorithms.If(
+    populationCountImage,
+    populationCountImage,
+    ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count').sort('year', false).first()
+  ));
+  populationCountImage = ee.Image(populationCountImage).select('population_count').clip(roi);
 
   const ndviNorm = normalizeImage(ndviComposite, 0, 0.8);
   const lstNorm = normalizeImage(lstComposite, 20, 40);
-  const popNorm = normalizeImage(populationImage, 0, 10000);
+  const popNorm = normalizeImage(populationDensityImage, 0, 10000);
 
   const heatImage = lstNorm.multiply(0.5)
     .add(ndviNorm.multiply(-0.3))
@@ -766,6 +832,107 @@ async function buildEcoPlanAnalysis(options) {
 
   const aodImage = aodCollection.mean().rename('AOD').clip(roi);
   const aodSeries = createTimeSeries(aodCollection, aodBand, roi, 1000, 'aod');
+
+  const ndbiCollection = sentinelCollection.map((image) =>
+    image.normalizedDifference(['B11', 'B8']).rename('NDBI')
+  );
+  const ndbiComposite = ndbiCollection.median().rename('NDBI').clip(roi);
+  const imperviousImage = normalizeImage(ndbiComposite, -0.2, 0.4).rename('Impervious');
+
+  let srtmImage = safeImage(srtmDataset);
+  if (!srtmImage) {
+    srtmImage = ee.Image('USGS/SRTMGL1_003');
+  }
+  const slopeImage = ee.Terrain.slope(ee.Image(srtmImage)).rename('Slope').clip(roi);
+  const slopeNorm = normalizeImage(slopeImage, 0, 45).rename('SlopeNorm');
+
+  const ndwiNorm = normalizeImage(ndwiComposite, -0.1, 0.5).rename('NDWI_Norm');
+  const drynessImage = ee.Image(1).subtract(ndwiNorm).rename('Dryness');
+
+  const pixelArea = ee.Image.pixelArea();
+  const greenMask = ndviComposite.gt(0.4);
+  const greenAreaImage = greenMask.multiply(pixelArea).rename('GreenArea');
+
+  const safePopulationPerPixel = populationCountImage.max(ee.Image.constant(1));
+  const greenPerCapitaImage = greenAreaImage.divide(safePopulationPerPixel)
+    .rename('GreenPerCapita');
+  const greenDeficitImage = greenPerCapitaImage.lt(9).rename('GreenDeficit');
+
+  const waterRiskImage = imperviousImage.multiply(0.5)
+    .add(slopeNorm.multiply(0.3))
+    .add(drynessImage.multiply(0.2))
+    .rename('WaterRisk')
+    .clamp(0, 1)
+    .clip(roi);
+
+  const no2Collection = safeImageCollection(no2Dataset);
+  let no2Image = null;
+  let no2Series = null;
+
+  if (no2Collection) {
+    const filteredNo2 = no2Collection
+      .select(no2Band)
+      .filterBounds(roi)
+      .filterDate(start, end);
+    no2Image = filteredNo2.mean().rename('NO2').clip(roi);
+    no2Series = createTimeSeries(filteredNo2, no2Band, roi, 1113, 'no2');
+  }
+
+  let pm25Image = null;
+  let pm25Series = null;
+  const pm25CollectionCandidate = safeImageCollection(pm25Dataset);
+  if (pm25CollectionCandidate) {
+    const filteredPm25 = pm25CollectionCandidate
+      .select(pm25Band)
+      .filterBounds(roi)
+      .filterDate(start, end);
+    pm25Image = filteredPm25.mean().rename('PM25').clip(roi);
+    pm25Series = createTimeSeries(filteredPm25, pm25Band, roi, 1000, 'pm25');
+  } else {
+    const pm25ImageCandidate = safeImage(pm25Dataset);
+    if (pm25ImageCandidate) {
+      pm25Image = ee.Image(pm25ImageCandidate).select(pm25Band).rename('PM25').clip(roi);
+    }
+  }
+
+  if (!pm25Image && aodImage) {
+    pm25Image = aodImage.multiply(160).rename('PM25_est');
+  }
+
+  let airQualityIndexImage = null;
+  const aodNorm = normalizeImage(aodImage, 0, 1.5);
+  let no2Norm = null;
+  let pm25Norm = null;
+
+  if (no2Image) {
+    no2Norm = normalizeImage(no2Image.multiply(1e4), 0, 150).rename('NO2_Norm');
+  }
+
+  if (pm25Image) {
+    pm25Norm = normalizeImage(pm25Image, 0, 60).rename('PM25_Norm');
+  }
+
+  let airQualitySum = ee.Image.constant(0);
+  let weightSum = ee.Image.constant(0);
+
+  if (aodNorm) {
+    airQualitySum = airQualitySum.add(aodNorm.multiply(0.5));
+    weightSum = weightSum.add(0.5);
+  }
+  if (no2Norm) {
+    airQualitySum = airQualitySum.add(no2Norm.multiply(0.3));
+    weightSum = weightSum.add(0.3);
+  }
+  if (pm25Norm) {
+    airQualitySum = airQualitySum.add(pm25Norm.multiply(0.2));
+    weightSum = weightSum.add(0.2);
+  }
+
+  airQualityIndexImage = ee.Image(ee.Algorithms.If(
+    weightSum.gt(0),
+    airQualitySum.divide(weightSum).rename('AirQualityIndex'),
+    aodNorm.rename('AirQualityIndex')
+  ));
 
   const summaryReducer = ee.Reducer.mean().combine({
     reducer2: ee.Reducer.minMax(),
@@ -817,10 +984,91 @@ async function buildEcoPlanAnalysis(options) {
     tileScale
   });
 
-  const populationStats = populationImage.reduceRegion({
+  const populationStats = populationDensityImage.reduceRegion({
     reducer: summaryReducer,
     geometry: roi,
     scale: 250,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  });
+
+  const populationCountStats = populationCountImage.reduceRegion({
+    reducer: ee.Reducer.sum(),
+    geometry: roi,
+    scale: 250,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  });
+
+  const greenPerCapitaStats = greenPerCapitaImage.reduceRegion({
+    reducer: summaryReducer,
+    geometry: roi,
+    scale: 30,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  });
+
+  const greenDeficitStats = greenDeficitImage.reduceRegion({
+    reducer: ee.Reducer.mean(),
+    geometry: roi,
+    scale: 30,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  });
+
+  const imperviousStats = imperviousImage.reduceRegion({
+    reducer: summaryReducer,
+    geometry: roi,
+    scale: 30,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  });
+
+  const waterRiskStats = waterRiskImage.reduceRegion({
+    reducer: summaryReducer,
+    geometry: roi,
+    scale: 30,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  });
+
+  const airQualityStats = airQualityIndexImage.reduceRegion({
+    reducer: summaryReducer,
+    geometry: roi,
+    scale: 1000,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  });
+
+  const no2Stats = no2Image ? no2Image.reduceRegion({
+    reducer: summaryReducer,
+    geometry: roi,
+    scale: 1000,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  }) : null;
+
+  const pm25Stats = pm25Image ? pm25Image.reduceRegion({
+    reducer: summaryReducer,
+    geometry: roi,
+    scale: 1000,
+    maxPixels: 1e11,
+    bestEffort: true,
+    tileScale
+  }) : null;
+
+  const greenAreaStats = greenAreaImage.reduceRegion({
+    reducer: ee.Reducer.sum(),
+    geometry: roi,
+    scale: 30,
     maxPixels: 1e11,
     bestEffort: true,
     tileScale
@@ -832,6 +1080,15 @@ async function buildEcoPlanAnalysis(options) {
   const ndwiDict = toDictionary(ndwiStats);
   const aodDict = toDictionary(aodStats);
   const populationDict = toDictionary(populationStats);
+  const populationCountDict = toDictionary(populationCountStats);
+  const greenPerCapitaDict = toDictionary(greenPerCapitaStats);
+  const greenDeficitDict = toDictionary(greenDeficitStats);
+  const imperviousDict = toDictionary(imperviousStats);
+  const waterRiskDict = toDictionary(waterRiskStats);
+  const airQualityDict = toDictionary(airQualityStats);
+  const no2Dict = toDictionary(no2Stats);
+  const pm25Dict = toDictionary(pm25Stats);
+  const greenAreaDict = toDictionary(greenAreaStats);
 
   const summary = ee.Dictionary({
     ndvi_mean: ndviDict.get('NDVI_mean', null),
@@ -850,7 +1107,24 @@ async function buildEcoPlanAnalysis(options) {
     aod_min: aodDict.get('AOD_min', null),
     aod_max: aodDict.get('AOD_max', null),
     population_mean: populationDict.get('population_density_mean', null),
-    population_max: populationDict.get('population_density_max', null)
+    population_max: populationDict.get('population_density_max', null),
+    population_total: populationCountDict.get('population_count', null),
+    green_area_m2: greenAreaDict.get('GreenArea', null),
+    green_per_capita_mean: greenPerCapitaDict.get('GreenPerCapita_mean', greenPerCapitaDict.get('GreenPerCapita', null)),
+    green_per_capita_min: greenPerCapitaDict.get('GreenPerCapita_min', null),
+    green_per_capita_max: greenPerCapitaDict.get('GreenPerCapita_max', null),
+    green_deficit_ratio: greenDeficitDict.get('GreenDeficit', null),
+    impervious_mean: imperviousDict.get('Impervious_mean', null),
+    impervious_min: imperviousDict.get('Impervious_min', null),
+    impervious_max: imperviousDict.get('Impervious_max', null),
+    water_risk_mean: waterRiskDict.get('WaterRisk_mean', null),
+    water_risk_min: waterRiskDict.get('WaterRisk_min', null),
+    water_risk_max: waterRiskDict.get('WaterRisk_max', null),
+    air_quality_mean: airQualityDict.get('AirQualityIndex_mean', null),
+    air_quality_min: airQualityDict.get('AirQualityIndex_min', null),
+    air_quality_max: airQualityDict.get('AirQualityIndex_max', null),
+    no2_mean: no2Dict.get('NO2_mean', null),
+    pm25_mean: pm25Dict.get('PM25_mean', pm25Dict.get('PM25_est_mean', null))
   });
 
   let boundaryStats = null;
@@ -860,7 +1134,7 @@ async function buildEcoPlanAnalysis(options) {
       const combinedImage = ndviComposite.rename('NDVI')
         .addBands(lstComposite.rename('LST_C'))
         .addBands(heatImage.rename('HeatVulnerability'))
-        .addBands(populationImage.rename('population_density'));
+        .addBands(populationDensityImage.rename('population_density'));
 
       boundaryStats = combinedImage.reduceRegions({
         collection: boundaries,
@@ -886,13 +1160,28 @@ async function buildEcoPlanAnalysis(options) {
     heatImage,
     ndwiImage: ndwiComposite,
     aodImage,
+    no2Image,
+    pm25Image,
+    airQualityImage: airQualityIndexImage,
+    imperviousImage,
+    waterRiskImage,
+    greenPerCapitaImage,
+    greenDeficitImage,
+    greenAreaImage,
     ndviSeries,
     lstSeries,
     aodSeries,
+    no2Series,
+    pm25Series,
     summary,
     boundaryStats
   };
 }
+
+configureReportsService({
+  buildEcoPlanAnalysis,
+  evaluateEeObject
+});
 
 // Routes
 
@@ -1006,9 +1295,18 @@ app.post('/api/ecoplan/analyze', async (req, res) => {
       heatLayer,
       ndwiLayer,
       aodLayer,
+      airLayer,
+      imperviousLayer,
+      waterLayer,
+      greenPerCapitaLayer,
+      greenDeficitLayer,
+      no2Layer,
+      pm25Layer,
       ndviSeries,
       lstSeries,
       aodSeries,
+      no2Series,
+      pm25Series,
       summary,
       roiGeoJson,
       boundaryStats
@@ -1038,9 +1336,46 @@ app.post('/api/ecoplan/analyze', async (req, res) => {
         max: 1.5,
         palette: ['#132a13', '#52b788', '#ffba08', '#d94801']
       }),
+      getMapFromImage(analysis.airQualityImage, {
+        min: 0,
+        max: 1,
+        palette: ['#00b3ff', '#fbbf24', '#ef4444']
+      }),
+      getMapFromImage(analysis.imperviousImage, {
+        min: 0,
+        max: 1,
+        palette: ['#0ea5e9', '#facc15', '#7f1d1d']
+      }),
+      getMapFromImage(analysis.waterRiskImage, {
+        min: 0,
+        max: 1,
+        palette: ['#0ea5e9', '#f97316', '#7f1d1d']
+      }),
+      getMapFromImage(analysis.greenPerCapitaImage, {
+        min: 0,
+        max: 30,
+        palette: ['#7f1d1d', '#facc15', '#22c55e']
+      }),
+      getMapFromImage(analysis.greenDeficitImage, {
+        min: 0,
+        max: 1,
+        palette: ['#22c55e', '#facc15', '#b91c1c']
+      }),
+      analysis.no2Image ? getMapFromImage(analysis.no2Image, {
+        min: 0,
+        max: 3e-4,
+        palette: ['#0ea5e9', '#facc15', '#b91c1c']
+      }) : Promise.resolve(null),
+      analysis.pm25Image ? getMapFromImage(analysis.pm25Image, {
+        min: 0,
+        max: 80,
+        palette: ['#22c55e', '#f97316', '#7f1d1d']
+      }) : Promise.resolve(null),
       evaluateEeObject(analysis.ndviSeries),
       evaluateEeObject(analysis.lstSeries),
       evaluateEeObject(analysis.aodSeries),
+      analysis.no2Series ? evaluateEeObject(analysis.no2Series) : Promise.resolve(null),
+      analysis.pm25Series ? evaluateEeObject(analysis.pm25Series) : Promise.resolve(null),
       evaluateEeObject(analysis.summary),
       evaluateEeObject(analysis.roi),
       analysis.boundaryStats ? evaluateEeObject(analysis.boundaryStats) : Promise.resolve(null)
@@ -1078,13 +1413,64 @@ app.post('/api/ecoplan/analyze', async (req, res) => {
           name: 'AOD promedio (MODIS)',
           min: 0,
           max: 1.5
-        }
+        },
+        airQuality: airLayer ? {
+          ...airLayer,
+          name: 'Índice de calidad del aire',
+          min: 0,
+          max: 1
+        } : null,
+        impervious: {
+          ...imperviousLayer,
+          name: 'Superficie impermeable (NDBI)',
+          min: 0,
+          max: 1
+        },
+        waterRisk: {
+          ...waterLayer,
+          name: 'Riesgo hídrico compuesto',
+          min: 0,
+          max: 1
+        },
+        greenPerCapita: {
+          ...greenPerCapitaLayer,
+          name: 'm² de áreas verdes por habitante',
+          min: 0,
+          max: 30
+        },
+        greenDeficit: {
+          ...greenDeficitLayer,
+          name: 'Déficit de áreas verdes (1 = déficit)',
+          min: 0,
+          max: 1
+        },
+        no2: no2Layer ? {
+          ...no2Layer,
+          name: 'NO₂ troposférico (S5P)',
+          min: 0,
+          max: 3e-4
+        } : null,
+        pm25: pm25Layer ? {
+          ...pm25Layer,
+          name: 'PM₂.₅ estimado',
+          min: 0,
+          max: 80
+        } : null
       },
       summary,
       series: {
         ndvi: ndviSeries?.features || [],
         lst: lstSeries?.features || [],
-        aod: aodSeries?.features || []
+        aod: aodSeries?.features || [],
+        no2: no2Series?.features || [],
+        pm25: pm25Series?.features || []
+      },
+      indices: {
+        heat_vulnerability: summary?.heat_mean ?? null,
+        air_quality: summary?.air_quality_mean ?? null,
+        green_deficit: summary?.green_deficit_ratio ?? null,
+        water_risk: summary?.water_risk_mean ?? null,
+        green_per_capita: summary?.green_per_capita_mean ?? null
       },
       boundaryStats,
       roi: roiGeoJson,
@@ -1098,6 +1484,138 @@ app.post('/api/ecoplan/analyze', async (req, res) => {
     });
   }
 });
+
+  // Generación de reportes EcoPlan
+  app.post('/api/reports/generate', async (req, res) => {
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine not initialized'
+      });
+    }
+
+    try {
+      const options = req.body || {};
+      const requestedFormat = req.query?.format || options.format;
+      const {
+        format: _ignored,
+        delivery = {},
+        ...analysisOptions
+      } = options;
+      const format = typeof requestedFormat === 'string' ? requestedFormat.toLowerCase() : 'json';
+
+      const report = await generateEcoPlanReport(analysisOptions);
+      const presetId = report?.preset?.id || analysisOptions?.preset || 'urbano';
+      const filenameBase = `ecoplan-report-${presetId.replace(/[^a-z0-9-_]/gi, '_')}`;
+
+      let payloadBuffer = null;
+      let bodyToSend = null;
+      let contentType = 'application/json; charset=utf-8';
+      let sendResponse;
+      let extension = 'json';
+
+      if (format === 'csv') {
+        const csv = renderEcoPlanReportCsv(report);
+        payloadBuffer = Buffer.from(csv, 'utf8');
+        bodyToSend = csv;
+        contentType = 'text/csv; charset=utf-8';
+        extension = 'csv';
+        sendResponse = () => {
+          const filename = `${filenameBase}.csv`;
+          res.set({
+            'Content-Type': contentType,
+            'Content-Disposition': `attachment; filename="${filename}"`
+          });
+          res.send(bodyToSend);
+        };
+      } else if (format === 'html') {
+        const html = renderEcoPlanReportHtml(report);
+        payloadBuffer = Buffer.from(html, 'utf8');
+        bodyToSend = html;
+        contentType = 'text/html; charset=utf-8';
+        extension = 'html';
+        sendResponse = () => {
+          res.set('Content-Type', contentType);
+          res.send(bodyToSend);
+        };
+      } else if (format === 'pdf') {
+        const html = renderEcoPlanReportHtml(report);
+        const pdfBuffer = await renderHtmlToPdfBuffer(html, {
+          format: 'A4',
+          printBackground: true
+        });
+        payloadBuffer = pdfBuffer;
+        bodyToSend = pdfBuffer;
+        contentType = 'application/pdf';
+        extension = 'pdf';
+        sendResponse = () => {
+          const filename = `${filenameBase}.pdf`;
+          res.set({
+            'Content-Type': contentType,
+            'Content-Disposition': `attachment; filename="${filename}"`
+          });
+          res.send(bodyToSend);
+        };
+      } else {
+        const jsonBody = { ...report };
+        const jsonString = JSON.stringify(jsonBody, null, 2);
+        payloadBuffer = Buffer.from(jsonString, 'utf8');
+        bodyToSend = jsonBody;
+        contentType = 'application/json; charset=utf-8';
+        extension = 'json';
+        sendResponse = (mutatedBody) => {
+          if (mutatedBody) {
+            res.json(mutatedBody);
+          } else {
+            res.json(jsonBody);
+          }
+        };
+      }
+
+      let gcsResult = null;
+      const gcsConfig = delivery?.gcs;
+      if (gcsConfig) {
+        const bucketName = gcsConfig.bucket || process.env.REPORTS_GCS_BUCKET;
+        if (!bucketName) {
+          throw new Error('Debe proporcionar delivery.gcs.bucket o configurar REPORTS_GCS_BUCKET.');
+        }
+
+        const filename = `${filenameBase}.${extension}`;
+        gcsResult = await uploadReportToGcs({
+          content: payloadBuffer,
+          contentType,
+          bucketName,
+          destination: gcsConfig.path,
+          prefix: gcsConfig.prefix,
+          metadata: {
+            filename,
+            format,
+            preset: presetId
+          },
+          presetId,
+          format,
+          generatedAt: report.generatedAt
+        });
+
+        res.set('X-Report-Gcs-Uri', gcsResult.gsUri);
+        res.set('X-Report-Gcs-Url', gcsResult.publicUrl);
+      }
+
+      if (format === 'json' && typeof sendResponse === 'function') {
+        const responseBody = gcsResult ? { ...bodyToSend, delivery: { ...(bodyToSend.delivery || {}), gcs: gcsResult } } : bodyToSend;
+        sendResponse(responseBody);
+      } else if (typeof sendResponse === 'function') {
+        sendResponse();
+      } else {
+        res.json(report);
+      }
+    } catch (error) {
+      console.error('Error generating EcoPlan report:', error);
+      res.status(500).json({
+        error: 'Failed to generate EcoPlan report',
+        message: error.message
+      });
+    }
+  });
 
 // Obtener presets de ROI disponibles
 app.get('/api/bloom/presets', (req, res) => {
@@ -1415,4 +1933,20 @@ async function startServer() {
   });
 }
 
-startServer();
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  app,
+  startServer,
+  buildEcoPlanAnalysis,
+  buildBloomCollection,
+  buildRegionalContext,
+  evaluateEeObject,
+  getMapFromImage,
+  getEcoPlanPresetList,
+  getPresetList,
+  initializeEarthEngine,
+  isEarthEngineInitialized: () => eeInitialized
+};

@@ -1,6 +1,6 @@
 # Google Earth Engine Tiles Server
 
-A Node.js server that provides XYZ tile service for Google Earth Engine datasets with a web-based map viewer.
+A Node.js server that provides XYZ tile service for Google Earth Engine datasets with una plataforma EcoPlan Urbano completa siguiendo el manual metodológico oficial.
 
 ## Features
 
@@ -12,7 +12,8 @@ A Node.js server that provides XYZ tile service for Google Earth Engine datasets
 - 🎨 **Visualization Parameters**: Customizable band combinations and styling
 - 🚀 **RESTful API**: Clean API endpoints for integration
 - 🧭 **Contexto Regional**: Mapas y series temporales MODIS (clorofila) + NOAA OISST (temperatura)
-- 📘 **Manual EcoPlan Urbano**: Guía metodológica detallada con flujos GEE para implementar EcoPlan Urbano ([ver documento](docs/manual-ecoplan-gee.md))
+- 📘 **Manual EcoPlan Urbano**: Guía metodológica y playbook operativo ([manual](docs/manual-ecoplan-gee.md) + [playbook](docs/ecoplan-project-playbook.md))
+- 🧩 **Fases completas**: Planificación estratégica, conformación de equipo, infraestructura, ingestión de datos, índices compuestos, participación ciudadana, reportes y mantenimiento documentados.
 
 ## Quick Start Checklist
 
@@ -22,6 +23,25 @@ A Node.js server that provides XYZ tile service for Google Earth Engine datasets
 - [ ] **Endpoint that delivers tiles XYZ via getMap/getTileUrl**
 - [ ] **Frontend adds the tile layer with that URL**
 - [ ] **(Optional) Exports to GCS / tiles pre-generated**
+
+## Implementación del manual EcoPlan Urbano
+
+El proyecto incorpora las 10 fases del manual metodológico mediante artefactos de código, documentación y procesos:
+
+| Fase | Entregables clave | Referencia |
+| --- | --- | --- |
+| 1. Definición y planificación | Objetivos, alcance, acuerdos y cronograma | `docs/ecoplan-project-playbook.md`, `docs/ecoplan-roadmap.md` |
+| 2. Equipo de trabajo | Roles, responsabilidades, gobernanza | `docs/ecoplan-project-playbook.md` |
+| 3. Infraestructura | Stack tecnológico, DevOps y seguridad | `docs/devops-pipeline.md`, `docs/security-plan.md`, `docs/database-schema.sql` |
+| 4. Ingesta y procesamiento | Pipelines GEE para vegetación, calor, aire, agua, socioeconómico | `server.js` (`buildEcoPlanAnalysis`, endpoints `/api/ecoplan/*`), `python/` scripts |
+| 5. Modelos e índices | Índices de calor, áreas verdes, contaminación, riesgo hídrico | Endpoints `/api/ecoplan/indices`, notebooks `notebooks/ecoplan-analysis.ipynb` |
+| 6. Plataforma | Dashboard Leaflet, API REST, plan GeoServer | `public/index.html`, `server.js`, `docs/devops-pipeline.md` |
+| 7. Reportes | Generación de reportes automáticos (CSV/PDF) | `docs/reporting/` (estructura), endpoints futuros `/api/reports/*` |
+| 8. Validación | Pruebas automáticas y validación con campo | `npm test`, `docs/ecoplan-roadmap.md` (hitos) |
+| 9. Lanzamiento y capacitación | Materiales de difusión y formación | `docs/ecoplan-project-playbook.md` (próximos artefactos) |
+| 10. Escalabilidad y mantenimiento | Plan de actualización y replicabilidad | `docs/ecoplan-roadmap.md`, `docs/ecoplan-project-playbook.md` |
+
+> Consulte el [manual original](docs/manual-ecoplan-gee.md) para la descripción completa y revise el playbook para ver cómo cada fase aterriza en el repositorio.
 
 ## Prerequisites
 

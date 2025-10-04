@@ -1,98 +1,73 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GEE Bloom Dashboard – Lima, Perú</title>
-  <link rel="stylesheet" href="./vendor/leaflet/leaflet.css">
-  <script src="./vendor/leaflet/leaflet.js"></script>
-  <script src="./vendor/chart/chart.umd.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Monitoreo de floraciones algales y EcoPlan Urbano para Lima.">
+  <title>EcoPlan Urbano &amp; Bloom Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha512-sA+4psJ1BLwh7QJHsQ6bUaz2+miFjCwXTlzAIXazhbugzuDUFcPRl1b/HFB70dNFuPuE6iu+/g9A5lH0p9fQ==" crossorigin="">
   <style>
     :root {
-      color-scheme: light dark;
-      --primary: #1e7bb6;
-      --accent: #ff5e3a;
-      --bg: #f5f7fb;
-      --bg-dark: #0f172a;
-      --surface: #ffffff;
-      --surface-dark: #1e293b;
-      --text: #0f172a;
-      --text-muted: #475569;
-      --border: #d0d7e3;
-      --success: #0f9d58;
-      --warning: #dd6b20;
-      --error: #c53030;
+      --bg: #0b1120;
+      --surface: #0f172a;
+      --surface-muted: rgba(15, 23, 42, 0.6);
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --border: rgba(148, 163, 184, 0.24);
+      --primary: #2563eb;
+      --success: #16a34a;
+      --warning: #eab308;
+      --error: #f87171;
+    }
+
+    * {
+      box-sizing: border-box;
     }
 
     body {
       margin: 0;
-      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg);
-      color: var(--text);
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    body.dark {
-      --bg: var(--bg-dark);
-      --surface: var(--surface-dark);
-      --text: #f8fafc;
-      --text-muted: #cbd5f5;
-      --border: #2c3a53;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 40%), #020617;
+      color: var(--text);
     }
 
     header {
-      padding: 16px 32px;
-      background: linear-gradient(120deg, #0f172a, #1e3a8a);
-      color: #f8fafc;
       display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      align-items: center;
       justify-content: space-between;
+      align-items: center;
+      padding: 32px clamp(16px, 5vw, 48px) 24px;
+      gap: 24px;
     }
 
     header h1 {
-      margin: 0;
-      font-size: 1.8rem;
-      font-weight: 700;
+      font-size: clamp(1.8rem, 2.5vw, 2.4rem);
+      margin: 0 0 8px;
     }
 
     header p {
       margin: 0;
-      max-width: 620px;
-      font-size: 0.95rem;
-      opacity: 0.85;
+      color: var(--text-muted);
+      line-height: 1.5;
     }
 
     main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      padding: 16px;
+      padding: 0 clamp(16px, 5vw, 48px) 48px;
     }
 
     .dashboard-grid {
-      flex: 1;
       display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: 16px;
+      grid-template-columns: minmax(320px, 360px) 1fr;
+      gap: 24px;
+      align-items: start;
     }
 
-    #controlColumn {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    @media (max-width: 1200px) {
+    @media (max-width: 1100px) {
       .dashboard-grid {
         grid-template-columns: 1fr;
-      }
-      .map-panel {
-        min-height: 480px;
       }
     }
 
@@ -104,6 +79,7 @@
       padding: 6px;
       border: 1px solid var(--border);
       align-self: flex-start;
+      margin-bottom: 24px;
     }
 
     .mode-button {
@@ -226,6 +202,28 @@
       box-shadow: 0 12px 24px rgba(37, 99, 235, 0.3);
     }
 
+    .button-secondary {
+      background: rgba(37, 99, 235, 0.18);
+      color: var(--text);
+      border: 1px solid rgba(37, 99, 235, 0.35);
+    }
+
+    .button-secondary:hover {
+      box-shadow: 0 12px 24px rgba(59, 130, 246, 0.35);
+      transform: translateY(-2px);
+    }
+
+    .download-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .download-buttons button {
+      flex: 1 1 140px;
+    }
+
     .map-panel {
       display: flex;
       flex-direction: column;
@@ -330,7 +328,7 @@
     }
 
     footer {
-      padding: 14px 24px;
+      padding: 14px 24px 32px;
       font-size: 0.8rem;
       color: var(--text-muted);
       text-align: center;
@@ -545,6 +543,17 @@
               <li>AOD usa MODIS MOD08_M3 para contaminación atmosférica.</li>
             </ul>
           </section>
+
+          <section class="card">
+            <h2 class="section-title">Descargar reporte</h2>
+            <p style="margin: 0; color: var(--text-muted); font-size: 0.85rem;">Genera un reporte EcoPlan con los parámetros actuales en distintos formatos listos para compartir.</p>
+            <div class="download-buttons">
+              <button type="button" class="button-secondary" data-report-format="pdf">Descargar PDF</button>
+              <button type="button" class="button-secondary" data-report-format="html">Abrir HTML</button>
+              <button type="button" class="button-secondary" data-report-format="csv">Descargar CSV</button>
+            </div>
+            <small style="color: var(--text-muted); display: block; margin-top: 8px;">Los reportes se generan usando Google Earth Engine y pueden tardar algunos segundos.</small>
+          </section>
         </aside>
       </div>
 
@@ -614,14 +623,49 @@
               <small>Rango: <span id="ecoAodRange">–</span></small>
             </div>
             <div class="card summary-card">
+              <h3>Calidad del aire</h3>
+              <div class="value" id="ecoAirQualityMean">–</div>
+              <small>Índice (0-1). Rango: <span id="ecoAirQualityRange">–</span></small>
+            </div>
+            <div class="card summary-card">
+              <h3>NO₂ promedio</h3>
+              <div class="value" id="ecoNo2Mean">–</div>
+              <small>µmol·m⁻² troposféricos</small>
+            </div>
+            <div class="card summary-card">
+              <h3>PM₂.₅ promedio</h3>
+              <div class="value" id="ecoPm25Mean">–</div>
+              <small>µg·m⁻³ estimados</small>
+            </div>
+            <div class="card summary-card">
               <h3>NDWI medio</h3>
               <div class="value" id="ecoNdwiMean">–</div>
               <small>Rango: <span id="ecoNdwiRange">–</span></small>
             </div>
             <div class="card summary-card">
+              <h3>Impermeabilización</h3>
+              <div class="value" id="ecoImperviousMean">–</div>
+              <small>Rango: <span id="ecoImperviousRange">–</span></small>
+            </div>
+            <div class="card summary-card">
+              <h3>Riesgo hídrico</h3>
+              <div class="value" id="ecoWaterRiskMean">–</div>
+              <small>Rango: <span id="ecoWaterRiskRange">–</span></small>
+            </div>
+            <div class="card summary-card">
+              <h3>Áreas verdes per cápita</h3>
+              <div class="value" id="ecoGreenPerCapitaMean">–</div>
+              <small>Rango: <span id="ecoGreenPerCapitaRange">–</span> | Total: <span id="ecoGreenAreaTotal">–</span> ha</small>
+            </div>
+            <div class="card summary-card">
               <h3>Densidad poblacional</h3>
               <div class="value" id="ecoPopulationMean">–</div>
-              <small>Máx.: <span id="ecoPopulationMax">–</span></small>
+              <small>Máx.: <span id="ecoPopulationMax">–</span> | Total: <span id="ecoPopulationTotal">–</span> hab</small>
+            </div>
+            <div class="card summary-card">
+              <h3>Déficit de áreas verdes</h3>
+              <div class="value" id="ecoGreenDeficitRatio">–</div>
+              <small>Población por debajo de 9 m²/hab</small>
             </div>
           </div>
 
@@ -637,6 +681,14 @@
             <div class="card">
               <h3>Aerosol Optical Depth</h3>
               <canvas id="ecoAodChart"></canvas>
+            </div>
+            <div class="card">
+              <h3>NO₂ troposférico (µmol·m⁻²)</h3>
+              <canvas id="ecoNo2Chart"></canvas>
+            </div>
+            <div class="card">
+              <h3>PM₂.₅ (µg·m⁻³)</h3>
+              <canvas id="ecoPm25Chart"></canvas>
             </div>
           </div>
 
@@ -666,6 +718,8 @@
     Construido con Google Earth Engine, Sentinel-2 SR, MODIS Aqua (L3SMI) y NOAA OISST V2. Ajusta parámetros por zona y valida con datos in situ.
   </footer>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha512-vmI1Qy1SgdWzxjaUoil58x2oylZMhUlCT3VkOITkkpFmS6r30YIOCwVDDDeWGPA7eGRIDcH+xM3aMc1hQE8fkw==" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script>
     const BLOOM_PRESETS_LOCAL = [
       {
@@ -716,9 +770,11 @@
     let areaChartInstance;
     let chlorChartInstance;
     let sstChartInstance;
-    let ecoNdviChartInstance;
-    let ecoLstChartInstance;
-    let ecoAodChartInstance;
+  let ecoNdviChartInstance;
+  let ecoLstChartInstance;
+  let ecoAodChartInstance;
+  let ecoNo2ChartInstance;
+  let ecoPm25ChartInstance;
     let roiLayer;
     let contextLayer;
     let currentMode = 'bloom';
@@ -749,15 +805,30 @@
       lstRange: document.getElementById('ecoLstRange'),
       heatMean: document.getElementById('ecoHeatMean'),
       heatRange: document.getElementById('ecoHeatRange'),
+      airQualityMean: document.getElementById('ecoAirQualityMean'),
+      airQualityRange: document.getElementById('ecoAirQualityRange'),
       aodMean: document.getElementById('ecoAodMean'),
       aodRange: document.getElementById('ecoAodRange'),
       ndwiMean: document.getElementById('ecoNdwiMean'),
       ndwiRange: document.getElementById('ecoNdwiRange'),
+      imperviousMean: document.getElementById('ecoImperviousMean'),
+      imperviousRange: document.getElementById('ecoImperviousRange'),
+      waterRiskMean: document.getElementById('ecoWaterRiskMean'),
+      waterRiskRange: document.getElementById('ecoWaterRiskRange'),
+      greenPerCapitaMean: document.getElementById('ecoGreenPerCapitaMean'),
+      greenPerCapitaRange: document.getElementById('ecoGreenPerCapitaRange'),
+      greenAreaTotal: document.getElementById('ecoGreenAreaTotal'),
+      greenDeficitRatio: document.getElementById('ecoGreenDeficitRatio'),
+      no2Mean: document.getElementById('ecoNo2Mean'),
+      pm25Mean: document.getElementById('ecoPm25Mean'),
       populationMean: document.getElementById('ecoPopulationMean'),
       populationMax: document.getElementById('ecoPopulationMax'),
+      populationTotal: document.getElementById('ecoPopulationTotal'),
       boundaryCard: document.getElementById('ecoBoundaryCard'),
       boundaryBody: document.getElementById('ecoBoundaryBody')
     };
+
+    const ecoReportButtons = Array.from(document.querySelectorAll('[data-report-format]'));
 
     function varColor(name) {
       return getComputedStyle(document.body).getPropertyValue(name).trim();
@@ -1408,8 +1479,31 @@
       const aodMin = getSummaryNumber(s, 'aod_min');
       const aodMax = getSummaryNumber(s, 'aod_max');
 
-      const populationMean = getSummaryNumber(s, 'population_mean');
-      const populationMax = getSummaryNumber(s, 'population_max');
+      const airQualityMean = getSummaryNumber(s, 'air_quality_mean');
+      const airQualityMin = getSummaryNumber(s, 'air_quality_min');
+      const airQualityMax = getSummaryNumber(s, 'air_quality_max');
+
+      const no2Mean = getSummaryNumber(s, 'no2_mean');
+      const pm25Mean = getSummaryNumber(s, 'pm25_mean');
+
+      const imperviousMean = getSummaryNumber(s, 'impervious_mean');
+      const imperviousMin = getSummaryNumber(s, 'impervious_min');
+      const imperviousMax = getSummaryNumber(s, 'impervious_max');
+
+      const waterRiskMean = getSummaryNumber(s, 'water_risk_mean');
+      const waterRiskMin = getSummaryNumber(s, 'water_risk_min');
+      const waterRiskMax = getSummaryNumber(s, 'water_risk_max');
+
+  const greenPerCapitaMean = getSummaryNumber(s, 'green_per_capita_mean');
+  const greenPerCapitaMin = getSummaryNumber(s, 'green_per_capita_min');
+  const greenPerCapitaMax = getSummaryNumber(s, 'green_per_capita_max');
+  const greenAreaM2 = getSummaryNumber(s, 'green_area_m2');
+  const greenAreaHa = Number.isFinite(greenAreaM2) ? greenAreaM2 / 10000 : NaN;
+  const greenDeficitRatio = getSummaryNumber(s, 'green_deficit_ratio');
+
+  const populationMean = getSummaryNumber(s, 'population_mean');
+  const populationMax = getSummaryNumber(s, 'population_max');
+  const populationTotal = getSummaryNumber(s, 'population_total');
 
       if (ecoSummaryEls.ndviMean) ecoSummaryEls.ndviMean.textContent = formatNumber(ndviMean, 3);
       if (ecoSummaryEls.ndviRange) ecoSummaryEls.ndviRange.textContent = buildRangeText(ndviMin, ndviMax, 3);
@@ -1420,14 +1514,43 @@
       if (ecoSummaryEls.heatMean) ecoSummaryEls.heatMean.textContent = formatNumber(heatMean, 2);
       if (ecoSummaryEls.heatRange) ecoSummaryEls.heatRange.textContent = buildRangeText(heatMin, heatMax, 2);
 
-      if (ecoSummaryEls.ndwiMean) ecoSummaryEls.ndwiMean.textContent = formatNumber(ndwiMean, 3);
-      if (ecoSummaryEls.ndwiRange) ecoSummaryEls.ndwiRange.textContent = buildRangeText(ndwiMin, ndwiMax, 3);
-
       if (ecoSummaryEls.aodMean) ecoSummaryEls.aodMean.textContent = formatNumber(aodMean, 3);
       if (ecoSummaryEls.aodRange) ecoSummaryEls.aodRange.textContent = buildRangeText(aodMin, aodMax, 3);
 
+      if (ecoSummaryEls.airQualityMean) ecoSummaryEls.airQualityMean.textContent = formatNumber(airQualityMean, 2);
+      if (ecoSummaryEls.airQualityRange) ecoSummaryEls.airQualityRange.textContent = buildRangeText(airQualityMin, airQualityMax, 2);
+
+      if (ecoSummaryEls.no2Mean) {
+        const no2Micro = Number.isFinite(no2Mean) ? no2Mean * 1e6 : NaN;
+        ecoSummaryEls.no2Mean.textContent = formatNumber(no2Micro, 1);
+      }
+
+      if (ecoSummaryEls.pm25Mean) ecoSummaryEls.pm25Mean.textContent = formatNumber(pm25Mean, 1);
+
+      if (ecoSummaryEls.ndwiMean) ecoSummaryEls.ndwiMean.textContent = formatNumber(ndwiMean, 3);
+      if (ecoSummaryEls.ndwiRange) ecoSummaryEls.ndwiRange.textContent = buildRangeText(ndwiMin, ndwiMax, 3);
+
+      if (ecoSummaryEls.imperviousMean) ecoSummaryEls.imperviousMean.textContent = formatNumber(imperviousMean, 3);
+      if (ecoSummaryEls.imperviousRange) ecoSummaryEls.imperviousRange.textContent = buildRangeText(imperviousMin, imperviousMax, 3);
+
+      if (ecoSummaryEls.waterRiskMean) ecoSummaryEls.waterRiskMean.textContent = formatNumber(waterRiskMean, 2);
+      if (ecoSummaryEls.waterRiskRange) ecoSummaryEls.waterRiskRange.textContent = buildRangeText(waterRiskMin, waterRiskMax, 2);
+
+      if (ecoSummaryEls.greenPerCapitaMean) ecoSummaryEls.greenPerCapitaMean.textContent = formatNumber(greenPerCapitaMean, 1);
+      if (ecoSummaryEls.greenPerCapitaRange) ecoSummaryEls.greenPerCapitaRange.textContent = buildRangeText(greenPerCapitaMin, greenPerCapitaMax, 1);
+      if (ecoSummaryEls.greenAreaTotal) ecoSummaryEls.greenAreaTotal.textContent = formatNumber(greenAreaHa, 1);
+
+      if (ecoSummaryEls.greenDeficitRatio) {
+        if (Number.isFinite(greenDeficitRatio)) {
+          ecoSummaryEls.greenDeficitRatio.textContent = `${formatNumber(greenDeficitRatio * 100, 1)} %`;
+        } else {
+          ecoSummaryEls.greenDeficitRatio.textContent = '–';
+        }
+      }
+
       if (ecoSummaryEls.populationMean) ecoSummaryEls.populationMean.textContent = formatNumber(populationMean, 0);
       if (ecoSummaryEls.populationMax) ecoSummaryEls.populationMax.textContent = formatNumber(populationMax, 0);
+      if (ecoSummaryEls.populationTotal) ecoSummaryEls.populationTotal.textContent = formatNumber(populationTotal, 0);
     }
 
     function updateEcoCharts(seriesData) {
@@ -1459,6 +1582,29 @@
         'AOD promedio',
         aodValues,
         '#9333ea'
+      ));
+
+      const no2Features = getFeatureArray(seriesData?.no2);
+      const no2Labels = no2Features.map((f) => f.properties?.date);
+      const no2Values = no2Features.map((f) => {
+        const raw = Number(f.properties?.no2 ?? f.properties?.value ?? NaN);
+        return Number.isFinite(raw) ? raw * 1e6 : NaN;
+      });
+      ecoNo2ChartInstance = ensureChart(ecoNo2ChartInstance, 'ecoNo2Chart', buildLineChartConfig(
+        no2Labels,
+        'NO₂ (µmol·m⁻²)',
+        no2Values,
+        '#2563eb'
+      ));
+
+      const pm25Features = getFeatureArray(seriesData?.pm25);
+      const pm25Labels = pm25Features.map((f) => f.properties?.date);
+      const pm25Values = pm25Features.map((f) => Number(f.properties?.pm25 ?? f.properties?.value ?? NaN));
+      ecoPm25ChartInstance = ensureChart(ecoPm25ChartInstance, 'ecoPm25Chart', buildLineChartConfig(
+        pm25Labels,
+        'PM₂.₅ (µg·m⁻³)',
+        pm25Values,
+        '#dc2626'
       ));
     }
 
@@ -1630,6 +1776,123 @@
       }
     }
 
+    function collectEcoPayload() {
+      const form = document.getElementById('ecoForm');
+      if (!form) {
+        return null;
+      }
+      const formData = new FormData(form);
+      return {
+        preset: formData.get('preset'),
+        start: formData.get('start'),
+        end: formData.get('end'),
+        cloudPercentage: Number(formData.get('cloudPercentage')) || 20,
+        populationYear: Number(formData.get('populationYear')) || 2020,
+        buffer: formData.get('buffer') ? Number(formData.get('buffer')) : undefined,
+        districtsAsset: formData.get('districtsAsset') || undefined
+      };
+    }
+
+    function setReportButtonsDisabled(disabled) {
+      ecoReportButtons.forEach((button) => {
+        button.disabled = disabled;
+      });
+    }
+
+    function sanitizeFilename(base, fallback = 'ecoplan-report') {
+      const value = (base || fallback).toString().trim();
+      return value.replace(/[^a-z0-9-_]+/gi, '_').replace(/_{2,}/g, '_');
+    }
+
+    function getFilenameFromDisposition(disposition, fallback) {
+      if (!disposition) {
+        return fallback;
+      }
+      const encodedMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+      if (encodedMatch && encodedMatch[1]) {
+        try {
+          return decodeURIComponent(encodedMatch[1]);
+        } catch (error) {
+          // ignore decoding error and continue
+        }
+      }
+      const plainMatch = disposition.match(/filename="?([^";]+)"?/i);
+      if (plainMatch && plainMatch[1]) {
+        return plainMatch[1];
+      }
+      return fallback;
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+
+    async function downloadEcoPlanReport(format) {
+      const payload = collectEcoPayload();
+      if (!payload) {
+        logStatus('No se pudo leer el formulario EcoPlan.', 'error', 'ecoplan');
+        return;
+      }
+
+      const normalizedFormat = (format || 'pdf').toLowerCase();
+      const requestBody = { ...payload, format: normalizedFormat };
+      const queryFormat = encodeURIComponent(normalizedFormat);
+      const presetSlug = sanitizeFilename(payload.preset || 'urbano');
+      const defaultFilename = `${presetSlug}.${normalizedFormat === 'html' ? 'html' : normalizedFormat}`;
+
+      setLoading(true, 'ecoplan');
+      setReportButtonsDisabled(true);
+
+      try {
+        logStatus(`Generando reporte EcoPlan (${normalizedFormat.toUpperCase()})...`, 'info', 'ecoplan');
+        const response = await fetch(`/api/reports/generate?format=${queryFormat}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || response.statusText || 'Error desconocido');
+        }
+
+        if (normalizedFormat === 'html') {
+          const htmlText = await response.text();
+          const blob = new Blob([htmlText], { type: 'text/html;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          window.open(url, '_blank', 'noopener');
+          setTimeout(() => URL.revokeObjectURL(url), 120000);
+          logStatus('Reporte HTML abierto en una nueva pestaña.', 'success', 'ecoplan');
+          return;
+        }
+
+        const contentType = response.headers.get('Content-Type') || '';
+        if (contentType.includes('application/json')) {
+          const errorJson = await response.json();
+          throw new Error(errorJson?.message || 'Error inesperado al generar el reporte.');
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get('Content-Disposition');
+        const filename = getFilenameFromDisposition(disposition, defaultFilename);
+        downloadBlob(blob, filename);
+        logStatus(`Reporte ${normalizedFormat.toUpperCase()} descargado correctamente.`, 'success', 'ecoplan');
+      } catch (error) {
+        console.error(error);
+        logStatus(`No se pudo generar el reporte: ${error.message}`, 'error', 'ecoplan');
+      } finally {
+        setLoading(false, 'ecoplan');
+        setReportButtonsDisabled(false);
+      }
+    }
+
     async function loadQuickView() {
       setLoading(true, 'bloom');
 
@@ -1742,19 +2005,13 @@
     async function runEcoPlanAnalysis(event) {
       event?.preventDefault();
       setLoading(true, 'ecoplan');
+      setReportButtonsDisabled(true);
 
       try {
-        const form = document.getElementById('ecoForm');
-        const formData = new FormData(form);
-        const payload = {
-          preset: formData.get('preset'),
-          start: formData.get('start'),
-          end: formData.get('end'),
-          cloudPercentage: Number(formData.get('cloudPercentage')) || 20,
-          populationYear: Number(formData.get('populationYear')) || 2020,
-          buffer: formData.get('buffer') ? Number(formData.get('buffer')) : undefined,
-          districtsAsset: formData.get('districtsAsset') || undefined
-        };
+        const payload = collectEcoPayload();
+        if (!payload) {
+          throw new Error('No se pudo leer el formulario EcoPlan.');
+        }
 
         logStatus('Solicitando análisis EcoPlan Urbano...', 'info', 'ecoplan');
 
@@ -1776,6 +2033,7 @@
         logStatus(`Error EcoPlan: ${error.message}`, 'error', 'ecoplan');
       } finally {
         setLoading(false, 'ecoplan');
+        setReportButtonsDisabled(false);
       }
     }
 
@@ -1798,6 +2056,14 @@
           const targetMode = button.dataset.mode;
           if (targetMode) {
             setMode(targetMode);
+          }
+        });
+      });
+      ecoReportButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const format = button.dataset.reportFormat;
+          if (format) {
+            downloadEcoPlanReport(format);
           }
         });
       });
