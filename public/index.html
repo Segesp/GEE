@@ -2,9 +2,18 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Monitoreo de floraciones algales y EcoPlan Urbano para Lima.">
-  <title>EcoPlan Urbano &amp; Bloom Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Plataforma de monitoreo ambiental y participación ciudadana para Lima. Incluye reportes ciudadanos, análisis por barrio y simulador de intervenciones ambientales.">
+  <meta name="theme-color" content="#2563eb">
+  <!-- Accesibilidad y SEO -->
+  <meta name="keywords" content="medio ambiente, Lima, participación ciudadana, calidad del aire, áreas verdes, temperatura, EcoPlan">
+  <meta name="author" content="EcoPlan Team">
+  <!-- Open Graph para redes sociales -->
+  <meta property="og:title" content="EcoPlan Urbano - Monitoreo Ambiental Lima">
+  <meta property="og:description" content="Plataforma ciudadana para monitorear y mejorar el ambiente en Lima">
+  <meta property="og:type" content="website">
+  
+  <title>EcoPlan Urbano &amp; Bloom Dashboard - Monitoreo Ambiental Lima</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -23,10 +32,61 @@
       --success: #16a34a;
       --warning: #eab308;
       --error: #f87171;
+      
+      /* Contraste mejorado para accesibilidad */
+      --text-high-contrast: #ffffff;
+      --focus-outline: 2px solid #60a5fa;
+      --focus-offset: 2px;
+    }
+
+    /* Utilidades de accesibilidad */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+    }
+
+    .skip-to-content {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: white;
+      padding: 8px 16px;
+      text-decoration: none;
+      z-index: 10000;
+      border-radius: 0 0 4px 0;
+    }
+
+    .skip-to-content:focus {
+      top: 0;
     }
 
     * {
       box-sizing: border-box;
+    }
+
+    /* Focus visible mejorado para navegación por teclado */
+    *:focus-visible {
+      outline: var(--focus-outline);
+      outline-offset: var(--focus-offset);
+      border-radius: 4px;
+    }
+
+    /* Asegurar contraste en botones */
+    button:focus-visible,
+    a:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible {
+      outline: var(--focus-outline);
+      outline-offset: var(--focus-offset);
     }
 
     body {
@@ -35,6 +95,39 @@
       font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 40%), #020617;
       color: var(--text);
+      /* Mejorar legibilidad */
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Media query para modo de alto contraste */
+    @media (prefers-contrast: high) {
+      :root {
+        --text: var(--text-high-contrast);
+        --border: rgba(148, 163, 184, 0.5);
+      }
+    }
+
+    /* Media query para reducir movimiento (accesibilidad) */
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    /* Responsive touch targets - mínimo 44x44px (WCAG AAA) */
+    button,
+    a,
+    input[type="button"],
+    input[type="submit"] {
+      min-height: 44px;
+      min-width: 44px;
     }
 
     header {
@@ -1735,10 +1828,121 @@
             </div>
           </section>
 
+          <!-- SIMULADOR "¿Y SI...?" -->
+          <section class="card" style="border-left: 4px solid #f59e0b;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+              <span style="font-size: 2rem;" role="img" aria-label="Bombilla de idea">💡</span>
+              <div>
+                <h2 class="section-title" style="margin: 0;">Simulador "¿Y si...?"</h2>
+                <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">
+                  Explora el impacto de intervenciones ambientales
+                </p>
+              </div>
+            </div>
+
+            <!-- Selector de intervención -->
+            <div style="margin-bottom: 16px;">
+              <label for="simulatorIntervention" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85rem;">
+                Tipo de intervención:
+              </label>
+              <select 
+                id="simulatorIntervention" 
+                aria-label="Seleccionar tipo de intervención ambiental"
+                style="width: 100%; padding: 10px; font-size: 0.9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;">
+                <option value="">Selecciona una opción...</option>
+              </select>
+            </div>
+
+            <!-- Descripción de la intervención -->
+            <div id="interventionDescription" style="display: none; padding: 12px; background: rgba(245, 158, 11, 0.1); border-radius: 8px; margin-bottom: 16px; font-size: 0.85rem;" role="status" aria-live="polite">
+              <div id="interventionDescriptionText"></div>
+            </div>
+
+            <!-- Deslizador de área/cantidad -->
+            <div id="simulatorAreaContainer" style="display: none; margin-bottom: 16px;">
+              <label for="simulatorArea" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85rem;">
+                <span id="simulatorAreaLabel">Área:</span>
+                <span id="simulatorAreaValue" style="color: var(--primary); font-weight: 700;">0</span>
+                <span id="simulatorAreaUnit"></span>
+              </label>
+              <input 
+                type="range" 
+                id="simulatorArea" 
+                aria-label="Cantidad o área de la intervención"
+                min="0" 
+                max="100" 
+                step="0.1" 
+                value="0"
+                style="width: 100%; cursor: pointer;"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow="0">
+            </div>
+
+            <!-- Selector de barrio (opcional) -->
+            <div id="simulatorNeighborhoodContainer" style="display: none; margin-bottom: 16px;">
+              <label for="simulatorNeighborhood" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85rem;">
+                Barrio (opcional):
+              </label>
+              <select 
+                id="simulatorNeighborhood" 
+                aria-label="Seleccionar barrio para la simulación"
+                style="width: 100%; padding: 10px; font-size: 0.9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;">
+                <option value="">Toda la zona</option>
+              </select>
+            </div>
+
+            <!-- Botón simular -->
+            <button 
+              type="button" 
+              id="simulateButton" 
+              class="button-primary" 
+              style="width: 100%; padding: 12px; font-size: 0.95rem; display: none;"
+              aria-label="Ejecutar simulación de intervención ambiental">
+              🎯 Simular Impacto
+            </button>
+
+            <!-- Resultados de la simulación -->
+            <div id="simulationResults" style="display: none; margin-top: 20px;" role="region" aria-label="Resultados de la simulación">
+              <!-- Resumen general -->
+              <div id="simulationSummary" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(234, 179, 8, 0.2)); padding: 16px; border-radius: 12px; margin-bottom: 16px; text-align: center;">
+                <div style="font-size: 3rem; margin-bottom: 8px;" id="summaryEmoji" role="img"></div>
+                <div style="font-size: 0.95rem; font-weight: 600;" id="summaryText"></div>
+                <div style="font-size: 2rem; font-weight: 700; margin-top: 8px; color: var(--primary);" id="summaryScore"></div>
+              </div>
+
+              <!-- Impactos individuales -->
+              <div id="impactsContainer" style="display: grid; gap: 12px;">
+                <!-- Se llenarán dinámicamente -->
+              </div>
+
+              <!-- Recomendaciones -->
+              <div id="recommendationsContainer" style="margin-top: 16px; padding: 14px; background: rgba(59, 130, 246, 0.1); border-radius: 8px;">
+                <div style="font-weight: 600; margin-bottom: 8px; font-size: 0.9rem;">
+                  📋 Recomendaciones para implementar:
+                </div>
+                <ul id="recommendationsList" style="margin: 0; padding-left: 20px; font-size: 0.85rem; line-height: 1.6;">
+                  <!-- Se llenarán dinámicamente -->
+                </ul>
+              </div>
+            </div>
+
+            <!-- Mensaje de ayuda inicial -->
+            <div id="simulatorHelp" style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+              <div style="font-size: 3rem; margin-bottom: 12px;" role="img" aria-label="Pregunta">🤔</div>
+              <div style="font-size: 0.9rem; margin-bottom: 8px;">
+                ¿Qué pasaría si...?
+              </div>
+              <div style="font-size: 0.8rem;">
+                Selecciona una intervención para ver su impacto estimado
+              </div>
+            </div>
+          </section>
+
           <section class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
               <h2 class="section-title" style="margin: 0;">Reportes Recientes</h2>
-              <button type="button" class="button-secondary" id="refreshCitizenReports" style="padding: 6px 12px; font-size: 0.8rem;">
+              <button type="button" class="button-secondary" id="refreshCitizenReports" style="padding: 6px 12px; font-size: 0.8rem;" aria-label="Actualizar lista de reportes">
                 🔄 Actualizar
               </button>
             </div>
@@ -2132,6 +2336,7 @@
   <script src="vendor/leaflet/leaflet.js"></script>
   <script src="vendor/leaflet-markercluster/leaflet.markercluster.js"></script>
   <script src="vendor/chart/chart.umd.js"></script>
+  <script src="js/simulator.js"></script>
   <script>
     const BLOOM_PRESETS_LOCAL = [
       {

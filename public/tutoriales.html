@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#3498db">
+    <meta name="description" content="Tutoriales paso a paso para usar EcoPlan - Aprende a reportar, validar, analizar y más">
+    <meta name="keywords" content="tutoriales, guías, cómo usar ecoplan, ayuda">
+    
+    <title>Tutoriales - EcoPlan</title>
+    
+    <style>
+        :root {
+            --primary-color: #2ecc71;
+            --secondary-color: #3498db;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --text-color: #2c3e50;
+            --bg-light: #ecf0f1;
+            --border-color: #bdc3c7;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: #f8f9fa;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-color) 100%);
+            color: white;
+            padding: 2rem 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header-content h1 {
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            margin-bottom: 0.5rem;
+        }
+        
+        nav {
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            padding: 1rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        nav a {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        
+        nav a:hover, nav a:focus {
+            background: var(--secondary-color);
+            color: white;
+        }
+        
+        main {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        
+        .tutorials-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        
+        .tutorial-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+        
+        .tutorial-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+        
+        .tutorial-header {
+            padding: 1.5rem;
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            color: white;
+        }
+        
+        .tutorial-header h3 {
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .tutorial-header .icon {
+            font-size: 2rem;
+        }
+        
+        .tutorial-body {
+            padding: 1.5rem;
+        }
+        
+        .tutorial-meta {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+        
+        .tutorial-meta span {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .tutorial-steps {
+            list-style: none;
+            display: grid;
+            gap: 0.5rem;
+        }
+        
+        .tutorial-steps li {
+            padding-left: 1.5rem;
+            position: relative;
+        }
+        
+        .tutorial-steps li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+        
+        .tutorial-footer {
+            padding: 1rem 1.5rem;
+            background: var(--bg-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #27ae60;
+            transform: scale(1.05);
+        }
+        
+        .video-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin: 2rem 0;
+        }
+        
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .video-card {
+            background: var(--bg-light);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .video-thumbnail {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 3rem;
+        }
+        
+        .video-info {
+            padding: 1rem;
+        }
+        
+        .video-info h4 {
+            color: var(--text-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        .difficulty-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+        
+        .difficulty-beginner {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .difficulty-intermediate {
+            background: var(--warning-color);
+            color: white;
+        }
+        
+        .difficulty-advanced {
+            background: var(--danger-color);
+            color: white;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 10px;
+            max-width: 800px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            padding: 1.5rem;
+            background: var(--secondary-color);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+        
+        .modal-body {
+            padding: 2rem;
+        }
+        
+        .step {
+            margin-bottom: 2rem;
+            padding-bottom: 2rem;
+            border-bottom: 2px solid var(--bg-light);
+        }
+        
+        .step:last-child {
+            border-bottom: none;
+        }
+        
+        .step-number {
+            background: var(--secondary-color);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+        
+        .step h3 {
+            color: var(--text-color);
+            margin-bottom: 1rem;
+        }
+        
+        .step-image {
+            width: 100%;
+            height: 200px;
+            background: var(--bg-light);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #95a5a6;
+            font-size: 4rem;
+            margin: 1rem 0;
+        }
+        
+        .tip {
+            background: #e8f8f5;
+            border-left: 4px solid var(--primary-color);
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+        }
+        
+        .tip strong {
+            color: var(--primary-color);
+        }
+        
+        .warning {
+            background: #fef5e7;
+            border-left: 4px solid var(--warning-color);
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+        }
+        
+        .warning strong {
+            color: var(--warning-color);
+        }
+        
+        footer {
+            background: var(--text-color);
+            color: white;
+            text-align: center;
+            padding: 2rem 1rem;
+            margin-top: 3rem;
+        }
+        
+        @media (max-width: 768px) {
+            .tutorials-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .modal-content {
+                margin: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header role="banner">
+        <div class="header-content">
+            <h1>📚 Tutoriales EcoPlan</h1>
+            <p>Aprende a usar la plataforma paso a paso</p>
+        </div>
+    </header>
+    
+    <nav role="navigation">
+        <ul>
+            <li><a href="/">🏠 Inicio</a></li>
+            <li><a href="#textos">📝 Tutoriales Escritos</a></li>
+            <li><a href="#videos">🎥 Video Tutoriales</a></li>
+            <li><a href="transparencia.html">🔒 Transparencia</a></li>
+            <li><a href="/api-docs">🔌 API</a></li>
+        </ul>
+    </nav>
+    
+    <main role="main">
+        <section id="intro" style="background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 2rem;">
+            <h2 style="color: var(--secondary-color); margin-bottom: 1rem;">🎯 Bienvenido/a</h2>
+            <p style="font-size: 1.1rem; line-height: 1.8;">
+                Estos tutoriales te guiarán paso a paso en el uso de <strong>EcoPlan</strong>.
+                Desde reportar un problema ambiental hasta analizar datos de tu barrio y simular intervenciones.
+            </p>
+            <p style="margin-top: 1rem; font-size: 1.1rem;">
+                <strong>💡 Consejo:</strong> Comienza con "Cómo hacer tu primer reporte" y luego explora las demás funciones.
+            </p>
+        </section>
+        
+        <section id="textos">
+            <h2 style="text-align: center; color: var(--secondary-color); margin-bottom: 2rem; font-size: 2rem;">
+                📝 Tutoriales Paso a Paso
+            </h2>
+            
+            <div class="tutorials-grid">
+                <!-- Tutorial 1 -->
+                <div class="tutorial-card" onclick="openTutorial('tutorial1')">
+                    <div class="tutorial-header">
+                        <h3><span class="icon">📸</span> Tu Primer Reporte</h3>
+                    </div>
+                    <div class="tutorial-body">
+                        <div class="tutorial-meta">
+                            <span>⏱️ 5 min</span>
+                            <span>👤 Principiante</span>
+                        </div>
+                        <p>Aprende a reportar un problema ambiental con foto y ubicación GPS.</p>
+                        <ul class="tutorial-steps">
+                            <li>Abrir la plataforma</li>
+                            <li>Activar GPS</li>
+                            <li>Tomar foto</li>
+                            <li>Clasificar y enviar</li>
+                        </ul>
+                    </div>
+                    <div class="tutorial-footer">
+                        <span class="difficulty-badge difficulty-beginner">Principiante</span>
+                        <span class="btn btn-primary">Ver Tutorial →</span>
+                    </div>
+                </div>
+                
+                <!-- Tutorial 2 -->
+                <div class="tutorial-card" onclick="openTutorial('tutorial2')">
+                    <div class="tutorial-header">
+                        <h3><span class="icon">✅</span> Validar Reportes</h3>
+                    </div>
+                    <div class="tutorial-body">
+                        <div class="tutorial-meta">
+                            <span>⏱️ 3 min</span>
+                            <span>👤 Principiante</span>
+                        </div>
+                        <p>Ayuda a la comunidad validando reportes de otros ciudadanos.</p>
+                        <ul class="tutorial-steps">
+                            <li>Ir a sección de validación</li>
+                            <li>Revisar evidencia</li>
+                            <li>Votar (✓ o ✗)</li>
+                            <li>Ver impacto</li>
+                        </ul>
+                    </div>
+                    <div class="tutorial-footer">
+                        <span class="difficulty-badge difficulty-beginner">Principiante</span>
+                        <span class="btn btn-primary">Ver Tutorial →</span>
+                    </div>
+                </div>
+                
+                <!-- Tutorial 3 -->
+                <div class="tutorial-card" onclick="openTutorial('tutorial3')">
+                    <div class="tutorial-header">
+                        <h3><span class="icon">📊</span> Analizar Tu Barrio</h3>
+                    </div>
+                    <div class="tutorial-body">
+                        <div class="tutorial-meta">
+                            <span>⏱️ 7 min</span>
+                            <span>👤 Intermedio</span>
+                        </div>
+                        <p>Consulta los indicadores ambientales de tu distrito (Mi Barrio).</p>
+                        <ul class="tutorial-steps">
+                            <li>Seleccionar distrito</li>
+                            <li>Leer semáforos 🟢🟡🔴</li>
+                            <li>Ver recomendaciones</li>
+                            <li>Comparar con otros barrios</li>
+                        </ul>
+                    </div>
+                    <div class="tutorial-footer">
+                        <span class="difficulty-badge difficulty-intermediate">Intermedio</span>
+                        <span class="btn btn-primary">Ver Tutorial →</span>
+                    </div>
+                </div>
+                
+                <!-- Tutorial 4 -->
+                <div class="tutorial-card" onclick="openTutorial('tutorial4')">
+                    <div class="tutorial-header">
+                        <h3><span class="icon">🔬</span> Simulador "¿Y si...?"</h3>
+                    </div>
+                    <div class="tutorial-body">
+                        <div class="tutorial-meta">
+                            <span>⏱️ 8 min</span>
+                            <span>👤 Intermedio</span>
+                        </div>
+                        <p>Simula el impacto de intervenciones ambientales antes de implementarlas.</p>
+                        <ul class="tutorial-steps">
+                            <li>Elegir intervención</li>
+                            <li>Ajustar parámetros</li>
+                            <li>Ver impactos</li>
+                            <li>Comparar escenarios</li>
+                        </ul>
+                    </div>
+                    <div class="tutorial-footer">
+                        <span class="difficulty-badge difficulty-intermediate">Intermedio</span>
+                        <span class="btn btn-primary">Ver Tutorial →</span>
+                    </div>
+                </div>
+                
+                <!-- Tutorial 5 -->
+                <div class="tutorial-card" onclick="openTutorial('tutorial5')">
+                    <div class="tutorial-header">
+                        <h3><span class="icon">📥</span> Descargar Datos</h3>
+                    </div>
+                    <div class="tutorial-body">
+                        <div class="tutorial-meta">
+                            <span>⏱️ 5 min</span>
+                            <span>👤 Intermedio</span>
+                        </div>
+                        <p>Descarga datasets completos en CSV o GeoJSON para análisis propio.</p>
+                        <ul class="tutorial-steps">
+                            <li>Ir a Descargas</li>
+                            <li>Seleccionar formato</li>
+                            <li>Filtrar por fecha/barrio</li>
+                            <li>Descargar y usar</li>
+                        </ul>
+                    </div>
+                    <div class="tutorial-footer">
+                        <span class="difficulty-badge difficulty-intermediate">Intermedio</span>
+                        <span class="btn btn-primary">Ver Tutorial →</span>
+                    </div>
+                </div>
+                
+                <!-- Tutorial 6 -->
+                <div class="tutorial-card" onclick="openTutorial('tutorial6')">
+                    <div class="tutorial-header">
+                        <h3><span class="icon">🔌</span> Usar la API</h3>
+                    </div>
+                    <div class="tutorial-body">
+                        <div class="tutorial-meta">
+                            <span>⏱️ 15 min</span>
+                            <span>👤 Avanzado</span>
+                        </div>
+                        <p>Accede programáticamente a los datos para crear aplicaciones propias.</p>
+                        <ul class="tutorial-steps">
+                            <li>Obtener API key</li>
+                            <li>Consultar endpoints</li>
+                            <li>Parsear respuestas JSON</li>
+                            <li>Casos de uso</li>
+                        </ul>
+                    </div>
+                    <div class="tutorial-footer">
+                        <span class="difficulty-badge difficulty-advanced">Avanzado</span>
+                        <span class="btn btn-primary">Ver Tutorial →</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section id="videos" class="video-section">
+            <h2 style="color: var(--secondary-color); margin-bottom: 1rem; font-size: 2rem; text-align: center;">
+                🎥 Video Tutoriales
+            </h2>
+            <p style="text-align: center; color: #7f8c8d; margin-bottom: 2rem;">
+                Videos cortos y directos al grano (próximamente disponibles)
+            </p>
+            
+            <div class="video-grid">
+                <div class="video-card">
+                    <div class="video-thumbnail">▶️</div>
+                    <div class="video-info">
+                        <h4>Introducción a EcoPlan (2 min)</h4>
+                        <p style="font-size: 0.9rem; color: #7f8c8d;">Visión general de la plataforma y sus beneficios</p>
+                        <span class="difficulty-badge difficulty-beginner">Principiante</span>
+                    </div>
+                </div>
+                
+                <div class="video-card">
+                    <div class="video-thumbnail">▶️</div>
+                    <div class="video-info">
+                        <h4>Reportar paso a paso (3 min)</h4>
+                        <p style="font-size: 0.9rem; color: #7f8c8d;">Demostración en vivo de cómo hacer un reporte</p>
+                        <span class="difficulty-badge difficulty-beginner">Principiante</span>
+                    </div>
+                </div>
+                
+                <div class="video-card">
+                    <div class="video-thumbnail">▶️</div>
+                    <div class="video-info">
+                        <h4>Entendiendo los semáforos (4 min)</h4>
+                        <p style="font-size: 0.9rem; color: #7f8c8d;">Qué significan los indicadores 🟢🟡🔴</p>
+                        <span class="difficulty-badge difficulty-intermediate">Intermedio</span>
+                    </div>
+                </div>
+                
+                <div class="video-card">
+                    <div class="video-thumbnail">▶️</div>
+                    <div class="video-info">
+                        <h4>Simulador para decisores (6 min)</h4>
+                        <p style="font-size: 0.9rem; color: #7f8c8d;">Cómo usarlo para planificación urbana</p>
+                        <span class="difficulty-badge difficulty-advanced">Avanzado</span>
+                    </div>
+                </div>
+            </div>
+            
+            <p style="text-align: center; margin-top: 2rem; color: #7f8c8d;">
+                📺 Los videos estarán disponibles en nuestro <a href="#" style="color: var(--secondary-color);">canal de YouTube</a> próximamente
+            </p>
+        </section>
+    </main>
+    
+    <!-- Modal Tutorial 1 -->
+    <div id="tutorial1" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📸 Tu Primer Reporte Ciudadano</h2>
+                <button class="modal-close" onclick="closeTutorial('tutorial1')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Abrir EcoPlan y Activar Permisos</h3>
+                    <p>
+                        Ve a <a href="/" style="color: var(--secondary-color);">la página principal</a> de EcoPlan.
+                        Tu navegador te pedirá permisos para:
+                    </p>
+                    <ul style="margin: 1rem 0 1rem 2rem;">
+                        <li><strong>Ubicación:</strong> Para saber dónde está el problema</li>
+                        <li><strong>Cámara:</strong> Para tomar la foto de evidencia</li>
+                    </ul>
+                    <div class="tip">
+                        <strong>💡 Tip:</strong> Si ya negaste los permisos, ve a la configuración de tu navegador
+                        (ícono de candado en la barra de direcciones) y actívalos manualmente.
+                    </div>
+                    <div class="step-image">📱</div>
+                </div>
+                
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Ubicarte en el Mapa</h3>
+                    <p>
+                        El mapa mostrará tu ubicación con un punto azul. Puedes:
+                    </p>
+                    <ul style="margin: 1rem 0 1rem 2rem;">
+                        <li>Esperar a que el GPS se ajuste (10-30 segundos)</li>
+                        <li>Mover el mapa manualmente para precisar la ubicación</li>
+                        <li>Hacer zoom con los botones + / -</li>
+                    </ul>
+                    <div class="warning">
+                        <strong>⚠️ Importante:</strong> Sé preciso/a. La ubicación exacta ayuda a que las autoridades
+                        encuentren el problema fácilmente.
+                    </div>
+                    <div class="step-image">🗺️</div>
+                </div>
+                
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Tomar o Subir una Foto</h3>
+                    <p>
+                        Haz clic en el botón de cámara. Puedes:
+                    </p>
+                    <ul style="margin: 1rem 0 1rem 2rem;">
+                        <li><strong>En móvil:</strong> Se abrirá la cámara directamente</li>
+                        <li><strong>En computadora:</strong> Elige un archivo de tu disco</li>
+                    </ul>
+                    <p style="margin-top: 1rem;">
+                        <strong>Consejos para una buena foto:</strong>
+                    </p>
+                    <ul style="margin: 0.5rem 0 1rem 2rem;">
+                        <li>📷 Enfoca bien el problema (calor, basura, falta de verde, etc.)</li>
+                        <li>☀️ Evita contraluz</li>
+                        <li>🔍 Incluye contexto (calle, edificios cercanos)</li>
+                        <li>🚫 No incluyas rostros de personas por privacidad</li>
+                    </ul>
+                    <div class="step-image">📷</div>
+                </div>
+                
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h3>Clasificar el Problema</h3>
+                    <p>
+                        Selecciona la categoría que mejor describe el problema:
+                    </p>
+                    <table style="width: 100%; margin: 1rem 0; border-collapse: collapse;">
+                        <tr style="background: var(--bg-light);">
+                            <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>🔥 Calor</strong></td>
+                            <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Zonas sin sombra, pavimento excesivo, calor extremo</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>🌳 Verde</strong></td>
+                            <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Falta de árboles, parques deteriorados, áreas grises</td>
+                        </tr>
+                        <tr style="background: var(--bg-light);">
+                            <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>💧 Inundación</strong></td>
+                            <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Charcos permanentes, drenaje deficiente</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>🗑️ Residuos</strong></td>
+                            <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Basura acumulada, puntos críticos</td>
+                        </tr>
+                        <tr style="background: var(--bg-light);">
+                            <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>🌫️ Aire</strong></td>
+                            <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Humo, polvo, smog visible</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>💦 Agua</strong></td>
+                            <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Contaminación de ríos, fugas, malgasto</td>
+                        </tr>
+                    </table>
+                    <div class="step-image">🏷️</div>
+                </div>
+                
+                <div class="step">
+                    <div class="step-number">5</div>
+                    <h3>Agregar Descripción (Opcional)</h3>
+                    <p>
+                        Puedes agregar más contexto en texto libre (máximo 2000 caracteres):
+                    </p>
+                    <ul style="margin: 1rem 0 1rem 2rem;">
+                        <li>"Esta esquina no tiene sombra y a mediodía es insoportable"</li>
+                        <li>"El parque solía tener árboles pero los cortaron"</li>
+                        <li>"Siempre hay basura aquí, pasa el camión 1 vez por semana"</li>
+                    </ul>
+                    <div class="tip">
+                        <strong>💡 Tip:</strong> No pongas información personal (nombre, dirección, teléfono).
+                        Los reportes son anónimos.
+                    </div>
+                    <div class="step-image">📝</div>
+                </div>
+                
+                <div class="step">
+                    <div class="step-number">6</div>
+                    <h3>Enviar el Reporte</h3>
+                    <p>
+                        Haz clic en <strong>"Enviar Reporte"</strong>. Verás una confirmación:
+                    </p>
+                    <div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 1rem; border-radius: 5px; margin: 1rem 0;">
+                        ✅ <strong>¡Gracias!</strong> Tu reporte ha sido enviado y aparecerá en el mapa.
+                    </div>
+                    <p style="margin-top: 1rem;">
+                        Tu reporte ahora está visible para:
+                    </p>
+                    <ul style="margin: 0.5rem 0 1rem 2rem;">
+                        <li>✅ Otros ciudadanos (para validación)</li>
+                        <li>👀 Autoridades municipales</li>
+                        <li>📊 Análisis estadísticos</li>
+                    </ul>
+                    <div class="tip">
+                        <strong>💡 Tip:</strong> Comparte el enlace de EcoPlan con tus vecinos para que también reporten.
+                        ¡Entre más datos, mejor!
+                    </div>
+                    <div class="step-image">✅</div>
+                </div>
+                
+                <div style="background: var(--bg-light); padding: 1.5rem; border-radius: 8px; text-align: center;">
+                    <h3 style="color: var(--primary-color); margin-bottom: 1rem;">🎉 ¡Felicitaciones!</h3>
+                    <p style="font-size: 1.1rem;">
+                        Has completado tu primer reporte ciudadano.<br>
+                        Ya eres parte del cambio ambiental de Lima.
+                    </p>
+                    <button onclick="closeTutorial('tutorial1')" class="btn btn-primary" style="margin-top: 1rem;">
+                        Entendido
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modales adicionales (Tutorial 2-6) con estructura similar... -->
+    <!-- Por brevedad, se muestran solo los placeholders -->
+    
+    <div id="tutorial2" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>✅ Cómo Validar Reportes de Otros</h2>
+                <button class="modal-close" onclick="closeTutorial('tutorial2')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="padding: 2rem; text-align: center; color: #7f8c8d;">
+                    Tutorial completo próximamente...<br><br>
+                    <button onclick="closeTutorial('tutorial2')" class="btn btn-primary">Cerrar</button>
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div id="tutorial3" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📊 Analizar Tu Barrio (Mi Barrio)</h2>
+                <button class="modal-close" onclick="closeTutorial('tutorial3')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="padding: 2rem; text-align: center; color: #7f8c8d;">
+                    Tutorial completo próximamente...<br><br>
+                    <button onclick="closeTutorial('tutorial3')" class="btn btn-primary">Cerrar</button>
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div id="tutorial4" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🔬 Usar el Simulador "¿Y si...?"</h2>
+                <button class="modal-close" onclick="closeTutorial('tutorial4')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="padding: 2rem; text-align: center; color: #7f8c8d;">
+                    Tutorial completo próximamente...<br><br>
+                    <button onclick="closeTutorial('tutorial4')" class="btn btn-primary">Cerrar</button>
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div id="tutorial5" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📥 Descargar Datos Abiertos</h2>
+                <button class="modal-close" onclick="closeTutorial('tutorial5')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="padding: 2rem; text-align: center; color: #7f8c8d;">
+                    Tutorial completo próximamente...<br><br>
+                    <button onclick="closeTutorial('tutorial5')" class="btn btn-primary">Cerrar</button>
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div id="tutorial6" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🔌 Usar la API Pública</h2>
+                <button class="modal-close" onclick="closeTutorial('tutorial6')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="padding: 2rem; text-align: center; color: #7f8c8d;">
+                    Tutorial completo próximamente...<br>
+                    Mientras tanto, visita la <a href="/api-docs" style="color: var(--secondary-color);">documentación de API</a><br><br>
+                    <button onclick="closeTutorial('tutorial6')" class="btn btn-primary">Cerrar</button>
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <footer role="contentinfo">
+        <p>
+            <strong>EcoPlan</strong> - Ciencia Ciudadana para un Lima más Verde<br>
+            ¿Necesitas ayuda? Escríbenos a <a href="mailto:ayuda@ecoplan.gob.pe" style="color: var(--primary-color);">ayuda@ecoplan.gob.pe</a>
+        </p>
+    </footer>
+    
+    <script>
+        function openTutorial(id) {
+            document.getElementById(id).classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeTutorial(id) {
+            document.getElementById(id).classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+        
+        // Cerrar con tecla ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const activeModal = document.querySelector('.modal.active');
+                if (activeModal) {
+                    closeTutorial(activeModal.id);
+                }
+            }
+        });
+        
+        // Cerrar al hacer clic fuera del modal
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeTutorial(modal.id);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

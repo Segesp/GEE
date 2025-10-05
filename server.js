@@ -4,6 +4,8 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
 const { configureReportsService, generateEcoPlanReport, renderEcoPlanReportHtml, renderEcoPlanReportCsv } = require('./services/reportsService');
 const { uploadReportToGcs } = require('./services/reportDeliveryService');
 const { renderHtmlToPdfBuffer } = require('./services/pdfService');
@@ -56,6 +58,34 @@ const MAX_CITIZEN_REPORT_DESCRIPTION_LENGTH = 2000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+
+// ============================================================================
+// SWAGGER API DOCUMENTATION (Fase 10)
+// ============================================================================
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: Página principal de EcoPlan
+ *     tags: [Frontend]
+ *     responses:
+ *       200:
+ *         description: Aplicación web principal
+ */
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'EcoPlan API Documentation',
+  customfavIcon: '/favicon.ico'
+}));
+
+// Endpoint para obtener el spec en JSON (útil para herramientas)
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+console.log('📚 Swagger API Documentation habilitada en /api-docs');
+// ============================================================================
 
 // Earth Engine authentication and initialization
 let eeInitialized = false;
@@ -1931,7 +1961,59 @@ app.post('/api/ecoplan/analyze', async (req, res) => {
   }
 });
 
-// Reportes ciudadanos
+// ============================================================================
+// ENDPOINTS DE REPORTES CIUDADANOS (Fase 1)
+// ============================================================================
+
+/**
+ * @swagger
+ * /api/citizen-reports:
+ *   get:
+ *     summary: Listar reportes ciudadanos
+ *     description: Obtiene una lista de reportes ambientales enviados por ciudadanos. Soporta filtros por estado, categoría y bounding box geográfico.
+ *     tags: [Reportes Ciudadanos]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 500
+ *           default: 100
+ *         description: Número máximo de reportes a retornar
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, validated, rejected]
+ *         description: Filtrar por estado de validación
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           enum: [heat, green, flooding, waste, air, water, other]
+ *         description: Filtrar por categoría de problema ambiental
+ *       - in: query
+ *         name: bbox
+ *         schema:
+ *           type: string
+ *           example: "-77.1,-12.2,-76.9,-12.0"
+ *         description: Bounding box en formato "minLon,minLat,maxLon,maxLat"
+ *     responses:
+ *       200:
+ *         description: Lista de reportes
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 reports:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/CitizenReport'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 app.get('/api/citizen-reports', async (req, res) => {
   try {
     const { limit, status, category, bbox } = req.query || {};
@@ -1969,6 +2051,63 @@ app.get('/api/citizen-reports', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/citizen-reports:
+ *   post:
+ *     summary: Crear un nuevo reporte ciudadano
+ *     description: Permite a un ciudadano reportar un problema ambiental con foto, ubicación GPS y descripción.
+ *     tags: [Reportes Ciudadanos]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - category
+ *               - latitude
+ *               - longitude
+ *             properties:
+ *               category:
+ *                 type: string
+ *                 enum: [heat, green, flooding, waste, air, water, other]
+ *                 example: heat
+ *               latitude:
+ *                 type: number
+ *                 format: float
+ *                 example: -12.0464
+ *               longitude:
+ *                 type: number
+ *                 format: float
+ *                 example: -77.0428
+ *               description:
+ *                 type: string
+ *                 maxLength: 2000
+ *                 example: "Fuerte calor en la esquina sin sombra"
+ *               photoUrl:
+ *                 type: string
+ *                 format: uri
+ *                 example: "https://storage.googleapis.com/ecoplan/photos/abc123.jpg"
+ *     responses:
+ *       201:
+ *         description: Reporte creado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                   format: uuid
+ *                 message:
+ *                   type: string
+ *                   example: "Reporte creado exitosamente"
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 app.post('/api/citizen-reports', async (req, res) => {
   try {
     const payload = req.body || {};
@@ -2718,13 +2857,46 @@ app.get('/api/exports/metadata/:layerId', async (req, res) => {
 // ============================================================================
 
 // ============================================================================
-// MI BARRIO - ANÁLISIS POR BARRIO CON SEMÁFOROS
+// MI BARRIO - ANÁLISIS POR BARRIO CON SEMÁFOROS (Fase 6)
 // ============================================================================
 const neighborhoodAnalysisService = require('./services/neighborhoodAnalysisService');
 
 /**
- * GET /api/neighborhoods
- * Lista barrios disponibles para análisis
+ * @swagger
+ * /api/neighborhoods:
+ *   get:
+ *     summary: Listar barrios disponibles
+ *     description: Retorna la lista de 12 barrios de Lima con análisis ambiental disponible
+ *     tags: [Análisis de Barrios]
+ *     responses:
+ *       200:
+ *         description: Lista de barrios
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 neighborhoods:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         example: "san-juan-lurigancho"
+ *                       name:
+ *                         type: string
+ *                         example: "San Juan de Lurigancho"
+ *                       population:
+ *                         type: integer
+ *                         example: 1091303
+ *                 total:
+ *                   type: integer
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
  */
 app.get('/api/neighborhoods', async (req, res) => {
   try {
@@ -2741,8 +2913,33 @@ app.get('/api/neighborhoods', async (req, res) => {
 });
 
 /**
- * GET /api/neighborhoods/:neighborhoodId/analysis
- * Obtiene análisis completo de un barrio con todos los índices
+ * @swagger
+ * /api/neighborhoods/{neighborhoodId}/analysis:
+ *   get:
+ *     summary: Análisis completo de un barrio (Mi Barrio)
+ *     description: Retorna indicadores ambientales con semáforos 🟢🟡🔴 para un barrio específico. Incluye temperatura, vegetación, calidad del aire, agua, biodiversidad y recomendaciones personalizadas.
+ *     tags: [Análisis de Barrios]
+ *     parameters:
+ *       - in: path
+ *         name: neighborhoodId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: "san-juan-lurigancho"
+ *         description: ID del barrio (slug)
+ *     responses:
+ *       200:
+ *         description: Análisis completo del barrio
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/NeighborhoodAnalysis'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       503:
+ *         description: Earth Engine no disponible
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
  */
 app.get('/api/neighborhoods/:neighborhoodId/analysis', async (req, res) => {
   try {
@@ -2835,6 +3032,208 @@ app.get('/api/neighborhoods/compare', async (req, res) => {
 
 // ============================================================================
 // FIN ENDPOINTS DE MI BARRIO
+// ============================================================================
+
+// ============================================================================
+// SIMULADOR DE ESCENARIOS ("¿Y SI...?") - Fase 7
+// ============================================================================
+const scenarioSimulatorService = require('./services/scenarioSimulatorService');
+
+/**
+ * @swagger
+ * /api/simulator/interventions:
+ *   get:
+ *     summary: Listar tipos de intervención disponibles
+ *     description: Retorna los 4 tipos de intervenciones ambientales que se pueden simular (parques urbanos, techos verdes, pintura reflectiva, plantación de árboles)
+ *     tags: [Simulador]
+ *     responses:
+ *       200:
+ *         description: Lista de intervenciones
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 interventions:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         example: "urban_park"
+ *                       name:
+ *                         type: string
+ *                         example: "Parque Urbano"
+ *                       description:
+ *                         type: string
+ *                       unit:
+ *                         type: string
+ *                         example: "hectáreas"
+ *                       icon:
+ *                         type: string
+ *                         example: "🌳"
+ *                 total:
+ *                   type: integer
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
+app.get('/api/simulator/interventions', (req, res) => {
+  try {
+    const interventions = scenarioSimulatorService.getInterventionTypes();
+    res.json({
+      interventions,
+      total: interventions.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error en GET /api/simulator/interventions:', error);
+    res.status(500).json({ error: 'No se pudo obtener tipos de intervención' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/simulator/simulate:
+ *   post:
+ *     summary: Simular impacto de una intervención ambiental
+ *     description: Calcula el impacto estimado de una intervención (parque, techos verdes, etc.) usando coeficientes científicos. Retorna reducción de temperatura, aumento de vegetación, mejora de calidad del aire, y más.
+ *     tags: [Simulador]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - interventionType
+ *               - area
+ *             properties:
+ *               interventionType:
+ *                 type: string
+ *                 enum: [urban_park, green_roof, cool_paint, tree_planting]
+ *                 example: "urban_park"
+ *               area:
+ *                 type: number
+ *                 format: float
+ *                 example: 1.5
+ *                 description: "Área en hectáreas (o número de unidades según tipo)"
+ *               neighborhoodId:
+ *                 type: string
+ *                 example: "san-juan-lurigancho"
+ *                 description: "Opcional: contextualiza recomendaciones al barrio"
+ *     responses:
+ *       200:
+ *         description: Simulación exitosa
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SimulationResult'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
+app.post('/api/simulator/simulate', (req, res) => {
+  try {
+    const { interventionType, area, neighborhoodId } = req.body;
+
+    if (!interventionType || area === undefined) {
+      return res.status(400).json({
+        error: 'Parámetros requeridos: interventionType, area'
+      });
+    }
+
+    const simulation = scenarioSimulatorService.simulateIntervention(
+      interventionType,
+      parseFloat(area),
+      neighborhoodId
+    );
+
+    res.json(simulation);
+  } catch (error) {
+    console.error('Error en POST /api/simulator/simulate:', error);
+    
+    if (error.message.includes('no válido') || error.message.includes('fuera de rango')) {
+      return res.status(400).json({ error: error.message });
+    }
+    
+    res.status(500).json({ 
+      error: 'No se pudo simular la intervención',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/simulator/compare
+ * Compara múltiples escenarios
+ * 
+ * Body: {
+ *   scenarios: [
+ *     { interventionType, area, neighborhoodId? },
+ *     ...
+ *   ]
+ * }
+ */
+app.post('/api/simulator/compare', (req, res) => {
+  try {
+    const { scenarios } = req.body;
+
+    if (!scenarios || !Array.isArray(scenarios)) {
+      return res.status(400).json({
+        error: 'Se requiere array "scenarios" con 2-4 escenarios'
+      });
+    }
+
+    const comparison = scenarioSimulatorService.compareScenarios(scenarios);
+    res.json(comparison);
+  } catch (error) {
+    console.error('Error en POST /api/simulator/compare:', error);
+    
+    if (error.message.includes('entre 2 y 4')) {
+      return res.status(400).json({ error: error.message });
+    }
+    
+    res.status(500).json({ 
+      error: 'No se pudo comparar escenarios',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/simulator/recommended/:neighborhoodId
+ * Obtiene escenarios recomendados para un barrio
+ */
+app.get('/api/simulator/recommended/:neighborhoodId', (req, res) => {
+  try {
+    const { neighborhoodId } = req.params;
+    
+    const scenarios = scenarioSimulatorService.getRecommendedScenarios(neighborhoodId);
+    
+    res.json({
+      neighborhoodId,
+      scenarios,
+      total: scenarios.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error(`Error en GET /api/simulator/recommended/${req.params.neighborhoodId}:`, error);
+    
+    if (error.message === 'Barrio no encontrado') {
+      return res.status(404).json({ error: error.message });
+    }
+    
+    res.status(500).json({ 
+      error: 'No se pudo obtener escenarios recomendados',
+      message: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// FIN ENDPOINTS DEL SIMULADOR
 // ============================================================================
 
 // Generación de reportes EcoPlan

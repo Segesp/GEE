@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2ecc71">
+    <meta name="description" content="Cómo usamos tus datos en EcoPlan - Transparencia total en el manejo de información ciudadana">
+    <meta name="keywords" content="transparencia de datos, privacidad, datos abiertos, ciencia ciudadana">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Transparencia de Datos - EcoPlan">
+    <meta property="og:description" content="Conoce cómo recopilamos, usamos y protegemos tus datos">
+    <meta property="og:type" content="website">
+    
+    <title>Cómo Usamos Tus Datos - EcoPlan</title>
+    
+    <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+    <style>
+        :root {
+            --primary-color: #2ecc71;
+            --secondary-color: #3498db;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --text-color: #2c3e50;
+            --bg-light: #ecf0f1;
+            --border-color: #bdc3c7;
+            --success-color: #27ae60;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: #f8f9fa;
+        }
+        
+        /* Skip to content link for accessibility */
+        .skip-to-content {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: var(--primary-color);
+            color: white;
+            padding: 8px;
+            text-decoration: none;
+            z-index: 100;
+        }
+        
+        .skip-to-content:focus {
+            top: 0;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--success-color) 100%);
+            color: white;
+            padding: 2rem 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header-content h1 {
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            margin-bottom: 0.5rem;
+        }
+        
+        .header-content p {
+            font-size: clamp(1rem, 2vw, 1.2rem);
+            opacity: 0.95;
+        }
+        
+        nav {
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            padding: 1rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        nav a {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        
+        nav a:hover, nav a:focus {
+            background: var(--primary-color);
+            color: white;
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+        
+        main {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        
+        .intro-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 2rem;
+        }
+        
+        .intro-section h2 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        
+        .principles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        
+        .principle-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-left: 4px solid var(--primary-color);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .principle-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        
+        .principle-card h3 {
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .principle-card .icon {
+            font-size: 2rem;
+        }
+        
+        .data-flow {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin: 2rem 0;
+        }
+        
+        .data-flow h2 {
+            color: var(--secondary-color);
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        .flow-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .flow-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--bg-light);
+            border-radius: 8px;
+        }
+        
+        .step-number {
+            background: var(--secondary-color);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        
+        .step-content h3 {
+            color: var(--secondary-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .data-table th {
+            background: var(--primary-color);
+            color: white;
+            font-weight: 600;
+        }
+        
+        .data-table tr:hover {
+            background: var(--bg-light);
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .badge-public {
+            background: var(--success-color);
+            color: white;
+        }
+        
+        .badge-private {
+            background: var(--danger-color);
+            color: white;
+        }
+        
+        .badge-anonymized {
+            background: var(--warning-color);
+            color: white;
+        }
+        
+        .rights-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin: 2rem 0;
+        }
+        
+        .rights-section h2 {
+            color: var(--danger-color);
+            margin-bottom: 1.5rem;
+        }
+        
+        .rights-list {
+            list-style: none;
+            display: grid;
+            gap: 1rem;
+        }
+        
+        .rights-list li {
+            padding: 1rem;
+            background: var(--bg-light);
+            border-radius: 8px;
+            border-left: 4px solid var(--danger-color);
+        }
+        
+        .rights-list li strong {
+            color: var(--danger-color);
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        
+        .contact-section {
+            background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-color) 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            text-align: center;
+            margin: 2rem 0;
+        }
+        
+        .contact-section h2 {
+            margin-bottom: 1rem;
+        }
+        
+        .contact-section a {
+            color: white;
+            font-weight: 600;
+            text-decoration: underline;
+        }
+        
+        .faq-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin: 2rem 0;
+        }
+        
+        .faq-section h2 {
+            color: var(--warning-color);
+            margin-bottom: 1.5rem;
+        }
+        
+        .faq-item {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .faq-item:last-child {
+            border-bottom: none;
+        }
+        
+        .faq-item h3 {
+            color: var(--text-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        footer {
+            background: var(--text-color);
+            color: white;
+            text-align: center;
+            padding: 2rem 1rem;
+            margin-top: 3rem;
+        }
+        
+        footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .flow-steps {
+                gap: 0.5rem;
+            }
+            
+            .data-table {
+                font-size: 0.9rem;
+            }
+            
+            .data-table th,
+            .data-table td {
+                padding: 0.75rem 0.5rem;
+            }
+        }
+        
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation: none !important;
+                transition: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="#main-content" class="skip-to-content">Saltar al contenido principal</a>
+    
+    <header role="banner">
+        <div class="header-content">
+            <h1>🔒 Cómo Usamos Tus Datos</h1>
+            <p>Transparencia total en el manejo de información ciudadana</p>
+        </div>
+    </header>
+    
+    <nav role="navigation" aria-label="Navegación principal">
+        <ul>
+            <li><a href="/">🏠 Inicio</a></li>
+            <li><a href="#principios">📋 Principios</a></li>
+            <li><a href="#flujo">🔄 Flujo de Datos</a></li>
+            <li><a href="#derechos">⚖️ Tus Derechos</a></li>
+            <li><a href="#faq">❓ Preguntas Frecuentes</a></li>
+            <li><a href="/api-docs">🔌 API Pública</a></li>
+            <li><a href="tutoriales.html">📚 Tutoriales</a></li>
+        </ul>
+    </nav>
+    
+    <main id="main-content" role="main">
+        <section class="intro-section">
+            <h2>🌱 Nuestra Promesa</h2>
+            <p style="font-size: 1.1rem; line-height: 1.8;">
+                <strong>EcoPlan</strong> es un proyecto de <strong>ciencia ciudadana</strong> que depende de tu participación.
+                Valoramos profundamente tu confianza y nos comprometemos a manejar tus datos de manera 
+                <strong>transparente, ética y segura</strong>.
+            </p>
+            <p style="margin-top: 1rem; font-size: 1.1rem; line-height: 1.8;">
+                Esta página explica en <strong>lenguaje claro</strong> qué datos recopilamos, cómo los usamos,
+                quién puede acceder a ellos y cuáles son tus derechos.
+            </p>
+        </section>
+        
+        <section id="principios">
+            <h2 style="text-align: center; color: var(--primary-color); margin-bottom: 2rem; font-size: 2rem;">
+                📋 Nuestros Principios de Datos
+            </h2>
+            
+            <div class="principles-grid">
+                <div class="principle-card">
+                    <h3><span class="icon">🔓</span> Datos Abiertos</h3>
+                    <p>
+                        Todos los datos ambientales agregados son <strong>públicos y descargables</strong>.
+                        Creemos en la transparencia como base de la participación ciudadana.
+                    </p>
+                </div>
+                
+                <div class="principle-card">
+                    <h3><span class="icon">🎭</span> Anonimización</h3>
+                    <p>
+                        <strong>Nunca publicamos</strong> información personal identificable.
+                        Los reportes ciudadanos son anónimos por defecto.
+                    </p>
+                </div>
+                
+                <div class="principle-card">
+                    <h3><span class="icon">🔒</span> Seguridad</h3>
+                    <p>
+                        Usamos <strong>encriptación</strong> y mejores prácticas de seguridad
+                        para proteger los datos de accesos no autorizados.
+                    </p>
+                </div>
+                
+                <div class="principle-card">
+                    <h3><span class="icon">⚖️</span> Consentimiento</h3>
+                    <p>
+                        Solo recopilamos datos que <strong>tú decides compartir</strong>.
+                        Puedes participar sin revelar información personal.
+                    </p>
+                </div>
+                
+                <div class="principle-card">
+                    <h3><span class="icon">🎯</span> Propósito Limitado</h3>
+                    <p>
+                        Usamos tus datos <strong>solo para mejorar el ambiente urbano</strong>,
+                        nunca con fines comerciales o publicitarios.
+                    </p>
+                </div>
+                
+                <div class="principle-card">
+                    <h3><span class="icon">♻️</span> Derecho al Olvido</h3>
+                    <p>
+                        Puedes <strong>solicitar la eliminación</strong> de tus datos
+                        en cualquier momento. Respondemos en máximo 15 días.
+                    </p>
+                </div>
+            </div>
+        </section>
+        
+        <section id="flujo" class="data-flow">
+            <h2>🔄 Flujo de Datos: De tu Reporte al Conocimiento Público</h2>
+            
+            <div class="flow-steps">
+                <div class="flow-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>Tú Reportas</h3>
+                        <p>
+                            Envías un reporte (foto + ubicación + categoría + descripción opcional).
+                            Solo necesitas permitir geolocalización y cámara en tu navegador.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flow-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>Almacenamiento Seguro</h3>
+                        <p>
+                            Los datos se guardan en una base de datos PostgreSQL encriptada.
+                            Las fotos se suben a Google Cloud Storage con acceso restringido.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flow-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>Validación Comunitaria</h3>
+                        <p>
+                            Otros ciudadanos validan tu reporte (¿está correcto? ¿es relevante?).
+                            Esto mejora la calidad de los datos sin intervención de autoridades.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flow-step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h3>Anonimización y Agregación</h3>
+                        <p>
+                            Eliminamos cualquier identificador personal. Agregamos datos por barrio
+                            para generar estadísticas (ej: "15 reportes de calor en SJL").
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flow-step">
+                    <div class="step-number">5</div>
+                    <div class="step-content">
+                        <h3>Análisis con Earth Engine</h3>
+                        <p>
+                            Combinamos tus reportes con datos satelitales (temperatura, vegetación)
+                            para calcular indicadores ambientales de tu barrio.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flow-step">
+                    <div class="step-number">6</div>
+                    <div class="step-content">
+                        <h3>Publicación Abierta</h3>
+                        <p>
+                            Los resultados agregados se publican en la plataforma y están
+                            disponibles para descarga (CSV, GeoJSON) bajo licencia CC BY 4.0.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section>
+            <h2 style="text-align: center; color: var(--secondary-color); margin-bottom: 2rem; font-size: 2rem;">
+                📊 ¿Qué Datos Recopilamos?
+            </h2>
+            
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Dato</th>
+                        <th>¿Para qué?</th>
+                        <th>Visibilidad</th>
+                        <th>¿Obligatorio?</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Ubicación GPS</strong></td>
+                        <td>Situar el reporte en el mapa y calcular indicadores por barrio</td>
+                        <td><span class="badge badge-public">Público</span></td>
+                        <td>Sí</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Foto</strong></td>
+                        <td>Evidencia visual del problema ambiental reportado</td>
+                        <td><span class="badge badge-public">Público</span></td>
+                        <td>No</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Categoría</strong></td>
+                        <td>Clasificar el tipo de problema (calor, residuos, inundación, etc.)</td>
+                        <td><span class="badge badge-public">Público</span></td>
+                        <td>Sí</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Descripción</strong></td>
+                        <td>Contexto adicional sobre el problema</td>
+                        <td><span class="badge badge-public">Público</span></td>
+                        <td>No</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Fecha/Hora</strong></td>
+                        <td>Análisis temporal de tendencias</td>
+                        <td><span class="badge badge-public">Público</span></td>
+                        <td>Sí (automático)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Dirección IP</strong></td>
+                        <td>Prevención de spam y abuso</td>
+                        <td><span class="badge badge-private">Privado</span></td>
+                        <td>Sí (automático)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>User Agent</strong></td>
+                        <td>Compatibilidad técnica y estadísticas de uso</td>
+                        <td><span class="badge badge-anonymized">Anonimizado</span></td>
+                        <td>Sí (automático)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Email (opcional)</strong></td>
+                        <td>Recibir actualizaciones sobre tu reporte</td>
+                        <td><span class="badge badge-private">Privado</span></td>
+                        <td>No</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <p style="margin-top: 1rem; padding: 1rem; background: var(--bg-light); border-radius: 8px;">
+                <strong>⚠️ Importante:</strong> Los datos marcados como "Privado" <strong>nunca</strong> se comparten públicamente
+                ni con terceros. Solo se usan internamente para administración del sistema.
+            </p>
+        </section>
+        
+        <section id="derechos" class="rights-section">
+            <h2>⚖️ Tus Derechos como Participante</h2>
+            <p style="margin-bottom: 1.5rem; font-size: 1.1rem;">
+                La legislación peruana (Ley N° 29733 - Protección de Datos Personales) te otorga los siguientes derechos:
+            </p>
+            
+            <ul class="rights-list">
+                <li>
+                    <strong>Derecho de Acceso</strong>
+                    Puedes solicitar una copia de todos los datos que tenemos sobre ti.
+                </li>
+                <li>
+                    <strong>Derecho de Rectificación</strong>
+                    Si un dato es incorrecto, puedes pedir que lo corrijamos.
+                </li>
+                <li>
+                    <strong>Derecho de Cancelación</strong>
+                    Puedes solicitar que eliminemos tus datos personales (reportes anónimos permanecen).
+                </li>
+                <li>
+                    <strong>Derecho de Oposición</strong>
+                    Puedes negarte a que usemos tus datos para un fin específico.
+                </li>
+                <li>
+                    <strong>Derecho de Portabilidad</strong>
+                    Puedes obtener tus datos en formato CSV para usarlos en otra plataforma.
+                </li>
+            </ul>
+            
+            <p style="margin-top: 1.5rem; padding: 1rem; background: white; border-radius: 8px; border: 2px solid var(--danger-color);">
+                <strong>📧 Para ejercer tus derechos:</strong><br>
+                Envía un correo a <a href="mailto:datos@ecoplan.gob.pe" style="color: var(--danger-color);">datos@ecoplan.gob.pe</a>
+                con asunto "SOLICITUD DATOS PERSONALES" e incluye:
+                <ul style="margin-top: 0.5rem; margin-left: 1.5rem;">
+                    <li>Tu nombre completo</li>
+                    <li>Derecho que deseas ejercer</li>
+                    <li>Copia de tu DNI (para verificar identidad)</li>
+                </ul>
+                Responderemos en máximo <strong>15 días hábiles</strong>.
+            </p>
+        </section>
+        
+        <section class="faq-section" id="faq">
+            <h2>❓ Preguntas Frecuentes</h2>
+            
+            <div class="faq-item">
+                <h3>¿Venden mis datos a empresas?</h3>
+                <p>
+                    <strong>Rotundamente NO.</strong> EcoPlan es un proyecto de bien público.
+                    Nunca vendemos, alquilamos ni compartimos datos personales con fines comerciales.
+                    Los datos agregados y anónimos son gratuitos para todos.
+                </p>
+            </div>
+            
+            <div class="faq-item">
+                <h3>¿Quién puede ver mi reporte?</h3>
+                <p>
+                    Tu reporte aparece como un <strong>punto anónimo en el mapa</strong>.
+                    Nadie puede saber quién lo envió. Solo se muestra la categoría, ubicación, foto y descripción.
+                </p>
+            </div>
+            
+            <div class="faq-item">
+                <h3>¿Guardan mi ubicación exacta?</h3>
+                <p>
+                    Sí, la guardamos para precisión del análisis, pero <strong>no la asociamos con tu identidad</strong>.
+                    En reportes públicos, podemos "aproximarla" a nivel de manzana para mayor privacidad.
+                </p>
+            </div>
+            
+            <div class="faq-item">
+                <h3>¿Puedo reportar sin dar mi email?</h3>
+                <p>
+                    ¡Sí! El email es <strong>completamente opcional</strong>. Solo lo pedimos si quieres
+                    recibir actualizaciones sobre el estado de tu reporte.
+                </p>
+            </div>
+            
+            <div class="faq-item">
+                <h3>¿Mis fotos tienen metadatos?</h3>
+                <p>
+                    Sí, las fotos pueden contener metadatos EXIF (fecha, ubicación, modelo de cámara).
+                    <strong>Los eliminamos automáticamente</strong> antes de publicar para proteger tu privacidad.
+                </p>
+            </div>
+            
+            <div class="faq-item">
+                <h3>¿Comparten datos con el gobierno?</h3>
+                <p>
+                    Compartimos <strong>solo datos agregados y anónimos</strong> con autoridades municipales
+                    para informar políticas públicas. Nunca compartimos listas de participantes ni datos personales.
+                </p>
+            </div>
+            
+            <div class="faq-item">
+                <h3>¿Cuánto tiempo guardan mis datos?</h3>
+                <p>
+                    Los datos personales (IP, email) se guardan máximo <strong>2 años</strong>.
+                    Los reportes anónimos permanecen indefinidamente para análisis histórico,
+                    pero sin vincularlos a ti.
+                </p>
+            </div>
+            
+            <div class="faq-item">
+                <h3>¿Usan cookies o trackers?</h3>
+                <p>
+                    Usamos <strong>mínimas cookies técnicas</strong> (ej: mantener sesión).
+                    <strong>NO</strong> usamos cookies de publicidad ni trackers de terceros (Google Analytics, Facebook Pixel, etc.).
+                </p>
+            </div>
+        </section>
+        
+        <section class="contact-section">
+            <h2>📞 ¿Más Preguntas?</h2>
+            <p style="font-size: 1.1rem; margin-bottom: 1rem;">
+                Estamos aquí para resolver tus dudas sobre privacidad y datos.
+            </p>
+            <p>
+                <strong>Email:</strong> <a href="mailto:datos@ecoplan.gob.pe">datos@ecoplan.gob.pe</a><br>
+                <strong>Horario:</strong> Lunes a Viernes, 9:00 - 17:00<br>
+                <strong>Tiempo de respuesta:</strong> Máximo 48 horas
+            </p>
+        </section>
+        
+        <section style="background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-top: 2rem;">
+            <h2 style="color: var(--primary-color); margin-bottom: 1rem;">🔗 Enlaces Relacionados</h2>
+            <ul style="list-style: none; display: grid; gap: 0.5rem;">
+                <li>📚 <a href="tutoriales.html" style="color: var(--secondary-color); text-decoration: none; font-weight: 500;">Tutoriales de Uso</a></li>
+                <li>🔌 <a href="/api-docs" style="color: var(--secondary-color); text-decoration: none; font-weight: 500;">Documentación de API</a></li>
+                <li>📖 <a href="/docs/manual-ecoplan-gee.md" style="color: var(--secondary-color); text-decoration: none; font-weight: 500;">Manual Técnico Completo</a></li>
+                <li>⚖️ <a href="https://www.gob.pe/institucion/minjus/informes-publicaciones/2324046-ley-n-29733-ley-de-proteccion-de-datos-personales" target="_blank" style="color: var(--secondary-color); text-decoration: none; font-weight: 500;">Ley de Protección de Datos Personales</a></li>
+                <li>📜 <a href="https://creativecommons.org/licenses/by/4.0/deed.es" target="_blank" style="color: var(--secondary-color); text-decoration: none; font-weight: 500;">Licencia Creative Commons BY 4.0</a></li>
+            </ul>
+        </section>
+    </main>
+    
+    <footer role="contentinfo">
+        <p>
+            <strong>EcoPlan</strong> - Ciencia Ciudadana para un Lima más Verde<br>
+            Datos Abiertos bajo Licencia <a href="https://creativecommons.org/licenses/by/4.0/deed.es" target="_blank">CC BY 4.0</a><br>
+            Última actualización: Octubre 2025
+        </p>
+    </footer>
+</body>
+</html>
