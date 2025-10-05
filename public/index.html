@@ -166,11 +166,14 @@
       }
     }
 
-    /* Mapa principal al inicio */
+    /* Mapa principal al inicio con reportes al lado */
     .main-map-section {
-      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 24px;
       margin: 24px 0;
       padding: 0 clamp(16px, 5vw, 48px);
+      align-items: start;
     }
 
     .main-map-section #map {
@@ -182,9 +185,55 @@
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     }
 
-    @media (max-width: 768px) {
+    .main-map-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    /* Ocultar scrollbar pero mantener funcionalidad */
+    .main-map-sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .main-map-sidebar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .main-map-sidebar::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    .main-map-sidebar::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
+    @media (max-width: 1200px) {
+      .main-map-section {
+        grid-template-columns: 1fr 350px;
+      }
+    }
+
+    @media (max-width: 1024px) {
+      .main-map-section {
+        grid-template-columns: 1fr;
+      }
+      
+      .main-map-sidebar {
+        max-height: none;
+      }
+
       .main-map-section #map {
         height: 400px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .main-map-section #map {
+        height: 350px;
       }
     }
 
@@ -1258,9 +1307,51 @@
       <button type="button" class="mode-button" data-mode="citizen">Participación Ciudadana</button>
     </div>
 
-    <!-- Mapa principal al inicio -->
+    <!-- Mapa principal al inicio con reportes al lado -->
     <section class="main-map-section">
       <div id="map"></div>
+      
+      <!-- Sidebar con reportes recientes -->
+      <div class="main-map-sidebar">
+        <section class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h2 class="section-title" style="margin: 0;">Reportes Recientes</h2>
+            <button type="button" class="button-secondary" id="refreshCitizenReports" style="padding: 6px 12px; font-size: 0.8rem;" aria-label="Actualizar lista de reportes">
+              🔄 Actualizar
+            </button>
+          </div>
+          
+          <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+            <select id="citizenReportsFilterCategory" style="padding: 6px 10px; font-size: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface);">
+              <option value="">Todas las categorías</option>
+              <option value="green">🌳 Áreas verdes</option>
+              <option value="heat">🔥 Calor</option>
+              <option value="flooding">💧 Inundación</option>
+              <option value="waste">🗑️ Basura</option>
+              <option value="air">🌫️ Aire</option>
+              <option value="water">🚰 Agua</option>
+              <option value="other">📌 Otro</option>
+            </select>
+            
+            <select id="citizenReportsFilterStatus" style="padding: 6px 10px; font-size: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface);">
+              <option value="">Todos los estados</option>
+              <option value="received">Recibido</option>
+              <option value="validated">Validado</option>
+              <option value="in_progress">En ejecución</option>
+              <option value="resolved">Resuelto</option>
+            </select>
+          </div>
+
+          <div id="citizenReportsStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-bottom: 16px;"></div>
+          
+          <div id="citizenReportsEmpty" class="row-subtext" style="margin-top: 12px; text-align: center; padding: 32px; background: rgba(148, 163, 184, 0.05); border-radius: 8px; display: none;">
+            <div style="font-size: 3rem; margin-bottom: 12px;">📍</div>
+            <div style="font-size: 0.95rem; color: var(--text); font-weight: 600; margin-bottom: 6px;">No hay reportes aún</div>
+            <div style="font-size: 0.8rem;">Presiona "➕ Reportar" para crear el primer reporte</div>
+          </div>
+          <ul id="citizenReportsList" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px;"></ul>
+        </section>
+      </div>
     </section>
 
     <div class="dashboard-grid">
@@ -1965,45 +2056,6 @@
                 Selecciona una intervención para ver su impacto estimado
               </div>
             </div>
-          </section>
-
-          <section class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-              <h2 class="section-title" style="margin: 0;">Reportes Recientes</h2>
-              <button type="button" class="button-secondary" id="refreshCitizenReports" style="padding: 6px 12px; font-size: 0.8rem;" aria-label="Actualizar lista de reportes">
-                🔄 Actualizar
-              </button>
-            </div>
-            
-            <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
-              <select id="citizenReportsFilterCategory" style="padding: 6px 10px; font-size: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface);">
-                <option value="">Todas las categorías</option>
-                <option value="green">🌳 Áreas verdes</option>
-                <option value="heat">🔥 Calor</option>
-                <option value="flooding">💧 Inundación</option>
-                <option value="waste">🗑️ Basura</option>
-                <option value="air">🌫️ Aire</option>
-                <option value="water">🚰 Agua</option>
-                <option value="other">📌 Otro</option>
-              </select>
-              
-              <select id="citizenReportsFilterStatus" style="padding: 6px 10px; font-size: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface);">
-                <option value="">Todos los estados</option>
-                <option value="received">Recibido</option>
-                <option value="validated">Validado</option>
-                <option value="in_progress">En ejecución</option>
-                <option value="resolved">Resuelto</option>
-              </select>
-            </div>
-
-            <div id="citizenReportsStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-bottom: 16px;"></div>
-            
-            <div id="citizenReportsEmpty" class="row-subtext" style="margin-top: 12px; text-align: center; padding: 32px; background: rgba(148, 163, 184, 0.05); border-radius: 8px; display: none;">
-              <div style="font-size: 3rem; margin-bottom: 12px;">�</div>
-              <div style="font-size: 0.95rem; color: var(--text); font-weight: 600; margin-bottom: 6px;">No hay reportes aún</div>
-              <div style="font-size: 0.8rem;">Presiona "➕ Reportar" para crear el primer reporte</div>
-            </div>
-            <ul id="citizenReportsList" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px;"></ul>
           </section>
         </aside>
       </div>
