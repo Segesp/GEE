@@ -14,6 +14,7 @@ const {
 } = require('./services/reportDistributionOrchestrator');
 const reportRunsRepository = require('./services/reportRunsRepository');
 const citizenReportsRepository = require('./services/citizenReportsRepository');
+const reportValidationService = require('./services/reportValidationService');
 require('dotenv').config();
 
 const app = express();
@@ -1988,6 +1989,252 @@ app.post('/api/citizen-reports', async (req, res) => {
     res.status(500).json({ error: 'No se pudo registrar el reporte' });
   }
 });
+
+// ============================================================================
+// ENDPOINTS DE VALIDACIÓN COMUNITARIA
+// ============================================================================
+
+/**
+ * POST /api/citizen-reports/:id/validate
+ * Aplica una validación comunitaria a un reporte
+ */
+app.post('/api/citizen-reports/:id/validate', async (req, res) => {
+  try {
+    const reportId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(reportId)) {
+      return res.status(400).json({ error: 'ID de reporte inválido' });
+    }
+
+    const { validationType, comment, newSeverity, duplicateOf } = req.body;
+    
+    // Validar tipo de validación
+    const validTypes = ['confirm', 'reject', 'duplicate', 'update_severity'];
+    if (!validTypes.includes(validationType)) {
+      return res.status(400).json({ 
+        error: 'Tipo de validación inválido',
+        validTypes 
+      });
+    }
+
+    // Validar severidad si se proporciona
+    if (validationType === 'update_severity') {
+      const validSeverities = ['low', 'medium', 'high'];
+      if (!newSeverity || !validSeverities.includes(newSeverity)) {
+        return res.status(400).json({ 
+          error: 'Severidad inválida para update_severity',
+          validSeverities 
+        });
+      }
+    }
+
+    // Identificador de usuario (IP hash o session)
+    const userIdentifier = req.headers['x-forwarded-for'] || 
+                          req.connection.remoteAddress || 
+                          req.headers['user-agent'] || 
+                          'anonymous';
+
+    // Obtener todos los reportes (en producción esto sería una consulta DB)
+    const allReports = await citizenReportsRepository.listReports({});
+    
+    // Aplicar validación
+    const result = await reportValidationService.applyValidation({
+      reportId,
+      userIdentifier,
+      validationType,
+      comment,
+      newSeverity,
+      duplicateOf,
+      reports: allReports
+    });
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    // Si el estado cambió, actualizar en el repositorio
+    if (result.statusChanged) {
+      const updatedReport = allReports.find(r => r.id === reportId);
+      // En producción: await citizenReportsRepository.updateReport(reportId, updatedReport);
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error en POST /api/citizen-reports/:id/validate:', error);
+    res.status(500).json({ error: 'No se pudo procesar la validación' });
+  }
+});
+
+/**
+ * POST /api/citizen-reports/:id/moderate
+ * Validación directa por moderador
+ */
+app.post('/api/citizen-reports/:id/moderate', async (req, res) => {
+  try {
+    const reportId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(reportId)) {
+      return res.status(400).json({ error: 'ID de reporte inválido' });
+    }
+
+    const { moderatorIdentifier, newStatus, reason, newSeverity, duplicateOf } = req.body;
+    
+    if (!moderatorIdentifier) {
+      return res.status(400).json({ error: 'Se requiere moderatorIdentifier' });
+    }
+
+    const validStatuses = ['moderator_validated', 'rejected', 'duplicate'];
+    if (!validStatuses.includes(newStatus)) {
+      return res.status(400).json({ 
+        error: 'Estado inválido',
+        validStatuses 
+      });
+    }
+
+    const allReports = await citizenReportsRepository.listReports({});
+    
+    const result = await reportValidationService.moderatorValidate({
+      reportId,
+      moderatorIdentifier,
+      newStatus,
+      reason,
+      newSeverity,
+      duplicateOf,
+      reports: allReports
+    });
+
+    if (!result.success) {
+      return res.status(result.error.includes('moderador') ? 403 : 400).json(result);
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error en POST /api/citizen-reports/:id/moderate:', error);
+    res.status(500).json({ error: 'No se pudo procesar la moderación' });
+  }
+});
+
+/**
+ * GET /api/citizen-reports/:id/duplicates
+ * Detecta reportes duplicados potenciales
+ */
+app.get('/api/citizen-reports/:id/duplicates', async (req, res) => {
+  try {
+    const reportId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(reportId)) {
+      return res.status(400).json({ error: 'ID de reporte inválido' });
+    }
+
+    const allReports = await citizenReportsRepository.listReports({});
+    const duplicates = reportValidationService.detectDuplicates(reportId, allReports);
+
+    res.json({
+      reportId,
+      duplicatesFound: duplicates.length,
+      duplicates: duplicates.map(d => ({
+        ...d,
+        report: mapCitizenReportToResponse(d.report)
+      }))
+    });
+  } catch (error) {
+    console.error('Error en GET /api/citizen-reports/:id/duplicates:', error);
+    res.status(500).json({ error: 'No se pudo detectar duplicados' });
+  }
+});
+
+/**
+ * GET /api/citizen-reports/:id/history
+ * Obtiene el historial de cambios de un reporte
+ */
+app.get('/api/citizen-reports/:id/history', async (req, res) => {
+  try {
+    const reportId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(reportId)) {
+      return res.status(400).json({ error: 'ID de reporte inválido' });
+    }
+
+    const history = reportValidationService.getChangeHistory(reportId);
+    const validations = reportValidationService.getReportValidations(reportId);
+
+    res.json({
+      reportId,
+      history,
+      validations: validations.map(v => ({
+        ...v,
+        userIdentifier: v.userIdentifier.substring(0, 8) + '...' // Ofuscar para privacidad
+      }))
+    });
+  } catch (error) {
+    console.error('Error en GET /api/citizen-reports/:id/history:', error);
+    res.status(500).json({ error: 'No se pudo obtener el historial' });
+  }
+});
+
+/**
+ * GET /api/citizen-reports/:id/stats
+ * Obtiene estadísticas detalladas de validación de un reporte
+ */
+app.get('/api/citizen-reports/:id/stats', async (req, res) => {
+  try {
+    const reportId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(reportId)) {
+      return res.status(400).json({ error: 'ID de reporte inválido' });
+    }
+
+    const allReports = await citizenReportsRepository.listReports({});
+    const stats = reportValidationService.getReportWithValidationStats(reportId, allReports);
+
+    if (!stats) {
+      return res.status(404).json({ error: 'Reporte no encontrado' });
+    }
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Error en GET /api/citizen-reports/:id/stats:', error);
+    res.status(500).json({ error: 'No se pudo obtener estadísticas' });
+  }
+});
+
+/**
+ * GET /api/validation/metrics
+ * Obtiene métricas globales de validación
+ */
+app.get('/api/validation/metrics', async (req, res) => {
+  try {
+    const allReports = await citizenReportsRepository.listReports({});
+    const metrics = reportValidationService.getValidationMetrics(allReports);
+
+    res.json(metrics);
+  } catch (error) {
+    console.error('Error en GET /api/validation/metrics:', error);
+    res.status(500).json({ error: 'No se pudo obtener métricas' });
+  }
+});
+
+/**
+ * GET /api/validation/moderators
+ * Lista de moderadores activos
+ */
+app.get('/api/validation/moderators', async (req, res) => {
+  try {
+    const moderators = reportValidationService.getModerators();
+    
+    res.json({
+      moderators: moderators.map(m => ({
+        identifier: m.identifier,
+        name: m.name,
+        role: m.role,
+        active: m.active,
+        lastActivity: m.lastActivity
+      }))
+    });
+  } catch (error) {
+    console.error('Error en GET /api/validation/moderators:', error);
+    res.status(500).json({ error: 'No se pudo obtener moderadores' });
+  }
+});
+
+// ============================================================================
+// FIN ENDPOINTS DE VALIDACIÓN COMUNITARIA
+// ============================================================================
 
 // Generación de reportes EcoPlan
 app.post('/api/reports/generate', async (req, res) => {

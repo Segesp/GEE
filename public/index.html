@@ -872,6 +872,253 @@
       color: var(--text);
     }
 
+    /* Estilos para indicadores de exploración */
+    .explore-indicators {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    
+    .indicator-card {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(14, 165, 233, 0.08) 100%);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 12px;
+      padding: 14px 12px;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+    
+    .indicator-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.25);
+      border-color: rgba(59, 130, 246, 0.4);
+    }
+    
+    .indicator-card .indicator-icon {
+      font-size: 2rem;
+      margin-bottom: 6px;
+      display: block;
+    }
+    
+    .indicator-card .indicator-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--text);
+      display: block;
+      margin-bottom: 4px;
+    }
+    
+    .indicator-card .indicator-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    
+    /* Estilos para filtros de exploración */
+    .explore-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    
+    .explore-search-icon {
+      position: relative;
+      flex: 1;
+      min-width: 200px;
+    }
+    
+    .explore-search-icon::before {
+      content: "🔍";
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1rem;
+      pointer-events: none;
+      z-index: 1;
+    }
+    
+    /* Estilos para capas GEE */
+    .gee-layer-controls {
+      background: rgba(139, 92, 246, 0.05);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      border-radius: 14px;
+      padding: 18px;
+    }
+    
+    .gee-layer-controls h3 {
+      margin: 0 0 16px;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      color: #8b5cf6;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .gee-layer-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      align-items: center;
+      gap: 12px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 10px;
+      transition: all 0.2s ease;
+    }
+    
+    .gee-layer-item:hover {
+      background: rgba(139, 92, 246, 0.08);
+    }
+    
+    .gee-layer-checkbox {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      accent-color: #8b5cf6;
+    }
+    
+    .gee-layer-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+    
+    .gee-opacity-slider {
+      width: 100px;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(139, 92, 246, 0.2);
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    
+    .gee-opacity-slider::-webkit-slider-thumb {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #8b5cf6;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(139, 92, 246, 0.4);
+      transition: all 0.2s ease;
+    }
+    
+    .gee-opacity-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      box-shadow: 0 3px 10px rgba(139, 92, 246, 0.6);
+    }
+    
+    .gee-opacity-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #8b5cf6;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 6px rgba(139, 92, 246, 0.4);
+      transition: all 0.2s ease;
+    }
+    
+    .gee-opacity-slider::-moz-range-thumb:hover {
+      transform: scale(1.15);
+      box-shadow: 0 3px 10px rgba(139, 92, 246, 0.6);
+    }
+    
+    .gee-opacity-slider:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Estilos para el mapa modal integrado */
+    .modal-map-container {
+      position: relative;
+      width: 100%;
+      height: 400px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid var(--border);
+      margin-bottom: 16px;
+      background: var(--surface);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    #modalMap {
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+      z-index: 1;
+    }
+    
+    .modal-map-instructions {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(59, 130, 246, 0.95);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      animation: pulse 2s infinite;
+      pointer-events: none;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
+      50% { opacity: 0.8; transform: translateX(-50%) scale(1.02); }
+    }
+    
+    .location-input-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .location-input-group input {
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-family: 'Courier New', monospace;
+      background: rgba(148, 163, 184, 0.05);
+      color: var(--text);
+      text-align: center;
+      font-weight: 600;
+    }
+    
+    .location-input-group input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+    
+    .location-buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    
+    .location-buttons button {
+      flex: 1;
+      padding: 10px;
+      font-size: 0.85rem;
+    }
+
   </style>
 </head>
 <body>
@@ -1145,101 +1392,160 @@
         </aside>
 
         <aside class="controls hidden" id="citizenControls">
-          <!-- Explorar: Mapa + Lista -->
-          <section class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px;">
-              <div>
-                <h2 class="section-title" style="margin-bottom: 4px;">🗺️ Explorar Reportes</h2>
-                <p style="margin: 0; font-size: 0.8rem; color: var(--text-muted);">Mapa temático con clustering, filtros y búsqueda</p>
+          <!-- Explorar: Encabezado y botón -->
+          <section class="card" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(14, 165, 233, 0.1) 100%); border: 2px solid rgba(59, 130, 246, 0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px;">
+              <div style="flex: 1;">
+                <h2 style="margin: 0 0 6px; font-size: 1.4rem; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 1.8rem;">🗺️</span>
+                  Explorar Reportes
+                </h2>
+                <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
+                  Mapa temático con clustering, filtros avanzados y búsqueda inteligente
+                </p>
               </div>
-              <button type="button" class="button-primary" id="openNewReportModal" style="padding: 12px 20px; font-size: 1.1rem; border-radius: 50px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
-                ➕ Reportar
+              <button type="button" class="button-primary" id="openNewReportModal" style="padding: 14px 24px; font-size: 1rem; border-radius: 50px; box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4); white-space: nowrap;">
+                ➕ Nuevo Reporte
               </button>
             </div>
-            
-            <!-- Indicadores principales -->
+          </section>
+
+          <!-- Indicadores principales -->
+          <section class="card" style="padding: 16px;">
+            <h3 style="margin: 0 0 14px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--text-muted);">
+              📊 Resumen General
+            </h3>
             <div class="explore-indicators" id="exploreIndicators"></div>
+          </section>
             
-            <!-- Filtros de exploración -->
-            <div class="explore-filters">
-              <div class="explore-search-icon" style="flex: 1; min-width: 200px;">
-                <input type="search" id="exploreSearch" placeholder="Buscar por descripción, barrio..." style="width: 100%;">
+          <!-- Filtros de exploración -->
+          <section class="card">
+            <h3 style="margin: 0 0 14px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--text-muted);">
+              🔍 Filtros de Búsqueda
+            </h3>
+            
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <!-- Barra de búsqueda -->
+              <div class="explore-search-icon" style="width: 100%;">
+                <input type="search" id="exploreSearch" placeholder="Buscar por descripción, barrio, categoría..." style="width: 100%; padding: 10px 10px 10px 36px; font-size: 0.9rem;">
               </div>
               
-              <select id="exploreFilterCategory" style="min-width: 150px;">
-                <option value="">Todas las categorías</option>
-                <option value="green">🌳 Áreas verdes</option>
-                <option value="heat">🔥 Calor</option>
-                <option value="flooding">💧 Inundación</option>
-                <option value="waste">🗑️ Basura</option>
-                <option value="air">🌫️ Aire</option>
-                <option value="water">🚰 Agua</option>
-                <option value="other">📌 Otro</option>
-              </select>
+              <!-- Filtros en grid -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">
+                <div>
+                  <label style="display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: var(--text-muted);">Categoría</label>
+                  <select id="exploreFilterCategory" style="width: 100%; padding: 8px; font-size: 0.85rem;">
+                    <option value="">Todas</option>
+                    <option value="green">🌳 Áreas verdes</option>
+                    <option value="heat">🔥 Calor</option>
+                    <option value="flooding">💧 Inundación</option>
+                    <option value="waste">🗑️ Basura</option>
+                    <option value="air">🌫️ Aire</option>
+                    <option value="water">🚰 Agua</option>
+                    <option value="other">📌 Otro</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label style="display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: var(--text-muted);">Severidad</label>
+                  <select id="exploreFilterSeverity" style="width: 100%; padding: 8px; font-size: 0.85rem;">
+                    <option value="">Todas</option>
+                    <option value="low">✅ Baja</option>
+                    <option value="medium">⚠️ Media</option>
+                    <option value="high">🚨 Alta</option>
+                  </select>
+                </div>
+              </div>
               
-              <select id="exploreFilterSeverity" style="min-width: 140px;">
-                <option value="">Todas las severidades</option>
-                <option value="low">✅ Baja</option>
-                <option value="medium">⚠️ Media</option>
-                <option value="high">🚨 Alta</option>
-              </select>
+              <!-- Rango de fechas -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                  <label style="display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: var(--text-muted);">Desde</label>
+                  <input type="date" id="exploreFilterDateFrom" style="width: 100%; padding: 8px; font-size: 0.85rem;">
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: var(--text-muted);">Hasta</label>
+                  <input type="date" id="exploreFilterDateTo" style="width: 100%; padding: 8px; font-size: 0.85rem;">
+                </div>
+              </div>
               
-              <input type="date" id="exploreFilterDateFrom" placeholder="Desde" style="min-width: 150px;">
-              <input type="date" id="exploreFilterDateTo" placeholder="Hasta" style="min-width: 150px;">
-              
-              <button type="button" id="exploreResetFilters" class="button-secondary" style="padding: 8px 16px; font-size: 0.85rem; white-space: nowrap;">
-                🔄 Reset
+              <!-- Botón reset -->
+              <button type="button" id="exploreResetFilters" class="button-secondary" style="width: 100%; padding: 10px; font-size: 0.85rem;">
+                🔄 Limpiar Filtros
               </button>
             </div>
           </section>
           
           <!-- Capas GEE -->
-          <section class="gee-layer-controls">
-            <h3>📡 Capas Satelitales (GEE)</h3>
-            <div class="gee-layer-item">
-              <input type="checkbox" id="layerNDVI" class="gee-layer-checkbox">
-              <label for="layerNDVI" class="gee-layer-label">🌿 NDVI (Vegetación)</label>
-              <input type="range" id="opacityNDVI" class="gee-opacity-slider" min="0" max="100" value="70" disabled>
-              <span id="opacityValueNDVI" style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">70%</span>
+          <section class="card" style="background: rgba(139, 92, 246, 0.05); border: 1px solid rgba(139, 92, 246, 0.2);">
+            <h3 style="margin: 0 0 14px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: #8b5cf6; display: flex; align-items: center; gap: 8px;">
+              <span>📡</span> Capas Satelitales (GEE)
+            </h3>
+            
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div class="gee-layer-item">
+                <input type="checkbox" id="layerNDVI" class="gee-layer-checkbox">
+                <label for="layerNDVI" class="gee-layer-label">🌿 NDVI</label>
+                <input type="range" id="opacityNDVI" class="gee-opacity-slider" min="0" max="100" value="70" disabled>
+                <span id="opacityValueNDVI" style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">70%</span>
+              </div>
+              
+              <div class="gee-layer-item">
+                <input type="checkbox" id="layerLST" class="gee-layer-checkbox">
+                <label for="layerLST" class="gee-layer-label">🌡️ LST</label>
+                <input type="range" id="opacityLST" class="gee-opacity-slider" min="0" max="100" value="60" disabled>
+                <span id="opacityValueLST" style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">60%</span>
+              </div>
+              
+              <div class="gee-layer-item">
+                <input type="checkbox" id="layerPM25" class="gee-layer-checkbox">
+                <label for="layerPM25" class="gee-layer-label">🌫️ PM₂.₅</label>
+                <input type="range" id="opacityPM25" class="gee-opacity-slider" min="0" max="100" value="65" disabled>
+                <span id="opacityValuePM25" style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">65%</span>
+              </div>
+              
+              <div class="gee-layer-item">
+                <input type="checkbox" id="layerNDWI" class="gee-layer-checkbox">
+                <label for="layerNDWI" class="gee-layer-label">💧 NDWI</label>
+                <input type="range" id="opacityNDWI" class="gee-opacity-slider" min="0" max="100" value="70" disabled>
+                <span id="opacityValueNDWI" style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">70%</span>
+              </div>
+              
+              <button type="button" id="updateGeeLayers" class="button-primary" style="width: 100%; margin-top: 6px; padding: 10px; font-size: 0.85rem;">
+                🔄 Actualizar Capas
+              </button>
             </div>
-            <div class="gee-layer-item">
-              <input type="checkbox" id="layerLST" class="gee-layer-checkbox">
-              <label for="layerLST" class="gee-layer-label">🌡️ LST (Temp. Superficial)</label>
-              <input type="range" id="opacityLST" class="gee-opacity-slider" min="0" max="100" value="60" disabled>
-              <span id="opacityValueLST" style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">60%</span>
-            </div>
-            <div class="gee-layer-item">
-              <input type="checkbox" id="layerPM25" class="gee-layer-checkbox">
-              <label for="layerPM25" class="gee-layer-label">🌫️ PM₂.₅ (Calidad Aire)</label>
-              <input type="range" id="opacityPM25" class="gee-opacity-slider" min="0" max="100" value="65" disabled>
-              <span id="opacityValuePM25" style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">65%</span>
-            </div>
-            <div class="gee-layer-item">
-              <input type="checkbox" id="layerNDWI" class="gee-layer-checkbox">
-              <label for="layerNDWI" class="gee-layer-label">💧 NDWI (Agua)</label>
-              <input type="range" id="opacityNDWI" class="gee-opacity-slider" min="0" max="100" value="70" disabled>
-              <span id="opacityValueNDWI" style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">70%</span>
-            </div>
-            <button type="button" id="updateGeeLayers" class="button-primary" style="width: 100%; margin-top: 10px; padding: 10px; font-size: 0.85rem;">
-              🔄 Actualizar Capas
-            </button>
           </section>
           
-          <!-- Reportar (colapsado) -->
-          <section class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px;">
-              <div>
-                <h2 class="section-title" style="margin-bottom: 4px;">Reportes Ciudadanos</h2>
-                <p style="margin: 0; font-size: 0.8rem; color: var(--text-muted);">Validación de datos satelitales con observaciones de campo</p>
+          <!-- Info del MVP (colapsada) -->
+          <section class="card" style="border-left: 4px solid #10b981;">
+            <details style="cursor: pointer;">
+              <summary style="font-weight: 700; font-size: 0.9rem; color: #10b981; display: flex; align-items: center; gap: 8px; user-select: none;">
+                <span style="font-size: 1.3rem;">🎯</span>
+                Acerca del MVP Ciudadano
+              </summary>
+              <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+                <p style="margin: 0 0 12px; font-size: 0.85rem; line-height: 1.6; color: var(--text-muted);">
+                  Reporta problemas ambientales en <strong>3 pasos simples</strong>: categoría → ubicación → enviar. 
+                  Tus observaciones ayudan a <strong>calibrar y validar</strong> índices satelitales (NDVI, LST, PM₂.₅, NDWI).
+                </p>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+                  <div style="background: rgba(59,130,246,0.1); padding: 8px; border-radius: 6px; text-align: center;">
+                    <div style="font-size: 1.3rem; margin-bottom: 4px;">📊</div>
+                    <div style="font-size: 0.7rem; font-weight: 600; color: var(--text);">Validación</div>
+                  </div>
+                  <div style="background: rgba(59,130,246,0.1); padding: 8px; border-radius: 6px; text-align: center;">
+                    <div style="font-size: 1.3rem; margin-bottom: 4px;">🗺️</div>
+                    <div style="font-size: 0.7rem; font-weight: 600; color: var(--text);">Georref.</div>
+                  </div>
+                  <div style="background: rgba(59,130,246,0.1); padding: 8px; border-radius: 6px; text-align: center;">
+                    <div style="font-size: 1.3rem; margin-bottom: 4px;">📸</div>
+                    <div style="font-size: 0.7rem; font-weight: 600; color: var(--text);">Evidencia</div>
+                  </div>
+                </div>
               </div>
-            </div>
-            
-            <div class="card" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.1) 100%); border: 1px solid rgba(59, 130, 246, 0.3); padding: 20px; margin-bottom: 24px;">
-              <h3 style="margin: 0 0 12px; font-size: 1.1rem; color: #3b82f6; display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 1.5rem;">🎯</span> MVP - Bloque Ciudadano Básico
-              </h3>
-              <p style="margin: 0 0 12px; font-size: 0.9rem; line-height: 1.6;">
-                Reporta problemas ambientales en <strong>3 pasos simples</strong>: categoría → ubicación → enviar. 
+            </details>
+          </section>                Reporta problemas ambientales en <strong>3 pasos simples</strong>: categoría → ubicación → enviar. 
                 Tus observaciones ayudan a <strong>calibrar y validar</strong> índices satelitales (NDVI, LST, PM₂.₅, NDWI).
               </p>
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 16px;">
@@ -1564,38 +1870,41 @@
           <!-- PASO 2: Ubicación -->
           <div class="report-step hidden" data-step="2">
             <h4 style="margin: 0 0 12px; font-size: 1.1rem; text-align: center; color: var(--text);">
-              ¿Dónde ocurre el problema?
+              📍 ¿Dónde ocurre el problema?
             </h4>
             
-            <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 10px; padding: 16px; margin-bottom: 16px;">
-              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                <span style="font-size: 2rem;">📍</span>
-                <div>
-                  <div style="font-weight: 600; font-size: 0.95rem;">Marca el punto en el mapa</div>
-                  <div style="font-size: 0.8rem; color: var(--text-muted);">Haz clic en la ubicación exacta</div>
-                </div>
+            <!-- Mapa integrado -->
+            <div class="modal-map-container">
+              <div id="modalMapInstructions" class="modal-map-instructions" style="display: none;">
+                👆 Haz clic en el mapa para marcar la ubicación
               </div>
-              <button type="button" id="modalSelectLocation" class="button-primary" style="width: 100%; padding: 12px; font-size: 0.95rem;">
-                🗺️ Seleccionar en el mapa
+              <div id="modalMap"></div>
+            </div>
+
+            <!-- Coordenadas manuales -->
+            <div class="location-input-group">
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">Latitud</label>
+                <input type="number" id="modalLatitude" name="latitude" step="0.000001" placeholder="-12.046373" readonly style="cursor: pointer;">
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">Longitud</label>
+                <input type="number" id="modalLongitude" name="longitude" step="0.000001" placeholder="-77.042754" readonly style="cursor: pointer;">
+              </div>
+            </div>
+
+            <!-- Botones de acción -->
+            <div class="location-buttons">
+              <button type="button" id="useMyLocationBtn" class="button-secondary">
+                📍 Mi ubicación
+              </button>
+              <button type="button" id="centerMapBtn" class="button-secondary">
+                🎯 Centrar Lima
               </button>
             </div>
 
-            <div id="locationPreview" style="display: none; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 14px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <span style="font-weight: 600; color: #10b981;">✓ Ubicación seleccionada</span>
-                <button type="button" id="changeLocation" style="background: none; border: none; color: #3b82f6; cursor: pointer; font-size: 0.8rem; text-decoration: underline;">Cambiar</button>
-              </div>
-              <div style="font-size: 0.85rem; color: var(--text-muted); font-family: monospace;">
-                <div>Lat: <span id="previewLat">-</span></div>
-                <div>Lon: <span id="previewLon">-</span></div>
-              </div>
-            </div>
-
-            <input type="hidden" name="latitude" id="modalLatitude">
-            <input type="hidden" name="longitude" id="modalLongitude">
-
-            <div style="margin-top: 16px; padding: 12px; background: rgba(251, 191, 36, 0.1); border-radius: 8px; font-size: 0.8rem; color: var(--text-muted);">
-              <strong style="color: #f59e0b;">💡 Permiso de ubicación:</strong> Si lo permites, podemos usar tu ubicación actual automáticamente.
+            <div style="padding: 10px; background: rgba(59, 130, 246, 0.1); border-radius: 8px; font-size: 0.8rem; color: var(--text-muted); text-align: center;">
+              <strong style="color: #3b82f6;">💡 Tip:</strong> Usa zoom (+/-) y arrastra el mapa. Los datos se guardan automáticamente.
             </div>
           </div>
 
@@ -1878,6 +2187,11 @@
   };
   let geeLayersVisible = { ndvi: false, lst: false, pm25: false, ndwi: false };
   let geeLayerObjects = { ndvi: null, lst: null, pm25: null, ndwi: null };
+
+  // Variables para el mapa modal
+  let modalMap = null;
+  let modalMapMarker = null;
+  let modalMapInitialized = false;
 
 
   // Variables para el nuevo modal MVP
@@ -3042,6 +3356,194 @@
     window.focusReportOnMap = focusReportOnMap;
     window.viewReportPhoto = viewReportPhoto;
 
+    // ========== FUNCIONES PARA MAPA MODAL ==========
+    
+    function initializeModalMap() {
+      if (modalMapInitialized || !document.getElementById('modalMap')) {
+        return;
+      }
+
+      try {
+        // Crear mapa centrado en Lima
+        modalMap = L.map('modalMap', {
+          center: [-12.046374, -77.042793], // Lima, Perú
+          zoom: 13,
+          zoomControl: true,
+          scrollWheelZoom: true
+        });
+
+        // Agregar capa base
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap',
+          maxZoom: 19
+        }).addTo(modalMap);
+
+        // Cargar ubicación guardada o intentar geolocalización
+        const savedLocation = loadLocationFromStorage();
+        if (savedLocation) {
+          modalMap.setView([savedLocation.lat, savedLocation.lon], 16);
+          setModalLocationOnMap(savedLocation.lat, savedLocation.lon);
+        } else {
+          tryGeolocation();
+        }
+
+        // Evento de click en el mapa
+        modalMap.on('click', function(e) {
+          const lat = e.latlng.lat;
+          const lon = e.latlng.lng;
+          setModalLocationOnMap(lat, lon);
+        });
+
+        modalMapInitialized = true;
+        
+        // Mostrar instrucciones
+        const instructions = document.getElementById('modalMapInstructions');
+        if (instructions) {
+          instructions.style.display = 'block';
+          setTimeout(() => {
+            instructions.style.display = 'none';
+          }, 5000);
+        }
+
+        // Forzar resize del mapa después de un momento
+        setTimeout(() => {
+          if (modalMap) {
+            modalMap.invalidateSize();
+          }
+        }, 300);
+
+        console.log('✅ Mapa modal inicializado correctamente');
+      } catch (error) {
+        console.error('❌ Error al inicializar mapa modal:', error);
+      }
+    }
+
+    function setModalLocationOnMap(lat, lon) {
+      if (!modalMap) return;
+
+      // Actualizar o crear marker
+      if (modalMapMarker) {
+        modalMapMarker.setLatLng([lat, lon]);
+      } else {
+        modalMapMarker = L.marker([lat, lon], {
+          icon: L.divIcon({
+            className: 'modal-location-marker',
+            iconSize: [40, 40],
+            iconAnchor: [20, 40]
+          })
+        }).addTo(modalMap);
+      }
+
+      // Actualizar inputs
+      const latInput = document.getElementById('modalLatitude');
+      const lonInput = document.getElementById('modalLongitude');
+      if (latInput) latInput.value = lat.toFixed(6);
+      if (lonInput) lonInput.value = lon.toFixed(6);
+
+      // Guardar en localStorage
+      saveLocationToStorage(lat, lon);
+
+      // Actualizar estado
+      modalSelectedLocation = { lat, lon };
+      updateNavigationButtons();
+
+      console.log(`📍 Ubicación seleccionada: ${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+    }
+
+    function saveLocationToStorage(lat, lon) {
+      try {
+        const locationData = {
+          lat: lat,
+          lon: lon,
+          timestamp: new Date().toISOString()
+        };
+        localStorage.setItem('gee-last-report-location', JSON.stringify(locationData));
+        console.log('💾 Ubicación guardada en localStorage');
+      } catch (error) {
+        console.error('Error al guardar ubicación:', error);
+      }
+    }
+
+    function loadLocationFromStorage() {
+      try {
+        const stored = localStorage.getItem('gee-last-report-location');
+        if (stored) {
+          const data = JSON.parse(stored);
+          console.log('📂 Ubicación cargada desde localStorage');
+          return { lat: data.lat, lon: data.lon };
+        }
+      } catch (error) {
+        console.error('Error al cargar ubicación:', error);
+      }
+      return null;
+    }
+
+    function tryGeolocation() {
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            if (modalMap) {
+              modalMap.setView([lat, lon], 16);
+              setModalLocationOnMap(lat, lon);
+              logStatus('📍 Ubicación detectada automáticamente', 'success', 'ecoplan');
+            }
+          },
+          function(error) {
+            console.log('No se pudo obtener ubicación automática:', error.message);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+          }
+        );
+      }
+    }
+
+    function centerModalMapOnLima() {
+      if (modalMap) {
+        modalMap.setView([-12.046374, -77.042793], 13);
+        logStatus('🎯 Mapa centrado en Lima', 'info', 'ecoplan');
+      }
+    }
+
+    function useMyLocation() {
+      if ('geolocation' in navigator) {
+        logStatus('🔍 Obteniendo tu ubicación...', 'info', 'ecoplan');
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            if (modalMap) {
+              modalMap.setView([lat, lon], 17);
+              setModalLocationOnMap(lat, lon);
+              logStatus('✅ Ubicación obtenida correctamente', 'success', 'ecoplan');
+            }
+          },
+          function(error) {
+            let message = 'No se pudo obtener tu ubicación';
+            if (error.code === 1) {
+              message = 'Permiso de ubicación denegado. Haz clic en el mapa manualmente.';
+            } else if (error.code === 2) {
+              message = 'Ubicación no disponible. Usa el mapa manualmente.';
+            }
+            logStatus(message, 'warning', 'ecoplan');
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          }
+        );
+      } else {
+        logStatus('Tu navegador no soporta geolocalización', 'warning', 'ecoplan');
+      }
+    }
+
+    // ========== FIN FUNCIONES MAPA MODAL ==========
+
     // ========== FIN FUNCIONES EXPLORAR ==========
 
     function renderCitizenReportsList(reports = []) {
@@ -3189,6 +3691,18 @@
       document.querySelectorAll('.category-card').forEach(card => card.classList.remove('selected'));
       if (locationPreview) locationPreview.style.display = 'none';
       
+      // Reset inputs del mapa
+      const latInput = document.getElementById('modalLatitude');
+      const lonInput = document.getElementById('modalLongitude');
+      if (latInput) latInput.value = '';
+      if (lonInput) lonInput.value = '';
+      
+      // Limpiar marker del modal si existe
+      if (modalMapMarker && modalMap) {
+        modalMap.removeLayer(modalMapMarker);
+        modalMapMarker = null;
+      }
+      
       // Mostrar el modal y el paso 1
       newReportModal.hidden = false;
       newReportModal.removeAttribute('aria-hidden');
@@ -3198,6 +3712,19 @@
       
       showReportStep(1);
       updateNavigationButtons();
+      
+      // Inicializar el mapa modal cuando se muestra el modal
+      // Se inicializa después para asegurarnos que el contenedor esté visible
+      if (!modalMapInitialized) {
+        setTimeout(() => {
+          initializeModalMap();
+        }, 100);
+      } else if (modalMap) {
+        // Si ya está inicializado, solo hacer resize por si acaso
+        setTimeout(() => {
+          modalMap.invalidateSize();
+        }, 100);
+      }
     }
     
     function closeNewReportModal() {
@@ -3235,6 +3762,27 @@
         const stepNum = parseInt(stepEl.dataset.step);
         stepEl.classList.toggle('hidden', stepNum !== currentStep);
       });
+      
+      // Si estamos en el paso 2 (mapa), inicializar o hacer resize del mapa
+      if (step === 2) {
+        if (!modalMapInitialized) {
+          setTimeout(() => {
+            initializeModalMap();
+          }, 100);
+        } else if (modalMap) {
+          setTimeout(() => {
+            modalMap.invalidateSize();
+            // Mostrar instrucciones brevemente
+            const instructions = document.getElementById('modalMapInstructions');
+            if (instructions) {
+              instructions.style.display = 'block';
+              setTimeout(() => {
+                instructions.style.display = 'none';
+              }, 3000);
+            }
+          }, 100);
+        }
+      }
       
       updateNavigationButtons();
     }
@@ -3274,43 +3822,94 @@
       updateNavigationButtons();
     }
     
-    function startModalLocationSelection() {
-      isSelectingLocationForModal = true;
-      closeNewReportModal();
+    // ========== MAPA INTEGRADO EN MODAL ==========
+    
+    function initializeModalMap() {
+      if (modalMap) return; // Ya inicializado
       
-      // Cambiar al modo citizen si no estamos ahí
-      if (currentMode !== 'citizen') {
-        setMode('citizen');
-      }
+      const modalMapDiv = document.getElementById('modalMap');
+      if (!modalMapDiv) return;
       
-      logStatus('Haz clic en el mapa para marcar la ubicación del reporte.', 'info', 'ecoplan');
+      // Crear mapa centrado en Lima
+      modalMap = L.map('modalMap', {
+        center: [-12.046373, -77.042754], // Lima, Perú
+        zoom: 13,
+        zoomControl: true,
+        scrollWheelZoom: true
+      });
       
-      // Mostrar un overlay temporal indicando que hay que hacer clic
-      const overlay = document.createElement('div');
-      overlay.id = 'locationSelectionOverlay';
-      overlay.style.cssText = 'position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 9998; background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.3);';
-      overlay.innerHTML = '📍 Haz clic en el mapa para seleccionar la ubicación';
-      document.body.appendChild(overlay);
+      // Agregar capa base
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(modalMap);
       
+      // Event listener para clicks en el mapa
+      modalMap.on('click', function(e) {
+        const lat = e.latlng.lat;
+        const lon = e.latlng.lng;
+        setModalLocation(lat, lon);
+        hideModalMapInstructions();
+      });
+      
+      // Ajustar tamaño después de un momento
       setTimeout(() => {
-        const el = document.getElementById('locationSelectionOverlay');
-        if (el) el.remove();
-      }, 5000);
+        if (modalMap) modalMap.invalidateSize();
+      }, 300);
+      
+      // Cargar última ubicación guardada
+      loadSavedLocation();
+    }
+    
+    function showModalMapInstructions() {
+      const instructions = document.getElementById('modalMapInstructions');
+      if (instructions) {
+        instructions.style.display = 'block';
+        setTimeout(() => {
+          instructions.style.display = 'none';
+        }, 3000);
+      }
+    }
+    
+    function hideModalMapInstructions() {
+      const instructions = document.getElementById('modalMapInstructions');
+      if (instructions) {
+        instructions.style.display = 'none';
+      }
     }
     
     function setModalLocation(lat, lon) {
       modalSelectedLocation = { lat, lon };
       
-      if (locationPreview) {
-        locationPreview.style.display = 'block';
-        document.getElementById('previewLat').textContent = lat.toFixed(6);
-        document.getElementById('previewLon').textContent = lon.toFixed(6);
+      // Actualizar inputs
+      document.getElementById('modalLatitude').value = lat.toFixed(6);
+      document.getElementById('modalLongitude').value = lon.toFixed(6);
+      
+      // Guardar en localStorage
+      saveLocationToLocalStorage(lat, lon);
+      
+      // Actualizar marker en el mapa del modal
+      if (modalMap) {
+        if (!modalMapMarker) {
+          modalMapMarker = L.marker([lat, lon], {
+            icon: L.divIcon({
+              className: 'custom-modal-marker',
+              html: '<div style="background: #3b82f6; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+              iconSize: [24, 24],
+              iconAnchor: [12, 12]
+            })
+          }).addTo(modalMap);
+          
+          modalMapMarker.bindPopup('📍 Ubicación del reporte');
+        } else {
+          modalMapMarker.setLatLng([lat, lon]);
+        }
+        
+        // Centrar mapa en la ubicación
+        modalMap.setView([lat, lon], modalMap.getZoom());
       }
       
-      document.getElementById('modalLatitude').value = lat;
-      document.getElementById('modalLongitude').value = lon;
-      
-      // Marcar en el mapa
+      // También actualizar marker en el mapa principal
       if (map) {
         if (!citizenReportLocationMarker) {
           citizenReportLocationMarker = L.circleMarker([lat, lon], {
@@ -3335,6 +3934,97 @@
           openNewReportModal();
           showReportStep(2);
         }, 300);
+      }
+    }
+    
+    // ========== FUNCIONES DE LOCALSTORAGE Y GEOLOCALIZACION ==========
+    
+    function saveLocationToLocalStorage(lat, lon) {
+      try {
+        const data = {
+          latitude: lat,
+          longitude: lon,
+          timestamp: new Date().toISOString()
+        };
+        localStorage.setItem(LOCALSTORAGE_KEY_PREFIX + 'last_location', JSON.stringify(data));
+      } catch (error) {
+        console.warn('No se pudo guardar la ubicación en localStorage:', error);
+      }
+    }
+    
+    function loadSavedLocation() {
+      try {
+        const saved = localStorage.getItem(LOCALSTORAGE_KEY_PREFIX + 'last_location');
+        if (saved) {
+          const data = JSON.parse(saved);
+          if (data.latitude && data.longitude) {
+            // Silenciosamente cargar pero no aplicar
+            console.log('Ubicación anterior disponible:', data);
+          }
+        }
+      } catch (error) {
+        console.warn('No se pudo cargar la ubicación guardada:', error);
+      }
+    }
+    
+    function useMyLocation() {
+      if (!navigator.geolocation) {
+        logStatus('Tu navegador no soporta geolocalización', 'warning', 'ecoplan');
+        return;
+      }
+      
+      const btn = document.getElementById('useMyLocationBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Obteniendo...';
+      }
+      
+      logStatus('Obteniendo tu ubicación...', 'info', 'ecoplan');
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          setModalLocation(lat, lon);
+          
+          if (modalMap) {
+            modalMap.setView([lat, lon], 16); // Zoom más cercano
+          }
+          
+          logStatus('✓ Ubicación obtenida', 'success', 'ecoplan');
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = '📍 Mi ubicación';
+          }
+        },
+        (error) => {
+          let message = 'No se pudo obtener tu ubicación';
+          if (error.code === 1) {
+            message = 'Permiso de ubicación denegado';
+          } else if (error.code === 2) {
+            message = 'Ubicación no disponible';
+          } else if (error.code === 3) {
+            message = 'Tiempo de espera agotado';
+          }
+          logStatus(message, 'warning', 'ecoplan');
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = '📍 Mi ubicación';
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    }
+    
+    function centerMapOnLima() {
+      if (modalMap) {
+        modalMap.setView([-12.046373, -77.042754], 13);
+        showModalMapInstructions();
+        logStatus('Mapa centrado en Lima', 'info', 'ecoplan');
       }
     }
     
@@ -5553,18 +6243,30 @@
       if (nextStepBtn) {
         nextStepBtn.addEventListener('click', () => {
           if (currentStep < 3) {
-            showReportStep(currentStep + 1);
+            const nextStep = currentStep + 1;
+            showReportStep(nextStep);
+            
+            // Si pasamos al paso 2, inicializar el mapa
+            if (nextStep === 2) {
+              setTimeout(() => {
+                initializeModalMap();
+                showModalMapInstructions();
+              }, 100);
+            }
           }
         });
       }
       
-      // Selección de ubicación
-      if (modalSelectLocationBtn) {
-        modalSelectLocationBtn.addEventListener('click', startModalLocationSelection);
+      // Botón para usar mi ubicación
+      const useMyLocationBtn = document.getElementById('useMyLocationBtn');
+      if (useMyLocationBtn) {
+        useMyLocationBtn.addEventListener('click', useMyLocation);
       }
       
-      if (changeLocationBtn) {
-        changeLocationBtn.addEventListener('click', startModalLocationSelection);
+      // Botón para centrar en Lima
+      const centerMapBtn = document.getElementById('centerMapBtn');
+      if (centerMapBtn) {
+        centerMapBtn.addEventListener('click', centerMapOnLima);
       }
       
       // Submit del formulario

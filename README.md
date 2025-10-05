@@ -15,6 +15,7 @@ A Node.js server that provides XYZ tile service for Google Earth Engine datasets
 - 📘 **Manual EcoPlan Urbano**: Guía metodológica y playbook operativo ([manual](docs/manual-ecoplan-gee.md) + [playbook](docs/ecoplan-project-playbook.md))
 - 🧩 **Fases completas**: Planificación estratégica, conformación de equipo, infraestructura, ingestión de datos, índices compuestos, participación ciudadana, reportes y mantenimiento documentados.
 - 🧑‍🤝‍🧑 **Participación ciudadana**: Captura de reportes georreferenciados desde el dashboard y almacenamiento listo para integrarse con municipalidades.
+- ✅ **Validación Comunitaria**: Sistema completo peer-to-peer para validar reportes con "Confirmo"/"No es así", detección de duplicados, historial auditable y métricas ([docs](docs/validation-comunitaria.md))
 
 ## Quick Start Checklist
 
@@ -405,8 +406,96 @@ Las pruebas automáticas validan los endpoints principales (tiles, mapas persona
    ```bash
    npm run test:all
    ```
+4. **🧪 Testing de Validación Comunitaria** (sistema peer-to-peer completo):
+   ```bash
+   ./tests/test-validation.sh
+   ```
 
 Los tests de API esperan respuestas 200/302 cuando Earth Engine está configurado. Si faltan credenciales, verás `503` como resultado esperado para la mayoría de endpoints. El smoke test requiere que las dependencias del sistema para Chromium estén instaladas (ya incluidas en el contenedor Dev). 
+
+## Sistema de Validación Comunitaria ✅
+
+**Implementado:** 5 de octubre de 2025 | **Estado:** ✅ Production Ready
+
+### Características
+
+Sistema completo de validación **peer-to-peer** para reportes ciudadanos que implementa:
+
+- ✅ **Confirmaciones y rechazos** comunitarios ("Confirmo" / "No es así")
+- ✅ **Actualización colaborativa de severidad** (baja/media/alta)
+- ✅ **Detección automática de duplicados** (espaciotemporal + similitud de texto)
+- ✅ **Historial de cambios público** (auditoría completa)
+- ✅ **Sistema de moderación** con permisos especiales
+- ✅ **Métricas de calidad** (% validados, tiempo a validación, KPIs)
+
+### Lógica de Validación
+
+```javascript
+// Umbrales de consenso
+Confirmaciones ≥ 3  → 'community_validated'
+Rechazos ≥ 3        → 'rejected'
+Duplicados ≥ 2      → 'duplicate'
+
+// Score ponderado
+validation_score = confirmations - rejections
+
+// Detección de duplicados
+Criterios:
+- Misma categoría
+- Distancia ≤ 100 metros (Haversine)
+- Tiempo ≤ 48 horas
+- Similitud texto ≥ 30% (Coeficiente de Dice)
+```
+
+### API Endpoints
+
+| Endpoint | Método | Descripción |
+|----------|--------|-------------|
+| `/api/citizen-reports/:id/validate` | POST | Aplicar validación comunitaria |
+| `/api/citizen-reports/:id/moderate` | POST | Validación por moderador |
+| `/api/citizen-reports/:id/duplicates` | GET | Detectar duplicados potenciales |
+| `/api/citizen-reports/:id/history` | GET | Historial de cambios auditable |
+| `/api/citizen-reports/:id/stats` | GET | Estadísticas detalladas |
+| `/api/validation/metrics` | GET | Métricas globales (KPIs) |
+| `/api/validation/moderators` | GET | Lista de moderadores activos |
+
+### Quick Start
+
+```bash
+# 1. Aplicar esquema SQL (PostgreSQL + PostGIS)
+psql -U postgres -d ecoplan -f docs/validation-schema.sql
+
+# 2. Ejecutar suite de testing
+chmod +x tests/test-validation.sh
+./tests/test-validation.sh
+
+# 3. Ver documentación completa
+cat docs/validation-comunitaria.md
+cat IMPLEMENTACION-VALIDACION.md
+```
+
+### Archivos Clave
+
+- **📄 Schema SQL:** `docs/validation-schema.sql` (470 líneas)
+- **📘 Documentación:** `docs/validation-comunitaria.md` (850 líneas)
+- **⚙️ Servicio:** `services/reportValidationService.js` (550 líneas)
+- **🧪 Testing:** `tests/test-validation.sh` (320 líneas)
+- **📋 Resumen:** `IMPLEMENTACION-VALIDACION.md`
+
+### KPIs de Éxito
+
+| KPI | Target | Implementación |
+|-----|--------|----------------|
+| % Reportes Validados | > 60% | `GET /api/validation/metrics` |
+| % Validados por Comunidad | > 50% | Vista SQL `validation_metrics` |
+| Tiempo Promedio a Validación | < 24h | Función `getValidationMetrics()` |
+| Tiempo Mediano | < 12h | Percentil 50 calculado |
+| Tasa de Duplicados | < 10% | Detección automática |
+| Tasa de Rechazo | < 15% | Score ponderado |
+
+**Documentación completa:** [docs/validation-comunitaria.md](docs/validation-comunitaria.md)
+
+---
 
 ## Development
 
