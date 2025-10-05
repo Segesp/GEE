@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#3498db">
+    <meta name="description" content="Monitoreo diario de calidad de aire (AOD, NO₂) y agua (Clorofila, NDWI) en Lima - EcoPlan">
+    <meta name="keywords" content="calidad del aire, AOD, NO2, clorofila, NDWI, Lima, GIBS, NASA">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Calidad de Aire y Agua - EcoPlan">
+    <meta property="og:description" content="Monitoreo automático diario de variables ambientales desde satélites NASA/ESA">
+    <meta property="og:type" content="website">
+    
+    <title>Calidad de Aire y Agua - EcoPlan</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        :root {
+            --primary: #3498db;
+            --secondary: #2ecc71;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+            --success: #27ae60;
+            --info: #17a2b8;
+            --purple: #9b59b6;
+            --orange: #e67e22;
+            --bg: #0b1120;
+            --surface: #0f172a;
+            --surface-hover: #1e293b;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border: rgba(148, 163, 184, 0.24);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: radial-gradient(circle at top left, rgba(52, 152, 219, 0.12), transparent 40%), #020617;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Skip to content */
+        .skip-to-content {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: var(--primary);
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            z-index: 10000;
+            border-radius: 0 0 4px 0;
+            font-weight: 600;
+        }
+        
+        .skip-to-content:focus {
+            top: 0;
+        }
+        
+        /* Accessibility */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border-width: 0;
+        }
+        
+        *:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+        
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--info) 100%);
+            color: white;
+            padding: 1.5rem 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .header-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .header-content h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .header-content h1 .icon {
+            font-size: 2rem;
+        }
+        
+        nav {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        nav a, nav button {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            font-family: inherit;
+        }
+        
+        nav a:hover, nav button:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-2px);
+        }
+        
+        /* Main Layout */
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 0;
+            max-width: 1600px;
+            width: 100%;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            max-height: calc(100vh - 120px);
+        }
+        
+        .section {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .section h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .section h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin: 1rem 0 0.75rem 0;
+            color: var(--text);
+        }
+        
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+        
+        input[type="date"],
+        select {
+            width: 100%;
+            padding: 0.6rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 0.9rem;
+            font-family: inherit;
+            transition: border-color 0.3s ease;
+        }
+        
+        input[type="date"]:focus,
+        select:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+        
+        /* Checkboxes */
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 6px;
+            transition: background 0.2s ease;
+        }
+        
+        .checkbox-label:hover {
+            background: var(--surface-hover);
+        }
+        
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+        
+        /* Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+        
+        .badge-aod { background: rgba(231, 76, 60, 0.2); color: var(--danger); }
+        .badge-no2 { background: rgba(241, 196, 15, 0.2); color: var(--warning); }
+        .badge-chl { background: rgba(46, 204, 113, 0.2); color: var(--success); }
+        .badge-ndwi { background: rgba(52, 152, 219, 0.2); color: var(--primary); }
+        
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+            text-decoration: none;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+        }
+        
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--surface-hover);
+        }
+        
+        .btn-full {
+            width: 100%;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        /* Map Container */
+        .map-container {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            height: calc(100vh - 120px);
+            background: var(--bg);
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 1rem;
+        }
+        
+        .tab {
+            padding: 1rem 1.5rem;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: inherit;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .tab:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        
+        /* Map */
+        #map {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        .leaflet-container {
+            background: #0a1929;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Map Legend */
+        .map-legend {
+            position: absolute;
+            bottom: 30px;
+            right: 10px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            z-index: 1000;
+            min-width: 200px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .legend-title {
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text);
+            font-size: 0.9rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+        
+        /* Info Panel */
+        .info-panel {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .info-panel h4 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--primary);
+        }
+        
+        .info-panel p {
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+        
+        .info-panel ul {
+            margin-left: 1.25rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        
+        .info-panel li {
+            margin-bottom: 0.25rem;
+        }
+        
+        .info-panel code {
+            background: var(--bg);
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            color: var(--primary);
+            font-family: 'Courier New', monospace;
+        }
+        
+        /* Alert */
+        .alert {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            font-size: 0.85rem;
+        }
+        
+        .alert-info {
+            background: rgba(52, 152, 219, 0.15);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            color: var(--text);
+        }
+        
+        .alert-warning {
+            background: rgba(243, 156, 18, 0.15);
+            border: 1px solid rgba(243, 156, 18, 0.3);
+            color: var(--text);
+        }
+        
+        .alert-icon {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .stat-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.25rem;
+        }
+        
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Data Source */
+        .data-source {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-top: 0.75rem;
+            font-size: 0.8rem;
+        }
+        
+        .data-source-label {
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+        
+        .data-source-value {
+            color: var(--text);
+        }
+        
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+        
+        .spinner {
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Responsive */
+        @media (max-width: 1024px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                max-height: none;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+            }
+            
+            .map-container {
+                height: 600px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .header-content h1 {
+                font-size: 1.25rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            nav {
+                width: 100%;
+            }
+            
+            nav a, nav button {
+                flex: 1;
+                text-align: center;
+            }
+        }
+        
+        /* Footer */
+        footer {
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            padding: 1.5rem 1rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <a href="#main-content" class="skip-to-content">Saltar al contenido principal</a>
+    
+    <header role="banner">
+        <div class="header-content">
+            <h1>
+                <span class="icon" aria-hidden="true">🌍</span>
+                <span>Calidad de Aire y Agua</span>
+            </h1>
+            <nav role="navigation" aria-label="Navegación principal">
+                <a href="index.html">🏠 Inicio</a>
+                <a href="transparencia.html">📊 Transparencia</a>
+                <a href="panel-autoridades.html">👔 Panel</a>
+                <a href="vegetacion-islas-calor.html">🌳 Vegetación</a>
+                <a href="/api-docs">📚 API</a>
+            </nav>
+        </div>
+    </header>
+    
+    <main id="main-content" role="main">
+        <!-- Sidebar -->
+        <aside class="sidebar" role="complementary" aria-label="Panel de control">
+            <!-- Información -->
+            <section class="section">
+                <h2>
+                    <span aria-hidden="true">ℹ️</span>
+                    Información
+                </h2>
+                
+                <div class="alert alert-info">
+                    <span class="alert-icon" aria-hidden="true">🛰️</span>
+                    <div>
+                        <strong>Monitoreo Automático Diario</strong>
+                        <p style="margin-top: 0.5rem; font-size: 0.85rem;">
+                            Variables ambientales obtenidas desde satélites NASA/ESA procesadas en Google Earth Engine y visualizadas con GIBS/Worldview.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="info-panel">
+                    <h4>Variables Monitoreadas</h4>
+                    <ul>
+                        <li><strong>AOD</strong> <span class="badge badge-aod">AIRE</span> - Profundidad óptica de aerosoles (contaminación particulada)</li>
+                        <li><strong>NO₂</strong> <span class="badge badge-no2">AIRE</span> - Columna de dióxido de nitrógeno (tráfico, industria)</li>
+                        <li><strong>Clorofila-a</strong> <span class="badge badge-chl">AGUA</span> - Concentración en superficie (eutrofización)</li>
+                        <li><strong>NDWI</strong> <span class="badge badge-ndwi">AGUA</span> - Índice de agua normalizado (humedad, cuerpos de agua)</li>
+                    </ul>
+                </div>
+            </section>
+            
+            <!-- Controles de Fecha -->
+            <section class="section">
+                <h2>
+                    <span aria-hidden="true">📅</span>
+                    Selección de Fecha
+                </h2>
+                
+                <div class="form-group">
+                    <label for="date-picker">
+                        Fecha de observación
+                        <span class="sr-only">(formato AAAA-MM-DD)</span>
+                    </label>
+                    <input 
+                        type="date" 
+                        id="date-picker" 
+                        value="2025-10-05"
+                        max="2025-10-05"
+                        min="2020-01-01"
+                        aria-describedby="date-help"
+                    >
+                    <p id="date-help" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
+                        Selecciona una fecha entre 2020 y hoy para visualizar datos históricos.
+                    </p>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="days-available">2100+</div>
+                        <div class="stat-label">Días disponibles</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">4</div>
+                        <div class="stat-label">Variables</div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Variables a Visualizar -->
+            <section class="section">
+                <h2>
+                    <span aria-hidden="true">🎨</span>
+                    Variables a Visualizar
+                </h2>
+                
+                <h3>Calidad del Aire</h3>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="var-aod" checked aria-describedby="aod-desc">
+                        <span>
+                            AOD (Aerosoles)
+                            <span class="badge badge-aod">1 km</span>
+                        </span>
+                    </label>
+                    <p id="aod-desc" style="font-size: 0.8rem; color: var(--text-muted); margin-left: 1.75rem;">
+                        MODIS Terra/Aqua MAIAC
+                    </p>
+                    
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="var-no2" checked aria-describedby="no2-desc">
+                        <span>
+                            NO₂ (Dióxido de nitrógeno)
+                            <span class="badge badge-no2">7 km</span>
+                        </span>
+                    </label>
+                    <p id="no2-desc" style="font-size: 0.8rem; color: var(--text-muted); margin-left: 1.75rem;">
+                        Sentinel-5P TROPOMI
+                    </p>
+                </div>
+                
+                <h3>Calidad del Agua</h3>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="var-chl" checked aria-describedby="chl-desc">
+                        <span>
+                            Clorofila-a
+                            <span class="badge badge-chl">4 km</span>
+                        </span>
+                    </label>
+                    <p id="chl-desc" style="font-size: 0.8rem; color: var(--text-muted); margin-left: 1.75rem;">
+                        Copernicus Marine (multisensor)
+                    </p>
+                    
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="var-ndwi" checked aria-describedby="ndwi-desc">
+                        <span>
+                            NDWI (Índice de agua)
+                            <span class="badge badge-ndwi">463 m</span>
+                        </span>
+                    </label>
+                    <p id="ndwi-desc" style="font-size: 0.8rem; color: var(--text-muted); margin-left: 1.75rem;">
+                        MODIS MCD43A4
+                    </p>
+                </div>
+            </section>
+            
+            <!-- Fuente de Datos -->
+            <section class="section">
+                <h2>
+                    <span aria-hidden="true">🔧</span>
+                    Configuración Avanzada
+                </h2>
+                
+                <div class="form-group">
+                    <label for="data-source">Fuente de datos</label>
+                    <select id="data-source" aria-describedby="source-help">
+                        <option value="gee" selected>Google Earth Engine (valores numéricos)</option>
+                        <option value="gibs">NASA GIBS/Worldview (visualización rápida)</option>
+                    </select>
+                    <p id="source-help" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
+                        <strong>GEE</strong>: Análisis cuantitativo. <strong>GIBS</strong>: Mosaicos prediseñados.
+                    </p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="map-projection">Proyección del mapa</label>
+                    <select id="map-projection">
+                        <option value="epsg4326" selected>EPSG:4326 (Geográfica)</option>
+                        <option value="epsg3857">EPSG:3857 (Web Mercator)</option>
+                    </select>
+                </div>
+                
+                <div class="data-source">
+                    <div class="data-source-label">Área de estudio</div>
+                    <div class="data-source-value">Lima Metropolitana (43 distritos)</div>
+                </div>
+                
+                <div class="data-source">
+                    <div class="data-source-label">Bbox</div>
+                    <div class="data-source-value">-77.2, -12.4, -76.7, -11.7</div>
+                </div>
+            </section>
+            
+            <!-- Acciones -->
+            <section class="section">
+                <h2>
+                    <span aria-hidden="true">⚡</span>
+                    Acciones
+                </h2>
+                
+                <div class="btn-group" style="flex-direction: column;">
+                    <button class="btn btn-primary btn-full" id="btn-load" aria-label="Cargar datos para la fecha y variables seleccionadas">
+                        <span aria-hidden="true">🔄</span>
+                        Cargar Datos
+                    </button>
+                    <button class="btn btn-secondary btn-full" id="btn-export" aria-label="Exportar datos actuales">
+                        <span aria-hidden="true">💾</span>
+                        Exportar Datos
+                    </button>
+                    <button class="btn btn-secondary btn-full" id="btn-gee-script" aria-label="Ver código para Google Earth Engine">
+                        <span aria-hidden="true">📜</span>
+                        Ver Script GEE
+                    </button>
+                </div>
+                
+                <div class="alert alert-warning" style="margin-top: 1rem;">
+                    <span class="alert-icon" aria-hidden="true">⚠️</span>
+                    <div>
+                        <strong>Demo interactiva</strong>
+                        <p style="margin-top: 0.25rem;">
+                            Esta interfaz muestra el diseño propuesto. Para datos reales, ejecuta el script GEE o integra la API REST.
+                        </p>
+                    </div>
+                </div>
+            </section>
+        </aside>
+        
+        <!-- Map Area -->
+        <div class="map-container">
+            <div class="tabs" role="tablist" aria-label="Variables ambientales">
+                <button class="tab active" role="tab" aria-selected="true" aria-controls="map" id="tab-aod" data-var="aod">
+                    <span aria-hidden="true">🔴</span> AOD
+                </button>
+                <button class="tab" role="tab" aria-selected="false" aria-controls="map" id="tab-no2" data-var="no2">
+                    <span aria-hidden="true">🟡</span> NO₂
+                </button>
+                <button class="tab" role="tab" aria-selected="false" aria-controls="map" id="tab-chl" data-var="chl">
+                    <span aria-hidden="true">🟢</span> Clorofila
+                </button>
+                <button class="tab" role="tab" aria-selected="false" aria-controls="map" id="tab-ndwi" data-var="ndwi">
+                    <span aria-hidden="true">🔵</span> NDWI
+                </button>
+            </div>
+            
+            <div id="map" role="region" aria-label="Mapa de Lima Metropolitana con datos ambientales">
+                <div class="map-legend" role="complementary" aria-label="Leyenda del mapa">
+                    <div class="legend-title" id="legend-title">AOD - Aerosoles</div>
+                    <div id="legend-content">
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #006837;"></div>
+                            <span>0.0 - 0.1 (Excelente)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #31a354;"></div>
+                            <span>0.1 - 0.2 (Bueno)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #78c679;"></div>
+                            <span>0.2 - 0.3 (Moderado)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #fdae61;"></div>
+                            <span>0.3 - 0.5 (Malo)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #d7191c;"></div>
+                            <span>&gt; 0.5 (Muy malo)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer role="contentinfo">
+        <p>
+            <strong>EcoPlan - Calidad de Aire y Agua</strong> | 
+            Datos: <a href="https://worldview.earthdata.nasa.gov/" target="_blank" rel="noopener">NASA Worldview</a>, 
+            <a href="https://earthengine.google.com/" target="_blank" rel="noopener">Google Earth Engine</a> | 
+            <a href="/api-docs">Documentación API</a> | 
+            <a href="index.html">Volver al inicio</a>
+        </p>
+        <p style="margin-top: 0.5rem; font-size: 0.8rem;">
+            Monitoreo automático de variables ambientales desde satélites NASA/ESA. Actualización diaria.
+        </p>
+    </footer>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Inicializar mapa
+        const map = L.map('map', {
+            center: [-12.05, -76.95], // Centro de Lima
+            zoom: 11,
+            zoomControl: true
+        });
+        
+        // Capa base (oscura)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+        
+        // Límites de Lima Metropolitana (aproximado)
+        const limaBounds = L.rectangle([
+            [-12.4, -77.2], // SW
+            [-11.7, -76.7]  // NE
+        ], {
+            color: '#3498db',
+            weight: 2,
+            fillOpacity: 0.1,
+            dashArray: '5, 10'
+        }).addTo(map);
+        
+        limaBounds.bindPopup('<strong>Lima Metropolitana</strong><br>Área de estudio: ~2,800 km²');
+        
+        // Variables y sus leyendas
+        const legends = {
+            aod: {
+                title: 'AOD - Aerosoles',
+                items: [
+                    { color: '#006837', label: '0.0 - 0.1 (Excelente)' },
+                    { color: '#31a354', label: '0.1 - 0.2 (Bueno)' },
+                    { color: '#78c679', label: '0.2 - 0.3 (Moderado)' },
+                    { color: '#fdae61', label: '0.3 - 0.5 (Malo)' },
+                    { color: '#d7191c', label: '> 0.5 (Muy malo)' }
+                ]
+            },
+            no2: {
+                title: 'NO₂ - Dióxido de nitrógeno',
+                items: [
+                    { color: '#313695', label: '< 50 μmol/m² (Bajo)' },
+                    { color: '#4575b4', label: '50 - 100 (Moderado)' },
+                    { color: '#fee090', label: '100 - 150 (Alto)' },
+                    { color: '#f46d43', label: '150 - 200 (Muy alto)' },
+                    { color: '#a50026', label: '> 200 (Extremo)' }
+                ]
+            },
+            chl: {
+                title: 'Clorofila-a',
+                items: [
+                    { color: '#08306b', label: '< 0.1 mg/m³ (Oligotrófico)' },
+                    { color: '#2171b5', label: '0.1 - 0.3 (Bajo)' },
+                    { color: '#6baed6', label: '0.3 - 1.0 (Moderado)' },
+                    { color: '#c6dbef', label: '1.0 - 3.0 (Alto)' },
+                    { color: '#238b45', label: '> 3.0 (Eutrófico)' }
+                ]
+            },
+            ndwi: {
+                title: 'NDWI - Índice de agua',
+                items: [
+                    { color: '#8c510a', label: '< -0.3 (Tierra seca)' },
+                    { color: '#d8b365', label: '-0.3 - 0.0 (Humedad baja)' },
+                    { color: '#f6e8c3', label: '0.0 - 0.2 (Humedad moderada)' },
+                    { color: '#c7eae5', label: '0.2 - 0.4 (Humedad alta)' },
+                    { color: '#5ab4ac', label: '> 0.4 (Agua)' }
+                ]
+            }
+        };
+        
+        // Función para actualizar leyenda
+        function updateLegend(variable) {
+            const legend = legends[variable];
+            document.getElementById('legend-title').textContent = legend.title;
+            
+            const content = legend.items.map(item => `
+                <div class="legend-item">
+                    <div class="legend-color" style="background: ${item.color};"></div>
+                    <span>${item.label}</span>
+                </div>
+            `).join('');
+            
+            document.getElementById('legend-content').innerHTML = content;
+        }
+        
+        // Tabs
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Actualizar tabs
+                document.querySelectorAll('.tab').forEach(t => {
+                    t.classList.remove('active');
+                    t.setAttribute('aria-selected', 'false');
+                });
+                tab.classList.add('active');
+                tab.setAttribute('aria-selected', 'true');
+                
+                // Actualizar leyenda
+                const variable = tab.dataset.var;
+                updateLegend(variable);
+                
+                // Simular carga de nueva capa
+                console.log(`Cargando capa: ${variable}`);
+            });
+        });
+        
+        // Botón cargar datos
+        document.getElementById('btn-load').addEventListener('click', () => {
+            const date = document.getElementById('date-picker').value;
+            const source = document.getElementById('data-source').value;
+            
+            const variables = [];
+            if (document.getElementById('var-aod').checked) variables.push('AOD');
+            if (document.getElementById('var-no2').checked) variables.push('NO₂');
+            if (document.getElementById('var-chl').checked) variables.push('Clorofila');
+            if (document.getElementById('var-ndwi').checked) variables.push('NDWI');
+            
+            alert(`🔄 Cargando datos...\n\n` +
+                  `📅 Fecha: ${date}\n` +
+                  `🛰️ Fuente: ${source === 'gee' ? 'Google Earth Engine' : 'NASA GIBS'}\n` +
+                  `📊 Variables: ${variables.join(', ')}\n\n` +
+                  `En producción, esto ejecutaría consultas a GEE/GIBS y cargaría las capas en el mapa.`);
+        });
+        
+        // Botón exportar
+        document.getElementById('btn-export').addEventListener('click', () => {
+            alert('💾 Exportando datos...\n\n' +
+                  'En producción, esto generaría archivos GeoTIFF o CSV con los valores numéricos de las variables seleccionadas.');
+        });
+        
+        // Botón ver script GEE
+        document.getElementById('btn-gee-script').addEventListener('click', () => {
+            window.open('docs/calidad-aire-agua.md', '_blank');
+        });
+        
+        // Actualizar días disponibles
+        function updateDaysAvailable() {
+            const startDate = new Date('2020-01-01');
+            const today = new Date();
+            const days = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
+            document.getElementById('days-available').textContent = days.toLocaleString() + '+';
+        }
+        
+        updateDaysAvailable();
+        
+        // Accessibility: mantener sincronizados checkboxes con tabs
+        document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                console.log(`Variable ${checkbox.id} ${checkbox.checked ? 'activada' : 'desactivada'}`);
+            });
+        });
+        
+        // Log inicial
+        console.log('🌍 EcoPlan - Calidad de Aire y Agua iniciado');
+        console.log('📊 Variables disponibles: AOD, NO₂, Clorofila-a, NDWI');
+        console.log('🛰️ Fuentes: Google Earth Engine + NASA GIBS/Worldview');
+    </script>
+</body>
+</html>
