@@ -878,6 +878,26 @@
     </footer>
     
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(11, 17, 32, 0.95); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+        <div style="text-align: center;">
+            <div class="spinner" style="border: 4px solid rgba(52, 152, 219, 0.3); border-top: 4px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+            <div style="color: #e2e8f0; font-size: 1.2rem; font-weight: 600; margin-bottom: 8px;">Procesando datos satelitales...</div>
+            <div style="color: #94a3b8; font-size: 0.9rem;">Esto puede tomar entre 5-30 segundos</div>
+        </div>
+    </div>
+    
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #loading-overlay.show {
+            display: flex !important;
+        }
+    </style>
+    
     <script>
         // Inicializar mapa
         const map = L.map('map', {
@@ -892,6 +912,17 @@
             subdomains: 'abcd',
             maxZoom: 20
         }).addTo(map);
+        
+        // Store current GEE layers
+        let currentLayers = {
+            aod: null,
+            no2: null,
+            chl: null,
+            ndwi: null
+        };
+        
+        // Store current data
+        let currentData = null;
         
         // Límites de Lima Metropolitana (aproximado)
         const limaBounds = L.rectangle([
@@ -965,6 +996,149 @@
             document.getElementById('legend-content').innerHTML = content;
         }
         
+        // Loading indicator functions
+        function showLoader() {
+            document.getElementById('loading-overlay').classList.add('show');
+        }
+        
+        function hideLoader() {
+            document.getElementById('loading-overlay').classList.remove('show');
+        }
+        
+        function showError(message) {
+            alert('❌ Error: ' + message);
+        }
+        
+        // Function to add GEE layer to map
+        function addGeeLayer(mapId, token, variable) {
+            if (!mapId) return null;
+            
+            // Remove existing layer for this variable
+            if (currentLayers[variable]) {
+                map.removeLayer(currentLayers[variable]);
+            }
+            
+            // Add new GEE tile layer
+            const tileUrl = `https://earthengine.googleapis.com/v1alpha/projects/github-nasa/maps/${mapId}/tiles/{z}/{x}/{y}`;
+            const layer = L.tileLayer(tileUrl, {
+                attribution: 'Google Earth Engine',
+                maxZoom: 20,
+                opacity: 0.7
+            }).addTo(map);
+            
+            currentLayers[variable] = layer;
+            return layer;
+        }
+        
+        // Function to update statistics display
+        function updateStatistics(data) {
+            const variableMap = {
+                'AOD': 'aod',
+                'NO2': 'no2',
+                'Chlorophyll': 'chl',
+                'NDWI': 'ndwi'
+            };
+            
+            data.forEach(item => {
+                const varKey = variableMap[item.variable];
+                if (!varKey) return;
+                
+                const stats = item.statistics;
+                const prefix = varKey.toUpperCase();
+                
+                // Update stats if elements exist
+                const meanEl = document.querySelector(`[data-stat="${varKey}-mean"]`);
+                const minEl = document.querySelector(`[data-stat="${varKey}-min"]`);
+                const maxEl = document.querySelector(`[data-stat="${varKey}-max"]`);
+                
+                if (meanEl && stats.mean !== null) {
+                    meanEl.textContent = stats.mean.toFixed(3);
+                }
+                if (minEl && stats.min !== null) {
+                    minEl.textContent = stats.min.toFixed(3);
+                }
+                if (maxEl && stats.max !== null) {
+                    maxEl.textContent = stats.max.toFixed(3);
+                }
+                
+                console.log(`${item.variable}: mean=${stats.mean}, min=${stats.min}, max=${stats.max}`);
+            });
+        }
+        
+        // Function to load data from GEE API
+        async function loadDataFromAPI() {
+            const date = document.getElementById('date-picker').value;
+            
+            if (!date) {
+                showError('Por favor selecciona una fecha');
+                return;
+            }
+            
+            showLoader();
+            
+            try {
+                // Call the API endpoint
+                const response = await fetch(`/api/air-water-quality/all?date=${date}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                currentData = result;
+                
+                console.log('Data loaded:', result);
+                
+                // Update statistics display
+                if (result.variables && result.variables.length > 0) {
+                    updateStatistics(result.variables);
+                    
+                    // Add GEE layers to map
+                    result.variables.forEach(item => {
+                        const varKey = {
+                            'AOD': 'aod',
+                            'NO2': 'no2',
+                            'Chlorophyll': 'chl',
+                            'NDWI': 'ndwi'
+                        }[item.variable];
+                        
+                        if (varKey && item.mapId) {
+                            addGeeLayer(item.mapId, item.token, varKey);
+                        }
+                    });
+                    
+                    // Show first available layer
+                    const firstVar = result.variables.find(v => v.mapId);
+                    if (firstVar) {
+                        const varKey = {
+                            'AOD': 'aod',
+                            'NO2': 'no2',
+                            'Chlorophyll': 'chl',
+                            'NDWI': 'ndwi'
+                        }[firstVar.variable];
+                        
+                        if (varKey) {
+                            updateLegend(varKey);
+                            // Activate corresponding tab
+                            document.querySelectorAll('.tab').forEach(t => {
+                                t.classList.toggle('active', t.dataset.var === varKey);
+                            });
+                        }
+                    }
+                    
+                    alert(`✅ Datos cargados exitosamente\n\nFecha: ${result.date}\nVariables procesadas: ${result.variables.length}`);
+                } else {
+                    showError('No hay datos disponibles para esta fecha. Intenta con una fecha diferente.');
+                }
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showError('No se pudieron cargar los datos satelitales. Por favor intenta nuevamente.');
+            } finally {
+                hideLoader();
+            }
+        }
+        
         // Tabs
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -980,27 +1154,22 @@
                 const variable = tab.dataset.var;
                 updateLegend(variable);
                 
-                // Simular carga de nueva capa
-                console.log(`Cargando capa: ${variable}`);
+                // Show/hide corresponding layer
+                Object.keys(currentLayers).forEach(key => {
+                    if (currentLayers[key]) {
+                        if (key === variable) {
+                            currentLayers[key].setOpacity(0.7);
+                        } else {
+                            currentLayers[key].setOpacity(0);
+                        }
+                    }
+                });
             });
         });
         
         // Botón cargar datos
         document.getElementById('btn-load').addEventListener('click', () => {
-            const date = document.getElementById('date-picker').value;
-            const source = document.getElementById('data-source').value;
-            
-            const variables = [];
-            if (document.getElementById('var-aod').checked) variables.push('AOD');
-            if (document.getElementById('var-no2').checked) variables.push('NO₂');
-            if (document.getElementById('var-chl').checked) variables.push('Clorofila');
-            if (document.getElementById('var-ndwi').checked) variables.push('NDWI');
-            
-            alert(`🔄 Cargando datos...\n\n` +
-                  `📅 Fecha: ${date}\n` +
-                  `🛰️ Fuente: ${source === 'gee' ? 'Google Earth Engine' : 'NASA GIBS'}\n` +
-                  `📊 Variables: ${variables.join(', ')}\n\n` +
-                  `En producción, esto ejecutaría consultas a GEE/GIBS y cargaría las capas en el mapa.`);
+            loadDataFromAPI();
         });
         
         // Botón exportar

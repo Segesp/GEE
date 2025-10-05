@@ -17,6 +17,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
         :root {
@@ -333,6 +334,7 @@
             border-radius: 3px;
             outline: none;
             -webkit-appearance: none;
+            appearance: none;
         }
         
         .slider::-webkit-slider-thumb {
@@ -812,11 +814,7 @@
                         <span>🌿 NDVI (Vegetación)</span>
                         <span id="ndviMonth">-</span>
                     </div>
-                    <div class="map-placeholder">
-                        <div class="icon">🗺️</div>
-                        <p>Mapa NDVI se cargará aquí</p>
-                        <p style="font-size: 0.8rem; color: var(--text-muted);">Requiere integración con Google Earth Engine</p>
-                    </div>
+                    <div id="ndviMap" class="map-real"></div>
                 </div>
                 
                 <!-- LST Anomaly Map -->
@@ -825,22 +823,17 @@
                         <span>🌡️ LST Anomalía (Islas de Calor)</span>
                         <span id="lstMonth">-</span>
                     </div>
-                    <div class="map-placeholder">
-                        <div class="icon">🗺️</div>
-                        <p>Mapa LST Anomalía se cargará aquí</p>
-                        <p style="font-size: 0.8rem; color: var(--text-muted);">Requiere integración con Google Earth Engine</p>
-                    </div>
+                    <div id="lstMap" class="map-real"></div>
                 </div>
                 
-                <!-- Implementation Note -->
-                <div class="alert alert-warning">
-                    <strong>⚠️ Nota de Implementación:</strong> Los mapas interactivos requieren la integración completa con Google Earth Engine Code Editor. Para usar esta funcionalidad:
-                    <ol style="margin: 0.5rem 0; padding-left: 1.5rem; font-size: 0.85rem;">
-                        <li>Copia el código JavaScript proporcionado</li>
-                        <li>Pégalo en <a href="https://code.earthengine.google.com/" target="_blank" style="color: var(--primary); text-decoration: underline;">code.earthengine.google.com</a></li>
-                        <li>Ejecuta el script en el Code Editor</li>
-                        <li>Opcionalmente, publícalo como GEE App</li>
-                    </ol>
+                <!-- Action Buttons -->
+                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                    <button class="control-button" id="loadAnalysisBtn" style="flex: 1;">
+                        🔄 Cargar Análisis
+                    </button>
+                    <button class="control-button secondary" id="exportDataBtn" style="flex: 1;" disabled>
+                        💾 Exportar (próximamente)
+                    </button>
                 </div>
             </section>
             
@@ -997,12 +990,81 @@
     <script>
         // =====================================================================
         // DEMO FUNCTIONALITY (UI interactions only)
-        // Full GEE implementation requires integration with Earth Engine API
+        // Full GEE implementation with API integration
         // =====================================================================
         
+        let ndviMap, lstMap;
+        let currentNdviLayer = null;
+        let currentLstLayer = null;
+        let currentData = null;
+        
+        // Loading indicator functions
+        function showLoader() {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.classList.remove('hidden');
+        }
+        
+        function hideLoader() {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.classList.add('hidden');
+        }
+        
+        function showError(message) {
+            alert('❌ Error: ' + message);
+        }
+        
+        function showSuccess(message) {
+            alert('✅ ' + message);
+        }
+        
         document.addEventListener('DOMContentLoaded', () => {
+            initializeMaps();
             initializeUI();
         });
+        
+        function initializeMaps() {
+            // Initialize NDVI Map
+            ndviMap = L.map('ndviMap', {
+                center: [-12.05, -76.95],
+                zoom: 11,
+                zoomControl: true
+            });
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(ndviMap);
+            
+            // Initialize LST Map
+            lstMap = L.map('lstMap', {
+                center: [-12.05, -76.95],
+                zoom: 11,
+                zoomControl: true
+            });
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(lstMap);
+            
+            // Add Lima bounds to both maps
+            const limaBounds = L.rectangle([
+                [-12.4, -77.2], // SW
+                [-11.7, -76.7]  // NE
+            ], {
+                color: '#2ecc71',
+                weight: 2,
+                fillOpacity: 0.1,
+                dashArray: '5, 10'
+            });
+            
+            limaBounds.addTo(ndviMap).bindPopup('<strong>Lima Metropolitana</strong>');
+            limaBounds.addTo(lstMap).bindPopup('<strong>Lima Metropolitana</strong>');
+            
+            console.log('Maps initialized successfully');
+        }
         
         function initializeUI() {
             // Set current date as end date
@@ -1020,12 +1082,9 @@
                 monthValue.textContent = val;
                 monthLabel.textContent = `Mes ${val}`;
                 
-                // Update map headers (demo)
+                // Update map headers
                 document.getElementById('ndviMonth').textContent = `Mes ${val}`;
                 document.getElementById('lstMonth').textContent = `Mes ${val}`;
-                
-                // Simulate data update
-                updateDemoData(val);
             });
             
             // Calculate month range
@@ -1046,25 +1105,13 @@
             document.getElementById('startDate').addEventListener('change', updateMonthRange);
             document.getElementById('endDate').addEventListener('change', updateMonthRange);
             
-            // SMOD filters
-            ['smodUrban', 'smodSemi', 'smodRural'].forEach(id => {
-                document.getElementById(id).addEventListener('change', () => {
-                    console.log('SMOD filter changed:', id);
-                });
-            });
+            // Load Analysis Button
+            const loadAnalysisBtn = document.getElementById('loadAnalysisBtn');
+            if (loadAnalysisBtn) {
+                loadAnalysisBtn.addEventListener('click', loadAnalysisData);
+            }
             
-            // LST Day/Night
-            document.getElementById('lstSelect').addEventListener('change', (e) => {
-                console.log('LST mode changed:', e.target.value);
-            });
-            
-            // Cloud mask
-            document.getElementById('cloudMask').addEventListener('change', (e) => {
-                console.log('Cloud mask:', e.target.checked);
-            });
-            
-            // Initial demo data
-            loadDemoData();
+            console.log('UI initialized successfully');
         }
         
         function updateMonthRange() {
@@ -1086,137 +1133,141 @@
             console.log(`Date range: ${months} months from ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
         }
         
-        function loadDemoData() {
-            // Demo heat events
-            const heatEventsTable = document.getElementById('heatEventsTable').getElementsByTagName('tbody')[0];
-            heatEventsTable.innerHTML = `
-                <tr>
-                    <td>2024-01</td>
-                    <td>10:30 LT (Terra, día)</td>
-                    <td>Lima Metropolitana</td>
-                    <td style="color: var(--danger); font-weight: 600;">+3.2</td>
-                </tr>
-                <tr>
-                    <td>2024-02</td>
-                    <td>10:30 LT (Terra, día)</td>
-                    <td>Lima Metropolitana</td>
-                    <td style="color: var(--danger); font-weight: 600;">+2.8</td>
-                </tr>
-                <tr>
-                    <td>2024-03</td>
-                    <td>10:30 LT (Terra, día)</td>
-                    <td>Callao</td>
-                    <td style="color: var(--warning); font-weight: 600;">+2.1</td>
-                </tr>
-                <tr>
-                    <td>2024-01</td>
-                    <td>10:30 LT (Terra, día)</td>
-                    <td>San Juan de Lurigancho</td>
-                    <td style="color: var(--danger); font-weight: 600;">+2.9</td>
-                </tr>
-            `;
+        async function loadAnalysisData() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
             
-            // Demo priority table
-            const priorityTable = document.getElementById('priorityTable').getElementsByTagName('tbody')[0];
-            priorityTable.innerHTML = `
-                <tr>
-                    <td style="font-weight: 600;">Lima Metropolitana</td>
-                    <td style="color: var(--danger); font-weight: 600;">0.82</td>
-                    <td>0.28</td>
-                    <td style="color: var(--danger);">+2.8</td>
-                    <td>8,574,974</td>
-                </tr>
-                <tr>
-                    <td style="font-weight: 600;">San Juan de Lurigancho</td>
-                    <td style="color: var(--danger); font-weight: 600;">0.75</td>
-                    <td>0.31</td>
-                    <td style="color: var(--danger);">+2.6</td>
-                    <td>1,091,303</td>
-                </tr>
-                <tr>
-                    <td style="font-weight: 600;">San Martín de Porres</td>
-                    <td style="color: var(--warning); font-weight: 600;">0.68</td>
-                    <td>0.34</td>
-                    <td style="color: var(--warning);">+2.3</td>
-                    <td>700,177</td>
-                </tr>
-                <tr>
-                    <td style="font-weight: 600;">Ate</td>
-                    <td style="color: var(--warning); font-weight: 600;">0.62</td>
-                    <td>0.37</td>
-                    <td style="color: var(--warning);">+2.1</td>
-                    <td>630,085</td>
-                </tr>
-                <tr>
-                    <td style="font-weight: 600;">Comas</td>
-                    <td style="color: var(--warning); font-weight: 600;">0.58</td>
-                    <td>0.39</td>
-                    <td style="color: var(--warning);">+2.0</td>
-                    <td>524,894</td>
-                </tr>
-                <tr>
-                    <td style="font-weight: 600;">Villa El Salvador</td>
-                    <td>0.45</td>
-                    <td>0.42</td>
-                    <td>+1.7</td>
-                    <td>463,014</td>
-                </tr>
-                <tr>
-                    <td style="font-weight: 600;">Villa María del Triunfo</td>
-                    <td>0.38</td>
-                    <td>0.45</td>
-                    <td>+1.5</td>
-                    <td>448,545</td>
-                </tr>
-                <tr>
-                    <td style="font-weight: 600;">Callao</td>
-                    <td>0.35</td>
-                    <td>0.47</td>
-                    <td>+1.4</td>
-                    <td>406,889</td>
-                </tr>
-            `;
+            if (!startDate || !endDate) {
+                showError('Por favor selecciona un rango de fechas válido');
+                return;
+            }
+            
+            showLoader();
+            
+            try {
+                // Call the comprehensive analysis endpoint
+                const response = await fetch(`/api/vegetation-heat/analysis?startDate=${startDate}&endDate=${endDate}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                currentData = result;
+                
+                console.log('Analysis data loaded:', result);
+                
+                // Update NDVI map
+                if (result.ndvi && result.ndvi.mapId) {
+                    updateMapLayer(ndviMap, result.ndvi.mapId, result.ndvi.token, 'ndvi');
+                    document.getElementById('ndviMonth').textContent = 
+                        `${startDate} a ${endDate} (Media: ${result.ndvi.statistics.mean ? result.ndvi.statistics.mean.toFixed(3) : 'N/A'})`;
+                }
+                
+                // Update LST map
+                if (result.lst && result.lst.mapId) {
+                    updateMapLayer(lstMap, result.lst.mapId, result.lst.token, 'lst');
+                    document.getElementById('lstMonth').textContent = 
+                        `${startDate} a ${endDate} (Media: ${result.lst.statistics.mean ? result.lst.statistics.mean.toFixed(1) : 'N/A'}°C)`;
+                }
+                
+                // Update heat islands table
+                if (result.heatIslands) {
+                    updateHeatIslandsTable(result.heatIslands);
+                }
+                
+                showSuccess(`Análisis cargado exitosamente\\n\\nNDVI: ${result.ndvi.interpretation}\\nLST: ${result.lst.interpretation}`);
+                
+            } catch (error) {
+                console.error('Error loading analysis:', error);
+                showError('No se pudo cargar el análisis. Por favor intenta nuevamente.');
+            } finally {
+                hideLoader();
+            }
         }
         
-        function updateDemoData(monthNum) {
-            // Simulate updating data based on month selection
-            console.log('Updating demo data for month:', monthNum);
+        function updateMapLayer(map, mapId, token, layerType) {
+            if (!mapId) return;
             
-            // In a real implementation, this would:
-            // 1. Filter imageCollections by month
-            // 2. Update map layers
-            // 3. Recalculate statistics
-            // 4. Update charts and tables
+            // Remove existing layer
+            if (layerType === 'ndvi' && currentNdviLayer) {
+                map.removeLayer(currentNdviLayer);
+            } else if (layerType === 'lst' && currentLstLayer) {
+                map.removeLayer(currentLstLayer);
+            }
+            
+            // Add new GEE tile layer
+            const tileUrl = `https://earthengine.googleapis.com/v1alpha/projects/github-nasa/maps/${mapId}/tiles/{z}/{x}/{y}`;
+            const layer = L.tileLayer(tileUrl, {
+                attribution: 'Google Earth Engine',
+                maxZoom: 20,
+                opacity: 0.7
+            }).addTo(map);
+            
+            if (layerType === 'ndvi') {
+                currentNdviLayer = layer;
+            } else if (layerType === 'lst') {
+                currentLstLayer = layer;
+            }
+            
+            console.log(`${layerType.toUpperCase()} layer added to map`);
+        }
+        
+        function updateHeatIslandsTable(heatIslands) {
+            const tbody = document.getElementById('heatEventsTable').getElementsByTagName('tbody')[0];
+            
+            if (!heatIslands || !heatIslands.events || heatIslands.events.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="table-empty">
+                            No se detectaron eventos de islas de calor para el período seleccionado
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            // Clear existing rows
+            tbody.innerHTML = '';
+            
+            // Add event rows (limit to 10 most recent)
+            heatIslands.events.slice(0, 10).forEach(event => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${event.date || 'N/A'}</td>
+                    <td>${event.timeOfDay === 'day' ? '~10:30 LT (día)' : '~22:30 LT (noche)'}</td>
+                    <td>Lima Metropolitana</td>
+                    <td style="color: var(--danger); font-weight: 600;">+${event.anomaly ? event.anomaly.toFixed(1) : 'N/A'}</td>
+                `;
+            });
+            
+            console.log(`Heat islands table updated with ${heatIslands.events.length} events`);
         }
         
         // Placeholder for GEE integration
         console.log(`
 ═══════════════════════════════════════════════════════════════════
- 🌍 Vegetación e Islas de Calor - EcoPlan
+ 🌍 Vegetación e Islas de Calor - EcoPlan (API Integrada)
 ═══════════════════════════════════════════════════════════════════
 
-Esta es una interfaz de demostración. Para funcionalidad completa:
+✅ Integración con Google Earth Engine API completa
 
-1. Copia el código JavaScript de GEE (proporcionado en la documentación)
-2. Pégalo en https://code.earthengine.google.com/
-3. Ejecuta el script en el Code Editor de Google Earth Engine
+Características activas:
+- Mapas Leaflet interactivos (NDVI y LST)
+- Carga de datos satelitales desde API REST
+- Visualización de islas de calor detectadas
+- Indicadores de carga para procesamiento GEE
 
-El código completo incluye:
-- Procesamiento de NDVI (Sentinel-2 + Landsat)
-- Cálculo de anomalías LST (MODIS)
-- Filtros SMOD (GHSL)
-- Generación de mapas sincronizados
-- Series temporales interactivas
-- Tablas de eventos y prioridades
-- Exportación de GIFs animados
-
-Para integrarlo en esta plataforma web:
-- Se requiere autenticación con Google Earth Engine API
-- Configuración de service account
-- Procesamiento server-side de datos satelitales
+Endpoints disponibles:
+- GET /api/vegetation-heat/ndvi
+- GET /api/vegetation-heat/lst
+- GET /api/vegetation-heat/analysis
+- GET /api/vegetation-heat/heat-islands
+- GET /api/vegetation-heat/priority
 
 ═══════════════════════════════════════════════════════════════════
         `);
     </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </body>
 </html>
