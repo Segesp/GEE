@@ -9,6 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="vendor/leaflet-markercluster/MarkerCluster.css">
+  <link rel="stylesheet" href="vendor/leaflet-markercluster/MarkerCluster.Default.css">
   <style>
     :root {
       --bg: #0b1120;
@@ -1143,15 +1145,93 @@
         </aside>
 
         <aside class="controls hidden" id="citizenControls">
+          <!-- Explorar: Mapa + Lista -->
+          <section class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px;">
+              <div>
+                <h2 class="section-title" style="margin-bottom: 4px;">🗺️ Explorar Reportes</h2>
+                <p style="margin: 0; font-size: 0.8rem; color: var(--text-muted);">Mapa temático con clustering, filtros y búsqueda</p>
+              </div>
+              <button type="button" class="button-primary" id="openNewReportModal" style="padding: 12px 20px; font-size: 1.1rem; border-radius: 50px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
+                ➕ Reportar
+              </button>
+            </div>
+            
+            <!-- Indicadores principales -->
+            <div class="explore-indicators" id="exploreIndicators"></div>
+            
+            <!-- Filtros de exploración -->
+            <div class="explore-filters">
+              <div class="explore-search-icon" style="flex: 1; min-width: 200px;">
+                <input type="search" id="exploreSearch" placeholder="Buscar por descripción, barrio..." style="width: 100%;">
+              </div>
+              
+              <select id="exploreFilterCategory" style="min-width: 150px;">
+                <option value="">Todas las categorías</option>
+                <option value="green">🌳 Áreas verdes</option>
+                <option value="heat">🔥 Calor</option>
+                <option value="flooding">💧 Inundación</option>
+                <option value="waste">🗑️ Basura</option>
+                <option value="air">🌫️ Aire</option>
+                <option value="water">🚰 Agua</option>
+                <option value="other">📌 Otro</option>
+              </select>
+              
+              <select id="exploreFilterSeverity" style="min-width: 140px;">
+                <option value="">Todas las severidades</option>
+                <option value="low">✅ Baja</option>
+                <option value="medium">⚠️ Media</option>
+                <option value="high">🚨 Alta</option>
+              </select>
+              
+              <input type="date" id="exploreFilterDateFrom" placeholder="Desde" style="min-width: 150px;">
+              <input type="date" id="exploreFilterDateTo" placeholder="Hasta" style="min-width: 150px;">
+              
+              <button type="button" id="exploreResetFilters" class="button-secondary" style="padding: 8px 16px; font-size: 0.85rem; white-space: nowrap;">
+                🔄 Reset
+              </button>
+            </div>
+          </section>
+          
+          <!-- Capas GEE -->
+          <section class="gee-layer-controls">
+            <h3>📡 Capas Satelitales (GEE)</h3>
+            <div class="gee-layer-item">
+              <input type="checkbox" id="layerNDVI" class="gee-layer-checkbox">
+              <label for="layerNDVI" class="gee-layer-label">🌿 NDVI (Vegetación)</label>
+              <input type="range" id="opacityNDVI" class="gee-opacity-slider" min="0" max="100" value="70" disabled>
+              <span id="opacityValueNDVI" style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">70%</span>
+            </div>
+            <div class="gee-layer-item">
+              <input type="checkbox" id="layerLST" class="gee-layer-checkbox">
+              <label for="layerLST" class="gee-layer-label">🌡️ LST (Temp. Superficial)</label>
+              <input type="range" id="opacityLST" class="gee-opacity-slider" min="0" max="100" value="60" disabled>
+              <span id="opacityValueLST" style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">60%</span>
+            </div>
+            <div class="gee-layer-item">
+              <input type="checkbox" id="layerPM25" class="gee-layer-checkbox">
+              <label for="layerPM25" class="gee-layer-label">🌫️ PM₂.₅ (Calidad Aire)</label>
+              <input type="range" id="opacityPM25" class="gee-opacity-slider" min="0" max="100" value="65" disabled>
+              <span id="opacityValuePM25" style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">65%</span>
+            </div>
+            <div class="gee-layer-item">
+              <input type="checkbox" id="layerNDWI" class="gee-layer-checkbox">
+              <label for="layerNDWI" class="gee-layer-label">💧 NDWI (Agua)</label>
+              <input type="range" id="opacityNDWI" class="gee-opacity-slider" min="0" max="100" value="70" disabled>
+              <span id="opacityValueNDWI" style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">70%</span>
+            </div>
+            <button type="button" id="updateGeeLayers" class="button-primary" style="width: 100%; margin-top: 10px; padding: 10px; font-size: 0.85rem;">
+              🔄 Actualizar Capas
+            </button>
+          </section>
+          
+          <!-- Reportar (colapsado) -->
           <section class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px;">
               <div>
                 <h2 class="section-title" style="margin-bottom: 4px;">Reportes Ciudadanos</h2>
                 <p style="margin: 0; font-size: 0.8rem; color: var(--text-muted);">Validación de datos satelitales con observaciones de campo</p>
               </div>
-              <button type="button" class="button-primary" id="openNewReportModal" style="padding: 12px 20px; font-size: 1.1rem; border-radius: 50px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
-                ➕ Reportar
-              </button>
             </div>
             
             <div class="card" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.1) 100%); border: 1px solid rgba(59, 130, 246, 0.3); padding: 20px; margin-bottom: 24px;">
@@ -1584,6 +1664,7 @@
   </div>
 
   <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/leaflet-markercluster/leaflet.markercluster.js"></script>
   <script src="vendor/chart/chart.umd.js"></script>
   <script>
     const BLOOM_PRESETS_LOCAL = [
@@ -1767,6 +1848,37 @@
     waste: { label: 'Residuos / basura', color: '#6b7280' },
     other: { label: 'Otra incidencia', color: '#f59e0b' }
   };
+
+  // Variables para el sistema "Explorar"
+  let exploreMarkerCluster = null;
+  let exploreFilters = {
+    search: '',
+    category: '',
+    severity: '',
+    dateFrom: '',
+    dateTo: ''
+  };
+  let exploreFilteredReports = [];
+  const exploreElements = {
+    search: document.getElementById('exploreSearch'),
+    filterCategory: document.getElementById('exploreFilterCategory'),
+    filterSeverity: document.getElementById('exploreFilterSeverity'),
+    filterDateFrom: document.getElementById('exploreFilterDateFrom'),
+    filterDateTo: document.getElementById('exploreFilterDateTo'),
+    resetFilters: document.getElementById('exploreResetFilters'),
+    indicators: document.getElementById('exploreIndicators'),
+    reportsList: document.getElementById('exploreReportsList'),
+    reportsEmpty: document.getElementById('exploreReportsEmpty')
+  };
+  const geeLayerElements = {
+    ndvi: { checkbox: document.getElementById('layerNDVI'), opacity: document.getElementById('opacityNDVI'), value: document.getElementById('opacityValueNDVI') },
+    lst: { checkbox: document.getElementById('layerLST'), opacity: document.getElementById('opacityLST'), value: document.getElementById('opacityValueLST') },
+    pm25: { checkbox: document.getElementById('layerPM25'), opacity: document.getElementById('opacityPM25'), value: document.getElementById('opacityValuePM25') },
+    ndwi: { checkbox: document.getElementById('layerNDWI'), opacity: document.getElementById('opacityNDWI'), value: document.getElementById('opacityValueNDWI') }
+  };
+  let geeLayersVisible = { ndvi: false, lst: false, pm25: false, ndwi: false };
+  let geeLayerObjects = { ndvi: null, lst: null, pm25: null, ndwi: null };
+
 
   // Variables para el nuevo modal MVP
   const newReportModal = document.getElementById('newReportModal');
@@ -2427,6 +2539,511 @@
       return item;
     }
 
+    // ========== FUNCIONES PARA EL SISTEMA "EXPLORAR" ==========
+    
+    function initializeExploreSystem() {
+      // Crear cluster para markers
+      if (typeof L.markerClusterGroup !== 'undefined') {
+        exploreMarkerCluster = L.markerClusterGroup({
+          chunkedLoading: true,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false,
+          zoomToBoundsOnClick: true,
+          maxClusterRadius: 50
+        });
+        map.addLayer(exploreMarkerCluster);
+      }
+      
+      // Event listeners para filtros
+      if (exploreElements.search) {
+        exploreElements.search.addEventListener('input', debounce(() => {
+          exploreFilters.search = exploreElements.search.value;
+          applyExploreFilters();
+        }, 300));
+      }
+      
+      if (exploreElements.filterCategory) {
+        exploreElements.filterCategory.addEventListener('change', () => {
+          exploreFilters.category = exploreElements.filterCategory.value;
+          applyExploreFilters();
+        });
+      }
+      
+      if (exploreElements.filterSeverity) {
+        exploreElements.filterSeverity.addEventListener('change', () => {
+          exploreFilters.severity = exploreElements.filterSeverity.value;
+          applyExploreFilters();
+        });
+      }
+      
+      if (exploreElements.filterDateFrom) {
+        exploreElements.filterDateFrom.addEventListener('change', () => {
+          exploreFilters.dateFrom = exploreElements.filterDateFrom.value;
+          applyExploreFilters();
+        });
+      }
+      
+      if (exploreElements.filterDateTo) {
+        exploreElements.filterDateTo.addEventListener('change', () => {
+          exploreFilters.dateTo = exploreElements.filterDateTo.value;
+          applyExploreFilters();
+        });
+      }
+      
+      if (exploreElements.resetFilters) {
+        exploreElements.resetFilters.addEventListener('click', resetExploreFilters);
+      }
+      
+      // Event listeners para capas GEE
+      Object.keys(geeLayerElements).forEach(layerKey => {
+        const elements = geeLayerElements[layerKey];
+        if (elements.checkbox) {
+          elements.checkbox.addEventListener('change', () => {
+            const checked = elements.checkbox.checked;
+            geeLayersVisible[layerKey] = checked;
+            if (elements.opacity) {
+              elements.opacity.disabled = !checked;
+            }
+            if (checked) {
+              loadGeeLayer(layerKey);
+            } else {
+              removeGeeLayer(layerKey);
+            }
+          });
+        }
+        
+        if (elements.opacity) {
+          elements.opacity.addEventListener('input', () => {
+            const value = elements.opacity.value;
+            if (elements.value) {
+              elements.value.textContent = value + '%';
+            }
+            updateGeeLayerOpacity(layerKey, value / 100);
+          });
+        }
+      });
+      
+      const updateGeeButton = document.getElementById('updateGeeLayers');
+      if (updateGeeButton) {
+        updateGeeButton.addEventListener('click', () => {
+          Object.keys(geeLayersVisible).forEach(key => {
+            if (geeLayersVisible[key]) {
+              loadGeeLayer(key);
+            }
+          });
+          logStatus('Capas GEE actualizadas', 'success', 'ecoplan');
+        });
+      }
+    }
+    
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+    
+    function applyExploreFilters() {
+      exploreFilteredReports = citizenReports.filter(report => {
+        // Filtro de búsqueda
+        if (exploreFilters.search) {
+          const searchLower = exploreFilters.search.toLowerCase();
+          const matchesSearch = 
+            (report.description && report.description.toLowerCase().includes(searchLower)) ||
+            (report.neighborhood && report.neighborhood.toLowerCase().includes(searchLower)) ||
+            (report.category && report.category.toLowerCase().includes(searchLower));
+          if (!matchesSearch) return false;
+        }
+        
+        // Filtro de categoría
+        if (exploreFilters.category && report.category !== exploreFilters.category) {
+          return false;
+        }
+        
+        // Filtro de severidad
+        if (exploreFilters.severity && report.severity !== exploreFilters.severity) {
+          return false;
+        }
+        
+        // Filtro de fecha desde
+        if (exploreFilters.dateFrom) {
+          const reportDate = new Date(report.createdAt);
+          const filterDate = new Date(exploreFilters.dateFrom);
+          if (reportDate < filterDate) return false;
+        }
+        
+        // Filtro de fecha hasta
+        if (exploreFilters.dateTo) {
+          const reportDate = new Date(report.createdAt);
+          const filterDate = new Date(exploreFilters.dateTo);
+          filterDate.setHours(23, 59, 59, 999); // Incluir todo el día
+          if (reportDate > filterDate) return false;
+        }
+        
+        return true;
+      });
+      
+      renderExploreIndicators();
+      renderExploreReportsList();
+      renderExploreMarkers();
+      
+      logStatus(`Filtrados ${exploreFilteredReports.length} de ${citizenReports.length} reportes`, 'info', 'ecoplan');
+    }
+    
+    function resetExploreFilters() {
+      exploreFilters = {
+        search: '',
+        category: '',
+        severity: '',
+        dateFrom: '',
+        dateTo: ''
+      };
+      
+      if (exploreElements.search) exploreElements.search.value = '';
+      if (exploreElements.filterCategory) exploreElements.filterCategory.value = '';
+      if (exploreElements.filterSeverity) exploreElements.filterSeverity.value = '';
+      if (exploreElements.filterDateFrom) exploreElements.filterDateFrom.value = '';
+      if (exploreElements.filterDateTo) exploreElements.filterDateTo.value = '';
+      
+      applyExploreFilters();
+    }
+    
+    function renderExploreIndicators() {
+      if (!exploreElements.indicators) return;
+      
+      const reports = exploreFilteredReports.length > 0 ? exploreFilteredReports : citizenReports;
+      
+      // Calcular métricas
+      const totalReports = reports.length;
+      const categoryCounts = {};
+      const severityCounts = { low: 0, medium: 0, high: 0 };
+      const last7Days = reports.filter(r => {
+        const date = new Date(r.createdAt);
+        const now = new Date();
+        const diff = now - date;
+        return diff < 7 * 24 * 60 * 60 * 1000;
+      }).length;
+      
+      reports.forEach(report => {
+        categoryCounts[report.category] = (categoryCounts[report.category] || 0) + 1;
+        if (report.severity && severityCounts.hasOwnProperty(report.severity)) {
+          severityCounts[report.severity]++;
+        }
+      });
+      
+      const topCategory = Object.keys(categoryCounts).reduce((a, b) => 
+        categoryCounts[a] > categoryCounts[b] ? a : b, 'other');
+      
+      const highSeverityCount = severityCounts.high;
+      
+      // Calcular tendencia (comparar últimos 7 días vs 7 días anteriores)
+      const last14Days = reports.filter(r => {
+        const date = new Date(r.createdAt);
+        const now = new Date();
+        const diff = now - date;
+        return diff < 14 * 24 * 60 * 60 * 1000;
+      }).length;
+      const prev7Days = last14Days - last7Days;
+      const trend = prev7Days > 0 ? ((last7Days - prev7Days) / prev7Days * 100).toFixed(0) : 0;
+      const trendClass = trend > 0 ? 'positive' : trend < 0 ? 'negative' : '';
+      const trendIcon = trend > 0 ? '📈' : trend < 0 ? '📉' : '➡️';
+      
+      exploreElements.indicators.innerHTML = `
+        <div class="explore-indicator">
+          <div class="explore-indicator-icon">📊</div>
+          <div class="explore-indicator-value">${totalReports}</div>
+          <div class="explore-indicator-label">Total Reportes</div>
+        </div>
+        
+        <div class="explore-indicator">
+          <div class="explore-indicator-icon">📅</div>
+          <div class="explore-indicator-value">${last7Days}</div>
+          <div class="explore-indicator-label">Últimos 7 días</div>
+          <div class="explore-indicator-trend ${trendClass}">${trendIcon} ${Math.abs(trend)}%</div>
+        </div>
+        
+        <div class="explore-indicator">
+          <div class="explore-indicator-icon">${getCategoryIcon(topCategory)}</div>
+          <div class="explore-indicator-value">${categoryCounts[topCategory] || 0}</div>
+          <div class="explore-indicator-label">${getCategoryLabel(topCategory)}</div>
+        </div>
+        
+        <div class="explore-indicator">
+          <div class="explore-indicator-icon">🚨</div>
+          <div class="explore-indicator-value">${highSeverityCount}</div>
+          <div class="explore-indicator-label">Alta Severidad</div>
+        </div>
+      `;
+    }
+    
+    function renderExploreReportsList() {
+      if (!exploreElements.reportsList || !exploreElements.reportsEmpty) return;
+      
+      const reports = exploreFilteredReports.length > 0 ? exploreFilteredReports : citizenReports;
+      
+      exploreElements.reportsList.innerHTML = '';
+      
+      if (reports.length === 0) {
+        exploreElements.reportsEmpty.style.display = 'block';
+        exploreElements.reportsList.style.display = 'none';
+        return;
+      }
+      
+      exploreElements.reportsEmpty.style.display = 'none';
+      exploreElements.reportsList.style.display = 'flex';
+      
+      // Ordenar por fecha (más recientes primero)
+      const sortedReports = [...reports].sort((a, b) => 
+        new Date(b.createdAt) - new Date(a.createdAt)
+      );
+      
+      sortedReports.forEach(report => {
+        const card = createReportCard(report);
+        exploreElements.reportsList.appendChild(card);
+      });
+    }
+    
+    function createReportCard(report) {
+      const card = document.createElement('div');
+      card.className = 'report-card';
+      card.dataset.reportId = report.id;
+      
+      const categoryIcon = getCategoryIcon(report.category);
+      const categoryLabel = getCategoryLabel(report.category);
+      const severityLabel = getSeverityLabel(report.severity);
+      const severityClass = report.severity || 'low';
+      
+      const date = new Date(report.createdAt);
+      const dateStr = formatDateTimeLabel(report.createdAt);
+      
+      card.innerHTML = `
+        <div class="report-card-header">
+          <div class="report-card-category">${categoryIcon} ${categoryLabel}</div>
+          <div class="report-card-date">${dateStr}</div>
+        </div>
+        
+        <div class="report-card-body">
+          <div class="report-card-description">${report.description || 'Sin descripción'}</div>
+          <div class="report-card-location">
+            📍 ${report.latitude.toFixed(5)}, ${report.longitude.toFixed(5)}
+            ${report.neighborhood ? ' · ' + report.neighborhood : ''}
+          </div>
+        </div>
+        
+        <div class="report-card-footer">
+          <div class="report-card-severity ${severityClass}">
+            ${getSeverityIcon(report.severity)} ${severityLabel}
+          </div>
+          <div class="report-card-actions">
+            <button class="report-card-action" onclick="focusReportOnMap('${report.id}')">
+              🗺️ Ver en mapa
+            </button>
+            ${report.photoUrl ? '<button class="report-card-action" onclick="viewReportPhoto(\'' + report.id + '\')">📸 Ver foto</button>' : ''}
+          </div>
+        </div>
+      `;
+      
+      card.addEventListener('click', (e) => {
+        if (!e.target.closest('.report-card-action')) {
+          focusReportOnMap(report.id);
+        }
+      });
+      
+      return card;
+    }
+    
+    function renderExploreMarkers() {
+      if (!exploreMarkerCluster) return;
+      
+      exploreMarkerCluster.clearLayers();
+      
+      const reports = exploreFilteredReports.length > 0 ? exploreFilteredReports : citizenReports;
+      
+      reports.forEach(report => {
+        const categoryIcon = getCategoryIcon(report.category);
+        const marker = L.marker([report.latitude, report.longitude], {
+          icon: L.divIcon({
+            className: 'custom-marker-icon',
+            html: `<div style="background: ${getCategoryColor(report.category)}; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${categoryIcon}</div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+          })
+        });
+        
+        const popupContent = `
+          <div style="min-width: 200px;">
+            <strong style="font-size: 1.1em;">${categoryIcon} ${getCategoryLabel(report.category)}</strong>
+            <p style="margin: 8px 0;">${report.description || 'Sin descripción'}</p>
+            <div style="font-size: 0.85em; color: #666; margin-bottom: 4px;">${formatDateTimeLabel(report.createdAt)}</div>
+            <div style="font-size: 0.85em; color: #666;">Severidad: ${getSeverityLabel(report.severity)}</div>
+            ${report.photoUrl ? '<div style="margin-top: 8px;"><img src="' + report.photoUrl + '" style="width: 100%; max-height: 150px; object-fit: cover; border-radius: 4px;" onerror="this.style.display=\'none\'"/></div>' : ''}
+          </div>
+        `;
+        
+        marker.bindPopup(popupContent);
+        marker.reportData = report;
+        exploreMarkerCluster.addLayer(marker);
+      });
+    }
+    
+    function getCategoryIcon(category) {
+      const icons = {
+        green: '🌳',
+        heat: '🔥',
+        flooding: '💧',
+        waste: '🗑️',
+        air: '🌫️',
+        water: '🚰',
+        other: '📌'
+      };
+      return icons[category] || '📌';
+    }
+    
+    function getCategoryLabel(category) {
+      const labels = {
+        green: 'Áreas verdes',
+        heat: 'Calor',
+        flooding: 'Inundación',
+        waste: 'Basura',
+        air: 'Aire',
+        water: 'Agua',
+        other: 'Otro'
+      };
+      return labels[category] || 'Otro';
+    }
+    
+    function getCategoryColor(category) {
+      const colors = {
+        green: '#22c55e',
+        heat: '#f97316',
+        flooding: '#0ea5e9',
+        waste: '#6b7280',
+        air: '#8b5cf6',
+        water: '#2563eb',
+        other: '#f59e0b'
+      };
+      return colors[category] || '#f59e0b';
+    }
+    
+    function getSeverityIcon(severity) {
+      const icons = {
+        low: '✅',
+        medium: '⚠️',
+        high: '🚨'
+      };
+      return icons[severity] || '✅';
+    }
+    
+    function getSeverityLabel(severity) {
+      const labels = {
+        low: 'Baja',
+        medium: 'Media',
+        high: 'Alta'
+      };
+      return labels[severity] || 'Baja';
+    }
+    
+    function focusReportOnMap(reportId) {
+      const report = citizenReports.find(r => r.id === reportId);
+      if (!report) return;
+      
+      map.setView([report.latitude, report.longitude], 16);
+      
+      // Encontrar el marker y abrir su popup
+      if (exploreMarkerCluster) {
+        exploreMarkerCluster.eachLayer(layer => {
+          if (layer.reportData && layer.reportData.id === reportId) {
+            exploreMarkerCluster.zoomToShowLayer(layer, () => {
+              layer.openPopup();
+            });
+          }
+        });
+      }
+      
+      logStatus(`Enfocando reporte: ${getCategoryLabel(report.category)}`, 'info', 'ecoplan');
+    }
+    
+    function viewReportPhoto(reportId) {
+      const report = citizenReports.find(r => r.id === reportId);
+      if (!report || !report.photoUrl) return;
+      
+      window.open(report.photoUrl, '_blank');
+    }
+    
+    // Funciones para capas GEE
+    async function loadGeeLayer(layerKey) {
+      // Nota: Esta es una implementación básica. En producción, necesitarías
+      // endpoints en tu servidor que generen tiles de GEE para cada capa
+      
+      removeGeeLayer(layerKey);
+      
+      const layerConfigs = {
+        ndvi: {
+          name: 'NDVI',
+          endpoint: '/api/gee/ndvi-tiles',
+          attribution: 'NDVI - Google Earth Engine'
+        },
+        lst: {
+          name: 'LST',
+          endpoint: '/api/gee/lst-tiles',
+          attribution: 'LST - Google Earth Engine'
+        },
+        pm25: {
+          name: 'PM2.5',
+          endpoint: '/api/gee/pm25-tiles',
+          attribution: 'PM2.5 - Google Earth Engine'
+        },
+        ndwi: {
+          name: 'NDWI',
+          endpoint: '/api/gee/ndwi-tiles',
+          attribution: 'NDWI - Google Earth Engine'
+        }
+      };
+      
+      const config = layerConfigs[layerKey];
+      if (!config) return;
+      
+      try {
+        // Por ahora, mostrar un placeholder
+        // En producción, esto haría fetch al endpoint y agregaría el layer real
+        logStatus(`Capa ${config.name} cargada (demo)`, 'info', 'ecoplan');
+        
+        // Placeholder: Agregar un layer de ejemplo
+        // En producción reemplazarías esto con:
+        // const response = await fetch(config.endpoint + '?bounds=...');
+        // const tileUrl = await response.json();
+        // const layer = L.tileLayer(tileUrl, { ...options });
+        
+      } catch (error) {
+        console.error(`Error cargando capa ${layerKey}:`, error);
+        logStatus(`Error cargando capa ${config.name}`, 'error', 'ecoplan');
+      }
+    }
+    
+    function removeGeeLayer(layerKey) {
+      if (geeLayerObjects[layerKey]) {
+        map.removeLayer(geeLayerObjects[layerKey]);
+        geeLayerObjects[layerKey] = null;
+      }
+    }
+    
+    function updateGeeLayerOpacity(layerKey, opacity) {
+      if (geeLayerObjects[layerKey] && geeLayerObjects[layerKey].setOpacity) {
+        geeLayerObjects[layerKey].setOpacity(opacity);
+      }
+    }
+    
+    // Función auxiliar para hacer funciones globales accesibles desde onclick
+    window.focusReportOnMap = focusReportOnMap;
+    window.viewReportPhoto = viewReportPhoto;
+
+    // ========== FIN FUNCIONES EXPLORAR ==========
+
     function renderCitizenReportsList(reports = []) {
       if (!citizenReportsList || !citizenReportsEmptyMessage) {
         return;
@@ -2472,6 +3089,13 @@
         citizenReportsLoaded = true;
         renderCitizenReportsList(reports);
         renderCitizenReportMarkers(reports);
+        
+        // Actualizar sistema Explorar
+        exploreFilteredReports = [...reports];
+        renderExploreIndicators();
+        renderExploreReportsList();
+        renderExploreMarkers();
+        
         updateCitizenReportStatus('', 'idle');
         if (announce) {
           logStatus(`Reportes ciudadanos actualizados (${reports.length}).`, 'success', 'ecoplan');
@@ -4783,6 +5407,10 @@
       fetchPresets();
       loadReportRunsAutoRefreshSettings();
       applyReportRunsAutoRefreshDomState();
+      
+      // Inicializar sistema Explorar
+      initializeExploreSystem();
+      
       const savedModePreference = loadModePreference();
       if (savedModePreference && savedModePreference !== currentMode) {
         currentMode = savedModePreference;
