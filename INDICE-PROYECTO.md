@@ -99,6 +99,126 @@
 - `tests/test-microencuestas.sh` - 15 casos de prueba (650 líneas)
 
 **Características**:
+- 🎯 9 preguntas pre-configuradas por categoría de reporte
+- 🔘 Chips de respuesta (1 clic, sin escribir)
+- 📊 Agregación automática por barrio
+- 🔁 Progreso de participación por zona
+- ⚡ Sin fricción: responder toma <10 segundos
+
+**Endpoints**:
+- GET `/api/micro-surveys/questions/:category`
+- POST `/api/micro-surveys/respond`
+- GET `/api/micro-surveys/neighborhood/:barrio/progress`
+- GET `/api/micro-surveys/neighborhood/:barrio/results`
+- GET `/api/micro-surveys/metrics`
+- GET `/api/micro-surveys/templates`
+
+**Testing**: 15 tests automatizados (algunos con issues async)
+
+---
+
+### ✅ Fase 5: Descargas Abiertas (Completada)
+**Objetivo**: Exportar datos en formatos abiertos (CSV/GeoJSON) con licencia CC BY 4.0
+
+**Archivos**:
+- `services/dataExportService.js` - Servicio de exportación (620 líneas)
+- `server.js` - 4 endpoints REST
+- `public/index.html` - UI de descarga con selector de formato (365 líneas)
+- `tests/test-descargas.sh` - 15 casos de prueba (650 líneas)
+- `docs/descargas-abiertas.md` - Manual técnico (850+ líneas)
+- `IMPLEMENTACION-DESCARGAS.md` - Resumen ejecutivo
+
+**Características**:
+- 📦 8 capas de datos disponibles
+- 📄 Formatos: CSV y GeoJSON
+- 🔓 Licencia: CC BY 4.0
+- 🔢 Tracking de descargas con ID único
+- 📅 Filtros: rango de fechas, solo validados
+- 📊 Metadatos completos por capa
+- 🎨 UI intuitiva con animaciones
+
+**Capas Disponibles**:
+1. Reportes ciudadanos (citizen_reports)
+2. Reportes validados (validated_reports)
+3. Votos de validación (validation_votes)
+4. Respuestas micro-encuestas (survey_responses)
+5. Agregaciones por barrio (neighborhood_aggregations)
+6. Estadísticas de validación (validation_stats)
+7. Duplicados detectados (duplicates)
+8. Historial de cambios (audit_trail)
+
+**Endpoints**:
+- GET `/api/exports/layers`
+- GET `/api/exports/download`
+- GET `/api/exports/stats`
+- GET `/api/exports/metadata/:layerId`
+
+**Testing**: `./tests/test-descargas.sh` (15/15 tests pasando ✅)
+
+**Documentación**: ~1,500 líneas totales
+
+---
+
+### ✅ Fase 6: Mi Barrio - Análisis con Semáforos (Completada)
+**Objetivo**: Mostrar índices ambientales por barrio con semáforos visuales y recomendaciones
+
+**Archivos**:
+- `services/neighborhoodAnalysisService.js` - Análisis de barrios (660 líneas)
+- `server.js` - 3 endpoints REST
+- `public/index.html` - UI con tarjetas de semáforos
+- `tests/test-mi-barrio.sh` - 28 casos de prueba (458 líneas)
+- `docs/mi-barrio.md` - Manual técnico (668 líneas)
+- `IMPLEMENTACION-MI-BARRIO.md` - Resumen ejecutivo (536 líneas)
+
+**Características**:
+- 🏘️ 12 barrios de Lima (cobertura ~1.2M habitantes)
+- 🚦 4 índices con semáforos (🟢🟡🔴):
+  * 🌳 Áreas Verdes (NDVI)
+  * 🌡️ Temperatura (LST)
+  * 🌫️ Calidad del Aire (PM2.5)
+  * 💧 Índice Hídrico (NDWI)
+- 📊 Score general ponderado (0-100)
+- 💡 Explicaciones claras ("qué significa")
+- ✅ 3-5 acciones recomendadas por índice
+- 📈 Tendencias temporales (mejorando/empeorando)
+- 🏆 Comparación entre barrios con rankings
+- 🔬 Fundamento científico (umbrales OMS/EPA)
+
+**Barrios Incluidos**:
+- Miraflores, San Isidro, Surquillo, Barranco
+- La Molina, Surco, San Miguel, Jesús María
+- Pueblo Libre, Magdalena, Lince, San Borja
+
+**Endpoints**:
+- GET `/api/neighborhoods` - Lista barrios
+- GET `/api/neighborhoods/:id/analysis` - Análisis completo
+- GET `/api/neighborhoods/compare?ids=...` - Comparar hasta 5
+
+**Testing**: 28 tests automatizados (requiere Earth Engine, puede tardar)
+
+**Documentación**: ~2,300 líneas totales
+
+---
+
+## 📦 Fase 7: Reportes Automatizados (En Desarrollo)
+**Objetivo**: Generar y distribuir reportes PDF periódicos por email
+
+**Archivos en progreso**:
+- `services/reportsService.js` - Orquestador de reportes
+- `services/pdfService.js` - Generación de PDFs con Puppeteer
+- `services/reportNotificationsService.js` - Envío de emails
+- `config/report-distribution.json` - Configuración de destinatarios
+
+**Características planeadas**:
+- 📄 PDFs con gráficos y mapas
+- 📧 Distribución automática por email
+- 📅 Calendario configurable (diario/semanal/mensual)
+- 🎯 Segmentación por barrio/categoría
+- 📊 Métricas de apertura y engagement
+
+**Estado**: Parcialmente implementado, pendiente testing
+
+**Características**:
 - 🎯 Respuestas de 1 clic (sin teclado)
 - 📱 UI con chips táctiles
 - 🗺️ Agregación por barrio (PostGIS)

@@ -1674,6 +1674,67 @@
             </div>
           </section>
 
+          <!-- MI BARRIO: Análisis con semáforos -->
+          <section class="card" style="border-left: 4px solid #8b5cf6;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+              <span style="font-size: 2rem;">🏘️</span>
+              <div>
+                <h2 class="section-title" style="margin: 0;">Mi Barrio</h2>
+                <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">
+                  Índices ambientales con semáforos y recomendaciones
+                </p>
+              </div>
+            </div>
+
+            <!-- Selector de barrio -->
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85rem;">
+                Selecciona tu barrio:
+              </label>
+              <select id="neighborhoodSelector" style="width: 100%; padding: 10px; font-size: 0.9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;">
+                <option value="">Cargando barrios...</option>
+              </select>
+            </div>
+
+            <!-- Estado de carga -->
+            <div id="neighborhoodLoading" style="display: none; text-align: center; padding: 40px 20px; color: var(--text-muted);">
+              <div style="font-size: 2rem; margin-bottom: 12px;">⏳</div>
+              <div>Analizando tu barrio con Earth Engine...</div>
+              <div style="font-size: 0.8rem; margin-top: 8px;">Calculando NDVI, LST, PM2.5 y NDWI</div>
+            </div>
+
+            <!-- Contenedor de resultados -->
+            <div id="neighborhoodResults" style="display: none;">
+              <!-- Header con score general -->
+              <div id="neighborhoodHeader" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2)); padding: 16px; border-radius: 12px; margin-bottom: 16px; text-align: center;">
+                <div style="font-size: 1.8rem; margin-bottom: 8px;" id="neighborhoodName">-</div>
+                <div style="display: flex; justify-content: center; align-items: center; gap: 12px;">
+                  <div style="font-size: 3rem;" id="overallEmoji">-</div>
+                  <div style="text-align: left;">
+                    <div style="font-size: 2rem; font-weight: 700;" id="overallScore">-</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">Score General</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tarjetas de índices -->
+              <div id="indicesCards" style="display: grid; gap: 12px;">
+                <!-- Se llenarán dinámicamente -->
+              </div>
+            </div>
+
+            <!-- Mensaje de ayuda inicial -->
+            <div id="neighborhoodHelp" style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+              <div style="font-size: 3rem; margin-bottom: 12px;">🏘️</div>
+              <div style="font-size: 0.9rem;">
+                Selecciona un barrio para ver sus índices ambientales
+              </div>
+              <div style="font-size: 0.8rem; margin-top: 8px;">
+                NDVI · Temperatura · Calidad del Aire · Índice Hídrico
+              </div>
+            </div>
+          </section>
+
           <section class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
               <h2 class="section-title" style="margin: 0;">Reportes Recientes</h2>
@@ -6581,6 +6642,235 @@
       }
       
       // ========== FIN DESCARGAS ABIERTAS ==========
+      
+      // ========== MI BARRIO: ANÁLISIS CON SEMÁFOROS ==========
+      const neighborhoodSelector = document.getElementById('neighborhoodSelector');
+      const neighborhoodLoading = document.getElementById('neighborhoodLoading');
+      const neighborhoodResults = document.getElementById('neighborhoodResults');
+      const neighborhoodHelp = document.getElementById('neighborhoodHelp');
+      const neighborhoodName = document.getElementById('neighborhoodName');
+      const overallScore = document.getElementById('overallScore');
+      const overallEmoji = document.getElementById('overallEmoji');
+      const indicesCards = document.getElementById('indicesCards');
+
+      // Cargar lista de barrios
+      async function loadNeighborhoods() {
+        try {
+          const response = await fetch('/api/neighborhoods');
+          const data = await response.json();
+          
+          neighborhoodSelector.innerHTML = '<option value="">Selecciona un barrio...</option>';
+          
+          data.neighborhoods.forEach(n => {
+            const option = document.createElement('option');
+            option.value = n.id;
+            option.textContent = `${n.name} (${n.population.toLocaleString()} hab.)`;
+            neighborhoodSelector.appendChild(option);
+          });
+        } catch (error) {
+          console.error('Error al cargar barrios:', error);
+          neighborhoodSelector.innerHTML = '<option value="">Error al cargar barrios</option>';
+        }
+      }
+
+      // Analizar barrio seleccionado
+      async function analyzeNeighborhood(neighborhoodId) {
+        if (!neighborhoodId) {
+          neighborhoodResults.style.display = 'none';
+          neighborhoodHelp.style.display = 'block';
+          return;
+        }
+
+        // Mostrar loading
+        neighborhoodHelp.style.display = 'none';
+        neighborhoodResults.style.display = 'none';
+        neighborhoodLoading.style.display = 'block';
+
+        try {
+          const response = await fetch(`/api/neighborhoods/${neighborhoodId}/analysis`);
+          
+          if (!response.ok) {
+            throw new Error('Error al obtener análisis');
+          }
+
+          const analysis = await response.json();
+          
+          // Ocultar loading, mostrar resultados
+          neighborhoodLoading.style.display = 'none';
+          neighborhoodResults.style.display = 'block';
+
+          // Actualizar header
+          neighborhoodName.textContent = analysis.neighborhood.name;
+          overallScore.textContent = Math.round(analysis.overallScore);
+          overallEmoji.textContent = getOverallEmoji(analysis.overallLevel);
+
+          // Generar tarjetas de índices
+          renderIndicesCards(analysis.indices);
+
+        } catch (error) {
+          console.error('Error al analizar barrio:', error);
+          neighborhoodLoading.style.display = 'none';
+          neighborhoodHelp.style.display = 'block';
+          alert('Error al analizar el barrio. Por favor intenta nuevamente.');
+        }
+      }
+
+      // Obtener emoji para nivel general
+      function getOverallEmoji(level) {
+        const emojis = {
+          excellent: '🌟',
+          good: '😊',
+          warning: '😐',
+          critical: '😰'
+        };
+        return emojis[level] || '❓';
+      }
+
+      // Renderizar tarjetas de índices
+      function renderIndicesCards(indices) {
+        indicesCards.innerHTML = '';
+
+        Object.entries(indices).forEach(([key, index]) => {
+          const card = document.createElement('div');
+          card.style.cssText = `
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 4px solid ${index.color};
+            border-radius: 12px;
+            padding: 16px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+          `;
+          
+          card.onmouseenter = () => {
+            card.style.transform = 'translateY(-2px)';
+            card.style.boxShadow = '0 8px 24px rgba(0,0,0,0.3)';
+          };
+          card.onmouseleave = () => {
+            card.style.transform = 'translateY(0)';
+            card.style.boxShadow = 'none';
+          };
+
+          // Header con nombre e icono
+          const header = document.createElement('div');
+          header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;';
+          header.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.5rem;">${index.icon}</span>
+              <span style="font-weight: 700; font-size: 1rem;">${index.name}</span>
+            </div>
+            <span style="font-size: 2rem;">${index.emoji}</span>
+          `;
+          card.appendChild(header);
+
+          // Valor del índice
+          const valueDiv = document.createElement('div');
+          valueDiv.style.cssText = 'margin-bottom: 12px;';
+          valueDiv.innerHTML = `
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+              <span style="font-size: 2rem; font-weight: 700; color: ${index.color};">${formatIndexValue(index.value, key)}</span>
+              <span style="font-size: 0.9rem; color: var(--text-muted);">${index.unit}</span>
+            </div>
+          `;
+          card.appendChild(valueDiv);
+
+          // Tendencia (si existe)
+          if (index.trend && index.trend.change !== 0) {
+            const trendDiv = document.createElement('div');
+            const trendIcon = index.trend.isImproving ? '📈' : '📉';
+            const trendColor = index.trend.isImproving ? '#10b981' : '#ef4444';
+            const trendText = index.trend.isImproving ? 'Mejorando' : 'Empeorando';
+            trendDiv.style.cssText = `
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              padding: 4px 10px;
+              background: rgba(${index.trend.isImproving ? '16, 185, 129' : '239, 68, 68'}, 0.15);
+              border-radius: 999px;
+              font-size: 0.75rem;
+              font-weight: 600;
+              color: ${trendColor};
+              margin-bottom: 12px;
+            `;
+            trendDiv.innerHTML = `
+              ${trendIcon} ${trendText} (${Math.abs(index.trend.percentChange).toFixed(1)}%)
+            `;
+            card.appendChild(trendDiv);
+          }
+
+          // Explicación
+          const explanationDiv = document.createElement('div');
+          explanationDiv.style.cssText = `
+            padding: 12px;
+            background: rgba(148, 163, 184, 0.1);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+          `;
+          explanationDiv.textContent = index.explanation;
+          card.appendChild(explanationDiv);
+
+          // Acciones recomendadas (colapsable)
+          const actionsDetails = document.createElement('details');
+          actionsDetails.style.cursor = 'pointer';
+          
+          const actionsSummary = document.createElement('summary');
+          actionsSummary.style.cssText = `
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: ${index.color};
+            user-select: none;
+            padding: 8px 0;
+          `;
+          actionsSummary.textContent = '💡 ¿Qué puedes hacer?';
+          actionsDetails.appendChild(actionsSummary);
+
+          const actionsList = document.createElement('ul');
+          actionsList.style.cssText = `
+            margin: 8px 0 0 0;
+            padding-left: 20px;
+            font-size: 0.8rem;
+            line-height: 1.8;
+            color: var(--text-muted);
+          `;
+          
+          index.actions.forEach(action => {
+            const li = document.createElement('li');
+            li.textContent = action;
+            actionsList.appendChild(li);
+          });
+          
+          actionsDetails.appendChild(actionsList);
+          card.appendChild(actionsDetails);
+
+          indicesCards.appendChild(card);
+        });
+      }
+
+      // Formatear valor de índice
+      function formatIndexValue(value, indexType) {
+        if (indexType === 'vegetation' || indexType === 'water') {
+          return value.toFixed(2);
+        } else if (indexType === 'heat') {
+          return value.toFixed(1);
+        } else if (indexType === 'air') {
+          return Math.round(value);
+        }
+        return value.toFixed(2);
+      }
+
+      // Event listener para selector de barrio
+      if (neighborhoodSelector) {
+        neighborhoodSelector.addEventListener('change', (e) => {
+          analyzeNeighborhood(e.target.value);
+        });
+        
+        // Cargar lista de barrios al iniciar
+        loadNeighborhoods();
+      }
+
+      // ========== FIN MI BARRIO ==========
       
       if (closeNewReportModalBtn) {
         closeNewReportModalBtn.addEventListener('click', closeNewReportModal);

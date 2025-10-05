@@ -2717,6 +2717,126 @@ app.get('/api/exports/metadata/:layerId', async (req, res) => {
 // FIN ENDPOINTS DE DESCARGAS ABIERTAS
 // ============================================================================
 
+// ============================================================================
+// MI BARRIO - ANÁLISIS POR BARRIO CON SEMÁFOROS
+// ============================================================================
+const neighborhoodAnalysisService = require('./services/neighborhoodAnalysisService');
+
+/**
+ * GET /api/neighborhoods
+ * Lista barrios disponibles para análisis
+ */
+app.get('/api/neighborhoods', async (req, res) => {
+  try {
+    const neighborhoods = neighborhoodAnalysisService.getNeighborhoods();
+    res.json({
+      neighborhoods,
+      total: neighborhoods.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error en GET /api/neighborhoods:', error);
+    res.status(500).json({ error: 'No se pudo obtener lista de barrios' });
+  }
+});
+
+/**
+ * GET /api/neighborhoods/:neighborhoodId/analysis
+ * Obtiene análisis completo de un barrio con todos los índices
+ */
+app.get('/api/neighborhoods/:neighborhoodId/analysis', async (req, res) => {
+  try {
+    const { neighborhoodId } = req.params;
+    
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine no está inicializado',
+        message: 'Por favor espera unos segundos e intenta nuevamente'
+      });
+    }
+
+    const analysis = await neighborhoodAnalysisService.analyzeNeighborhood(neighborhoodId);
+    
+    res.json(analysis);
+  } catch (error) {
+    console.error(`Error en GET /api/neighborhoods/${req.params.neighborhoodId}/analysis:`, error);
+    
+    if (error.message === 'Barrio no encontrado') {
+      return res.status(404).json({ error: error.message });
+    }
+    
+    res.status(500).json({ 
+      error: 'No se pudo analizar el barrio',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/neighborhoods/compare
+ * Compara múltiples barrios (máx 5)
+ */
+app.get('/api/neighborhoods/compare', async (req, res) => {
+  try {
+    const neighborhoodIds = req.query.ids?.split(',') || [];
+    
+    if (neighborhoodIds.length === 0) {
+      return res.status(400).json({ 
+        error: 'Parámetro "ids" requerido',
+        example: '/api/neighborhoods/compare?ids=miraflores,san-isidro,surco'
+      });
+    }
+
+    if (neighborhoodIds.length > 5) {
+      return res.status(400).json({ 
+        error: 'Máximo 5 barrios permitidos para comparación'
+      });
+    }
+
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine no está inicializado'
+      });
+    }
+
+    // Analizar todos los barrios en paralelo
+    const analyses = await Promise.all(
+      neighborhoodIds.map(id => neighborhoodAnalysisService.analyzeNeighborhood(id))
+    );
+
+    // Calcular rankings
+    const rankings = {
+      vegetation: analyses.sort((a, b) => b.indices.vegetation.value - a.indices.vegetation.value),
+      heat: analyses.sort((a, b) => a.indices.heat.value - b.indices.heat.value),
+      air: analyses.sort((a, b) => a.indices.air.value - b.indices.air.value),
+      water: analyses.sort((a, b) => b.indices.water.value - a.indices.water.value),
+      overall: analyses.sort((a, b) => b.overallScore - a.overallScore)
+    };
+
+    res.json({
+      neighborhoods: analyses,
+      rankings: {
+        vegetation: rankings.vegetation.map((a, i) => ({ rank: i + 1, id: a.neighborhood.id, name: a.neighborhood.name, value: a.indices.vegetation.value })),
+        heat: rankings.heat.map((a, i) => ({ rank: i + 1, id: a.neighborhood.id, name: a.neighborhood.name, value: a.indices.heat.value })),
+        air: rankings.air.map((a, i) => ({ rank: i + 1, id: a.neighborhood.id, name: a.neighborhood.name, value: a.indices.air.value })),
+        water: rankings.water.map((a, i) => ({ rank: i + 1, id: a.neighborhood.id, name: a.neighborhood.name, value: a.indices.water.value })),
+        overall: rankings.overall.map((a, i) => ({ rank: i + 1, id: a.neighborhood.id, name: a.neighborhood.name, score: a.overallScore }))
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error en GET /api/neighborhoods/compare:', error);
+    res.status(500).json({ 
+      error: 'No se pudo comparar barrios',
+      message: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// FIN ENDPOINTS DE MI BARRIO
+// ============================================================================
+
 // Generación de reportes EcoPlan
 app.post('/api/reports/generate', async (req, res) => {
     if (!eeInitialized) {
