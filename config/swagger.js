@@ -113,7 +113,11 @@ Puedes usar, compartir y adaptar los datos citando la fuente.
       },
       {
         name: 'Earth Engine',
-        description: 'Datos satelitales y tiles de mapas'
+        description: 'Integración con Google Earth Engine para datos satelitales'
+      },
+      {
+        name: 'Recomendaciones',
+        description: 'Sistema de priorización de barrios y recomendación de intervenciones (AHP/TOPSIS)'
       }
     ],
     components: {

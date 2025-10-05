@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Panel de Autoridades - Priorización de intervenciones ambientales">
+    <title>Panel de Autoridades | EcoPlan</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2E7D32;
+            --secondary: #1976D2;
+            --critical: #D32F2F;
+            --high: #F57C00;
+            --medium: #FBC02D;
+            --low: #388E3C;
+            --text: #212121;
+            --text-light: #757575;
+            --bg: #F5F5F5;
+            --white: #FFFFFF;
+            --shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+        }
+
+        /* HEADER */
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, #1B5E20 100%);
+            color: var(--white);
+            padding: 1.5rem 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        .header-subtitle {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-top: 0.3rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background-color: var(--white);
+            color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .btn-secondary {
+            background-color: rgba(255,255,255,0.2);
+            color: var(--white);
+            border: 1px solid var(--white);
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(255,255,255,0.3);
+        }
+
+        .btn-success {
+            background-color: var(--low);
+            color: var(--white);
+        }
+
+        .btn-info {
+            background-color: var(--secondary);
+            color: var(--white);
+        }
+
+        /* MAIN CONTAINER */
+        .container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        /* STATS CARDS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--white);
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            border-left: 4px solid var(--primary);
+        }
+
+        .stat-card.critical {
+            border-left-color: var(--critical);
+        }
+
+        .stat-card.high {
+            border-left-color: var(--high);
+        }
+
+        .stat-card.medium {
+            border-left-color: var(--medium);
+        }
+
+        .stat-card.low {
+            border-left-color: var(--low);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-light);
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-top: 0.5rem;
+            color: var(--text);
+        }
+
+        .stat-description {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-top: 0.5rem;
+        }
+
+        /* TABS */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #E0E0E0;
+        }
+
+        .tab {
+            padding: 1rem 2rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-light);
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .tab:hover {
+            color: var(--primary);
+        }
+
+        .tab.active {
+            color: var(--primary);
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--primary);
+        }
+
+        /* PANELS */
+        .panel {
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* FILTER BAR */
+        .filter-bar {
+            background: var(--white);
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .filter-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .filter-input {
+            padding: 0.6rem;
+            border: 1px solid #E0E0E0;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* TABLE */
+        .table-container {
+            background: var(--white);
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            overflow-x: auto;
+        }
+
+        table.dataTable {
+            width: 100% !important;
+        }
+
+        .vulnerability-badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .vulnerability-badge.critical {
+            background-color: #FFEBEE;
+            color: var(--critical);
+        }
+
+        .vulnerability-badge.high {
+            background-color: #FFF3E0;
+            color: var(--high);
+        }
+
+        .vulnerability-badge.medium {
+            background-color: #FFFDE7;
+            color: #F9A825;
+        }
+
+        .vulnerability-badge.low {
+            background-color: #E8F5E9;
+            color: var(--low);
+        }
+
+        .priority-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-weight: 600;
+        }
+
+        .priority-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .priority-dot.p1 { background-color: var(--critical); }
+        .priority-dot.p2 { background-color: var(--high); }
+        .priority-dot.p3 { background-color: var(--medium); }
+        .priority-dot.p4 { background-color: var(--low); }
+
+        /* MAP */
+        #map {
+            height: 600px;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+        }
+
+        .leaflet-popup-content {
+            font-size: 0.9rem;
+        }
+
+        .popup-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+
+        .popup-detail {
+            margin: 0.3rem 0;
+        }
+
+        .popup-detail strong {
+            display: inline-block;
+            width: 130px;
+        }
+
+        /* MODAL */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        .modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: var(--white);
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            animation: slideUp 0.3s;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .close-modal {
+            font-size: 2rem;
+            color: var(--text-light);
+            cursor: pointer;
+            border: none;
+            background: none;
+            line-height: 1;
+        }
+
+        .close-modal:hover {
+            color: var(--text);
+        }
+
+        .modal-section {
+            margin-bottom: 2rem;
+        }
+
+        .modal-section h3 {
+            font-size: 1.2rem;
+            color: var(--text);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .intervention-card {
+            background: var(--bg);
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            border-left: 3px solid var(--primary);
+        }
+
+        .intervention-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .intervention-name {
+            font-weight: 600;
+            font-size: 1.05rem;
+        }
+
+        .intervention-cost {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .intervention-description {
+            font-size: 0.9rem;
+            color: var(--text-light);
+            margin: 0.5rem 0;
+        }
+
+        .intervention-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.8rem;
+            margin-top: 0.8rem;
+            font-size: 0.85rem;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .detail-label {
+            color: var(--text-light);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .detail-value {
+            color: var(--text);
+            font-weight: 500;
+            margin-top: 0.2rem;
+        }
+
+        /* CHARTS */
+        .chart-container {
+            background: var(--white);
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        .chart-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+
+        /* LOADING */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-light);
+        }
+
+        .spinner {
+            border: 4px solid var(--bg);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tabs {
+                overflow-x: auto;
+            }
+
+            .filter-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .modal-content {
+                margin: 1rem;
+                max-width: calc(100% - 2rem);
+            }
+        }
+
+        /* EXPORT FORMATS */
+        .export-options {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .export-format {
+            padding: 1rem;
+            border: 2px solid #E0E0E0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .export-format:hover {
+            border-color: var(--primary);
+            background-color: var(--bg);
+        }
+
+        .export-format.selected {
+            border-color: var(--primary);
+            background-color: #E8F5E9;
+        }
+
+        .export-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .export-name {
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+        }
+
+        .export-description {
+            font-size: 0.8rem;
+            color: var(--text-light);
+        }
+    </style>
+</head>
+<body>
+    <!-- HEADER -->
+    <header class="header">
+        <div class="header-content">
+            <div>
+                <h1>🏛️ Panel de Autoridades</h1>
+                <p class="header-subtitle">Sistema de Priorización de Intervenciones Ambientales</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="window.location.href='/'">
+                    ← Ir a Mapa Principal
+                </button>
+                <button class="btn btn-primary" onclick="exportData()">
+                    📥 Exportar Datos
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTAINER -->
+    <div class="container">
+        <!-- STATS CARDS -->
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="stat-label">Total Barrios</div>
+                <div class="stat-value" id="totalNeighborhoods">-</div>
+                <div class="stat-description">Analizados</div>
+            </div>
+            <div class="stat-card critical">
+                <div class="stat-label">Vulnerabilidad Crítica</div>
+                <div class="stat-value" id="criticalCount">-</div>
+                <div class="stat-description">Requieren atención urgente</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Población Total</div>
+                <div class="stat-value" id="totalPopulation">-</div>
+                <div class="stat-description">Habitantes beneficiados</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Presupuesto Disponible</div>
+                <div class="stat-value" id="availableBudget">$5M</div>
+                <div class="stat-description">USD</div>
+            </div>
+        </div>
+
+        <!-- TABS -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('ranking')">
+                🏆 Ranking de Barrios
+            </button>
+            <button class="tab" onclick="switchTab('map')">
+                🗺️ Mapa Interactivo
+            </button>
+            <button class="tab" onclick="switchTab('portfolio')">
+                📊 Portafolio de Intervenciones
+            </button>
+            <button class="tab" onclick="switchTab('export')">
+                📦 Exportar para SIG
+            </button>
+        </div>
+
+        <!-- PANEL: RANKING -->
+        <div id="panel-ranking" class="panel active">
+            <div class="filter-bar">
+                <div class="filter-grid">
+                    <div class="filter-group">
+                        <label class="filter-label">Presupuesto Máximo (USD)</label>
+                        <input type="number" id="maxBudget" class="filter-input" 
+                               value="5000000" step="100000" min="0">
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Vulnerabilidad Mínima</label>
+                        <select id="minVulnerability" class="filter-input">
+                            <option value="0">Todas</option>
+                            <option value="0.3">Media o superior</option>
+                            <option value="0.5">Alta o superior</option>
+                            <option value="0.7">Solo Crítica</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Plazo (meses)</label>
+                        <input type="number" id="timeframe" class="filter-input" 
+                               value="36" min="6" max="120">
+                    </div>
+                    <div class="filter-group" style="align-self: end;">
+                        <button class="btn btn-info" onclick="applyFilters()" style="width: 100%;">
+                            🔍 Aplicar Filtros
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table id="rankingTable" class="display" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Barrio</th>
+                            <th>Vulnerabilidad</th>
+                            <th>Clasificación</th>
+                            <th>Prioridad</th>
+                            <th>Población</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rankingTableBody">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- PANEL: MAPA -->
+        <div id="panel-map" class="panel">
+            <div id="map"></div>
+        </div>
+
+        <!-- PANEL: PORTAFOLIO -->
+        <div id="panel-portfolio" class="panel">
+            <div class="chart-container">
+                <h3 class="chart-title">📈 Distribución de Presupuesto</h3>
+                <canvas id="budgetChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">🎯 Impacto Esperado por Barrio</h3>
+                <canvas id="impactChart"></canvas>
+            </div>
+
+            <div id="portfolioSummary" class="table-container">
+                <!-- Populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- PANEL: EXPORTAR -->
+        <div id="panel-export" class="panel">
+            <div class="filter-bar">
+                <h3 style="margin-bottom: 1rem;">Seleccione el formato de exportación:</h3>
+                <div class="export-options">
+                    <div class="export-format" onclick="selectExportFormat('wms')">
+                        <div class="export-icon">🌐</div>
+                        <div class="export-name">WMS</div>
+                        <div class="export-description">Web Map Service - Para visualización en SIG</div>
+                    </div>
+                    <div class="export-format" onclick="selectExportFormat('wfs')">
+                        <div class="export-icon">📍</div>
+                        <div class="export-name">WFS</div>
+                        <div class="export-description">Web Feature Service - Datos vectoriales editables</div>
+                    </div>
+                    <div class="export-format" onclick="selectExportFormat('geojson')">
+                        <div class="export-icon">🗺️</div>
+                        <div class="export-name">GeoJSON</div>
+                        <div class="export-description">Formato estándar web - Universal</div>
+                    </div>
+                    <div class="export-format" onclick="selectExportFormat('shapefile')">
+                        <div class="export-icon">📦</div>
+                        <div class="export-name">Shapefile</div>
+                        <div class="export-description">Formato tradicional SIG - ArcGIS/QGIS</div>
+                    </div>
+                    <div class="export-format" onclick="selectExportFormat('kml')">
+                        <div class="export-icon">🌍</div>
+                        <div class="export-name">KML</div>
+                        <div class="export-description">Google Earth - Visualización 3D</div>
+                    </div>
+                    <div class="export-format" onclick="selectExportFormat('pdf')">
+                        <div class="export-icon">📄</div>
+                        <div class="export-name">PDF Report</div>
+                        <div class="export-description">Reporte completo con recomendaciones</div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 2rem;">
+                    <h4 style="margin-bottom: 1rem;">URLs de Servicios WMS/WFS:</h4>
+                    <div style="background: var(--bg); padding: 1rem; border-radius: 4px; font-family: monospace; font-size: 0.85rem;">
+                        <div style="margin-bottom: 0.5rem;">
+                            <strong>WMS GetCapabilities:</strong><br>
+                            <code id="wmsUrl">http://localhost:3000/api/wms?service=WMS&request=GetCapabilities</code>
+                            <button class="btn btn-secondary" style="margin-left: 1rem; padding: 0.3rem 0.8rem;" onclick="copyToClipboard('wmsUrl')">📋 Copiar</button>
+                        </div>
+                        <div style="margin-bottom: 0.5rem;">
+                            <strong>WFS GetCapabilities:</strong><br>
+                            <code id="wfsUrl">http://localhost:3000/api/wfs?service=WFS&request=GetCapabilities</code>
+                            <button class="btn btn-secondary" style="margin-left: 1rem; padding: 0.3rem 0.8rem;" onclick="copyToClipboard('wfsUrl')">📋 Copiar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: RECOMENDACIONES -->
+    <div id="recommendationsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalNeighborhoodName"></h2>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
+            </div>
+            
+            <div class="modal-section">
+                <h3>🔍 Análisis de Vulnerabilidad</h3>
+                <div id="modalVulnerability"></div>
+            </div>
+
+            <div class="modal-section">
+                <h3>💡 Intervenciones Recomendadas</h3>
+                <div id="modalInterventions"></div>
+            </div>
+
+            <div class="modal-section">
+                <h3>📈 Impacto Esperado</h3>
+                <div id="modalImpact"></div>
+            </div>
+
+            <div style="text-align: center; margin-top: 2rem;">
+                <button class="btn btn-success" onclick="downloadPDF()">
+                    📄 Descargar Reporte PDF
+                </button>
+                <button class="btn btn-secondary" onclick="closeModal()">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <script>
+        // ===== VARIABLES GLOBALES =====
+        let rankingData = [];
+        let portfolioData = null;
+        let map = null;
+        let dataTable = null;
+        let selectedNeighborhood = null;
+
+        // ===== INICIALIZACIÓN =====
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadRanking();
+            initializeMap();
+        });
+
+        // ===== CAMBIO DE TABS =====
+        function switchTab(tabName) {
+            // Desactivar todos los tabs y paneles
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+
+            // Activar tab y panel seleccionado
+            event.target.classList.add('active');
+            document.getElementById(`panel-${tabName}`).classList.add('active');
+
+            // Inicializar contenido específico si es necesario
+            if (tabName === 'map' && !map) {
+                initializeMap();
+            } else if (tabName === 'portfolio' && !portfolioData) {
+                loadPortfolio();
+            } else if (tabName === 'map' && map) {
+                setTimeout(() => map.invalidateSize(), 100);
+            }
+        }
+
+        // ===== CARGAR RANKING =====
+        async function loadRanking() {
+            try {
+                const maxBudget = document.getElementById('maxBudget')?.value || 5000000;
+                const timeframe = document.getElementById('timeframe')?.value || 36;
+
+                const response = await fetch(`/api/recommendations/prioritize`);
+                
+                if (!response.ok) {
+                    throw new Error('Error al cargar ranking');
+                }
+
+                rankingData = await response.json();
+                
+                updateStats();
+                populateRankingTable();
+                
+            } catch (error) {
+                console.error('Error cargando ranking:', error);
+                alert('Error al cargar el ranking de barrios');
+            }
+        }
+
+        // ===== ACTUALIZAR ESTADÍSTICAS =====
+        function updateStats() {
+            const total = rankingData.length;
+            const critical = rankingData.filter(n => n.classification === 'critical').length;
+            const totalPop = rankingData.reduce((sum, n) => sum + (n.population || 0), 0);
+
+            document.getElementById('totalNeighborhoods').textContent = total;
+            document.getElementById('criticalCount').textContent = critical;
+            document.getElementById('totalPopulation').textContent = totalPop.toLocaleString('es-PE');
+        }
+
+        // ===== POBLAR TABLA =====
+        function populateRankingTable() {
+            const tbody = document.getElementById('rankingTableBody');
+            tbody.innerHTML = '';
+
+            rankingData.forEach((neighborhood, index) => {
+                const row = document.createElement('tr');
+                
+                const vulnPercent = (neighborhood.score * 100).toFixed(1);
+                const classText = neighborhood.classification.toUpperCase();
+                const priorityClass = `p${neighborhood.priority}`;
+
+                row.innerHTML = `
+                    <td>${neighborhood.rank}</td>
+                    <td><strong>${neighborhood.neighborhoodName}</strong></td>
+                    <td>${vulnPercent}%</td>
+                    <td><span class="vulnerability-badge ${neighborhood.classification}">${classText}</span></td>
+                    <td>
+                        <div class="priority-indicator">
+                            <span class="priority-dot ${priorityClass}"></span>
+                            Nivel ${neighborhood.priority}
+                        </div>
+                    </td>
+                    <td>${(neighborhood.population || 0).toLocaleString('es-PE')}</td>
+                    <td>
+                        <button class="btn btn-info" style="padding: 0.4rem 0.8rem;" 
+                                onclick="viewRecommendations('${neighborhood.neighborhoodId}')">
+                            Ver Detalles
+                        </button>
+                    </td>
+                `;
+
+                tbody.appendChild(row);
+            });
+
+            // Inicializar DataTable si no existe
+            if (dataTable) {
+                dataTable.destroy();
+            }
+
+            dataTable = $('#rankingTable').DataTable({
+                language: {
+                    url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
+                },
+                order: [[0, 'asc']],
+                pageLength: 10
+            });
+        }
+
+        // ===== APLICAR FILTROS =====
+        async function applyFilters() {
+            await loadRanking();
+        }
+
+        // ===== VER RECOMENDACIONES =====
+        async function viewRecommendations(neighborhoodId) {
+            try {
+                const maxBudget = document.getElementById('maxBudget')?.value || 1000000;
+                const timeframe = document.getElementById('timeframe')?.value || 24;
+
+                const response = await fetch(
+                    `/api/recommendations/recommend/${neighborhoodId}?budget=${maxBudget}&timeframe=${timeframe}`
+                );
+
+                if (!response.ok) {
+                    throw new Error('Error al cargar recomendaciones');
+                }
+
+                const recommendations = await response.json();
+                selectedNeighborhood = recommendations;
+                
+                showRecommendationsModal(recommendations);
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al cargar recomendaciones');
+            }
+        }
+
+        // ===== MOSTRAR MODAL =====
+        function showRecommendationsModal(data) {
+            document.getElementById('modalNeighborhoodName').textContent = data.neighborhoodName;
+
+            // Vulnerabilidad
+            const vulnHtml = `
+                <div style="background: var(--bg); padding: 1rem; border-radius: 4px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div>
+                            <div class="detail-label">Índice de Vulnerabilidad</div>
+                            <div class="detail-value" style="font-size: 1.5rem; color: var(--critical);">
+                                ${(data.vulnerability.score * 100).toFixed(1)}%
+                            </div>
+                        </div>
+                        <div>
+                            <div class="detail-label">Clasificación</div>
+                            <div class="detail-value">
+                                <span class="vulnerability-badge ${data.vulnerability.classification}">
+                                    ${data.vulnerability.classification.toUpperCase()}
+                                </span>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="detail-label">Prioridad</div>
+                            <div class="detail-value">Nivel ${data.vulnerability.priority}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modalVulnerability').innerHTML = vulnHtml;
+
+            // Intervenciones
+            let interventionsHtml = '';
+            if (data.recommendations.length === 0) {
+                interventionsHtml = '<p style="color: var(--text-light);">No se encontraron intervenciones viables con el presupuesto disponible.</p>';
+            } else {
+                data.recommendations.forEach((intervention, index) => {
+                    interventionsHtml += `
+                        <div class="intervention-card">
+                            <div class="intervention-header">
+                                <div class="intervention-name">${index + 1}. ${intervention.name}</div>
+                                <div class="intervention-cost">$${intervention.estimatedCost.toLocaleString('es-PE')}</div>
+                            </div>
+                            <div class="intervention-description">${intervention.description}</div>
+                            <div class="intervention-details">
+                                <div class="detail-item">
+                                    <span class="detail-label">Escala</span>
+                                    <span class="detail-value">${intervention.suggestedScale ? 
+                                        Object.values(intervention.suggestedScale)[0] + ' ' + intervention.suggestedScale.unit 
+                                        : 'N/A'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Tiempo</span>
+                                    <span class="detail-value">${intervention.implementationTime} meses</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Viabilidad</span>
+                                    <span class="detail-value">${intervention.viability === 'high' ? 'Alta ✓' : 
+                                                                 intervention.viability === 'medium' ? 'Media ●' : 'Baja ▼'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('modalInterventions').innerHTML = interventionsHtml;
+
+            // Impacto
+            let impactHtml = '';
+            if (data.combinedImpact) {
+                impactHtml = `
+                    <div style="background: var(--bg); padding: 1rem; border-radius: 4px;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                            <div class="detail-item">
+                                <span class="detail-label">Reducción de Temperatura</span>
+                                <span class="detail-value" style="color: var(--critical);">-${data.combinedImpact.heat.reduction}°C</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Aumento de Vegetación</span>
+                                <span class="detail-value" style="color: var(--low);">+${data.combinedImpact.vegetation.increase} NDVI</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Mejora Calidad del Aire</span>
+                                <span class="detail-value" style="color: var(--secondary);">+${data.combinedImpact.airQuality.improvement}%</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Reducción de Vulnerabilidad</span>
+                                <span class="detail-value" style="color: var(--primary); font-size: 1.3rem; font-weight: 700;">
+                                    ${data.combinedImpact.vulnerabilityReduction}%
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                impactHtml = '<p style="color: var(--text-light);">No hay proyecciones de impacto disponibles.</p>';
+            }
+            document.getElementById('modalImpact').innerHTML = impactHtml;
+
+            // Mostrar modal
+            document.getElementById('recommendationsModal').classList.add('active');
+        }
+
+        // ===== CERRAR MODAL =====
+        function closeModal() {
+            document.getElementById('recommendationsModal').classList.remove('active');
+        }
+
+        // ===== DESCARGAR PDF =====
+        async function downloadPDF() {
+            if (!selectedNeighborhood) return;
+
+            try {
+                const response = await fetch(`/api/recommendations/pdf/${selectedNeighborhood.neighborhoodId}`);
+                
+                if (!response.ok) {
+                    throw new Error('Error al generar PDF');
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `recomendaciones_${selectedNeighborhood.neighborhoodId}_${Date.now()}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al generar el PDF. Por favor intente de nuevo.');
+            }
+        }
+
+        // ===== INICIALIZAR MAPA =====
+        function initializeMap() {
+            if (map) return;
+
+            map = L.map('map').setView([-12.0464, -77.0428], 11);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Agregar marcadores de barrios
+            rankingData.forEach(neighborhood => {
+                // Usar coordenadas aproximadas (en producción, obtener del backend)
+                const lat = -12.0464 + (Math.random() - 0.5) * 0.2;
+                const lng = -77.0428 + (Math.random() - 0.5) * 0.2;
+
+                const color = neighborhood.classification === 'critical' ? 'red' :
+                             neighborhood.classification === 'high' ? 'orange' :
+                             neighborhood.classification === 'medium' ? 'yellow' : 'green';
+
+                const marker = L.circleMarker([lat, lng], {
+                    radius: 8,
+                    fillColor: color,
+                    color: '#fff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map);
+
+                marker.bindPopup(`
+                    <div class="popup-title">${neighborhood.neighborhoodName}</div>
+                    <div class="popup-detail">
+                        <strong>Vulnerabilidad:</strong> ${(neighborhood.score * 100).toFixed(1)}%
+                    </div>
+                    <div class="popup-detail">
+                        <strong>Clasificación:</strong> 
+                        <span class="vulnerability-badge ${neighborhood.classification}">
+                            ${neighborhood.classification.toUpperCase()}
+                        </span>
+                    </div>
+                    <div class="popup-detail">
+                        <strong>Prioridad:</strong> Nivel ${neighborhood.priority}
+                    </div>
+                    <div style="margin-top: 0.8rem;">
+                        <button class="btn btn-info" style="padding: 0.4rem 0.8rem; width: 100%;"
+                                onclick="viewRecommendations('${neighborhood.neighborhoodId}')">
+                            Ver Recomendaciones
+                        </button>
+                    </div>
+                `);
+            });
+        }
+
+        // ===== CARGAR PORTAFOLIO =====
+        async function loadPortfolio() {
+            try {
+                const maxBudget = document.getElementById('maxBudget')?.value || 5000000;
+                const timeframe = document.getElementById('timeframe')?.value || 36;
+
+                const response = await fetch(
+                    `/api/recommendations/portfolio?totalBudget=${maxBudget}&timeframe=${timeframe}`
+                );
+
+                if (!response.ok) {
+                    throw new Error('Error al cargar portafolio');
+                }
+
+                portfolioData = await response.json();
+                
+                renderBudgetChart();
+                renderImpactChart();
+                renderPortfolioSummary();
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al cargar portafolio');
+            }
+        }
+
+        // ===== RENDERIZAR GRÁFICO DE PRESUPUESTO =====
+        function renderBudgetChart() {
+            const ctx = document.getElementById('budgetChart').getContext('2d');
+            
+            const labels = portfolioData.portfolio.map(p => p.neighborhoodName);
+            const data = portfolioData.portfolio.map(p => p.budgetAllocated);
+            const colors = portfolioData.portfolio.map(p => {
+                return p.classification === 'critical' ? '#D32F2F' :
+                       p.classification === 'high' ? '#F57C00' :
+                       p.classification === 'medium' ? '#FBC02D' : '#388E3C';
+            });
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Presupuesto Asignado (USD)',
+                        data: data,
+                        backgroundColor: colors
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString('es-PE');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ===== RENDERIZAR GRÁFICO DE IMPACTO =====
+        function renderImpactChart() {
+            const ctx = document.getElementById('impactChart').getContext('2d');
+            
+            const labels = portfolioData.portfolio.map(p => p.neighborhoodName);
+            const data = portfolioData.portfolio.map(p => 
+                p.expectedImpact ? p.expectedImpact.vulnerabilityReduction : 0
+            );
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Reducción de Vulnerabilidad (%)',
+                        data: data,
+                        borderColor: '#2E7D32',
+                        backgroundColor: 'rgba(46, 125, 50, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+
+        // ===== RENDERIZAR RESUMEN DE PORTAFOLIO =====
+        function renderPortfolioSummary() {
+            const html = `
+                <h3 style="margin-bottom: 1rem;">Resumen del Portafolio</h3>
+                <table class="display" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>Barrio</th>
+                            <th>Vulnerabilidad</th>
+                            <th>Presupuesto</th>
+                            <th>Intervenciones</th>
+                            <th>Impacto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${portfolioData.portfolio.map(p => `
+                            <tr>
+                                <td>${p.neighborhoodName}</td>
+                                <td>
+                                    <span class="vulnerability-badge ${p.classification}">
+                                        ${(p.score * 100).toFixed(1)}%
+                                    </span>
+                                </td>
+                                <td>$${p.budgetAllocated.toLocaleString('es-PE')}</td>
+                                <td>${p.interventions.length}</td>
+                                <td>${p.expectedImpact ? p.expectedImpact.vulnerabilityReduction + '%' : 'N/A'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('portfolioSummary').innerHTML = html;
+        }
+
+        // ===== SELECCIONAR FORMATO DE EXPORTACIÓN =====
+        function selectExportFormat(format) {
+            document.querySelectorAll('.export-format').forEach(el => {
+                el.classList.remove('selected');
+            });
+            event.target.closest('.export-format').classList.add('selected');
+
+            // Ejecutar exportación
+            if (format === 'pdf') {
+                exportPortfolioPDF();
+            } else if (format === 'geojson') {
+                exportGeoJSON();
+            } else if (format === 'shapefile') {
+                exportShapefile();
+            } else if (format === 'kml') {
+                exportKML();
+            } else {
+                alert(`Funcionalidad ${format.toUpperCase()} disponible. Use las URLs mostradas para conectar con su SIG.`);
+            }
+        }
+
+        // ===== EXPORTAR PORTAFOLIO PDF =====
+        async function exportPortfolioPDF() {
+            try {
+                const maxBudget = document.getElementById('maxBudget')?.value || 5000000;
+                const timeframe = document.getElementById('timeframe')?.value || 36;
+
+                const response = await fetch(
+                    `/api/recommendations/portfolio/pdf?totalBudget=${maxBudget}&timeframe=${timeframe}`
+                );
+
+                if (!response.ok) {
+                    throw new Error('Error al generar PDF');
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `portafolio_intervenciones_${Date.now()}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al generar PDF del portafolio');
+            }
+        }
+
+        // ===== EXPORTAR GEOJSON =====
+        async function exportGeoJSON() {
+            try {
+                const response = await fetch('/api/recommendations/export/geojson');
+                const data = await response.json();
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `vulnerabilidad_barrios_${Date.now()}.geojson`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al exportar GeoJSON');
+            }
+        }
+
+        // ===== EXPORTAR SHAPEFILE =====
+        function exportShapefile() {
+            alert('La exportación a Shapefile está en desarrollo. Use GeoJSON y conviértalo con QGIS/ArcGIS.');
+        }
+
+        // ===== EXPORTAR KML =====
+        function exportKML() {
+            alert('La exportación a KML está en desarrollo. Use GeoJSON y conviértalo con herramientas GIS.');
+        }
+
+        // ===== COPIAR AL PORTAPAPELES =====
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('URL copiada al portapapeles');
+            });
+        }
+
+        // ===== EXPORTAR DATOS (HEADER) =====
+        function exportData() {
+            switchTab('export');
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab')[3].classList.add('active');
+        }
+
+        // Cerrar modal al hacer clic fuera
+        window.onclick = function(event) {
+            const modal = document.getElementById('recommendationsModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // Cerrar modal con tecla ESC
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

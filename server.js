@@ -3773,6 +3773,445 @@ app.get('/api/export/status/:taskId', async (req, res) => {
   }
 });
 
+// ============================================================================
+// INTERVENTION RECOMMENDATIONS & PRIORITIZATION (Phase 11-12)
+// ============================================================================
+
+const interventionRecommenderService = require('./services/interventionRecommenderService');
+const recommendationPdfService = require('./services/recommendationPdfService');
+
+/**
+ * @swagger
+ * /api/recommendations/prioritize:
+ *   get:
+ *     summary: Priorizar barrios por vulnerabilidad
+ *     description: Obtiene un ranking de todos los barrios ordenados por índice de vulnerabilidad usando metodología AHP/TOPSIS
+ *     tags: [Recomendaciones]
+ *     parameters:
+ *       - in: query
+ *         name: neighborhoods
+ *         schema:
+ *           type: string
+ *         description: IDs de barrios separados por coma (opcional, por defecto todos)
+ *     responses:
+ *       200:
+ *         description: Ranking de barrios por vulnerabilidad
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   rank:
+ *                     type: integer
+ *                   neighborhoodId:
+ *                     type: string
+ *                   neighborhoodName:
+ *                     type: string
+ *                   score:
+ *                     type: number
+ *                   classification:
+ *                     type: string
+ *                     enum: [critical, high, medium, low]
+ *                   priority:
+ *                     type: integer
+ *                   population:
+ *                     type: integer
+ *                   breakdown:
+ *                     type: object
+ */
+app.get('/api/recommendations/prioritize', async (req, res) => {
+  try {
+    const neighborhoodIds = req.query.neighborhoods 
+      ? req.query.neighborhoods.split(',')
+      : null;
+
+    const ranking = await interventionRecommenderService.prioritizeNeighborhoods(neighborhoodIds);
+
+    res.json(ranking);
+  } catch (error) {
+    console.error('Error prioritizing neighborhoods:', error);
+    res.status(500).json({ 
+      error: 'Failed to prioritize neighborhoods',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/recommendations/recommend/{neighborhoodId}:
+ *   get:
+ *     summary: Recomendar intervenciones para un barrio
+ *     description: Genera recomendaciones de intervenciones ambientales priorizadas por costo-beneficio
+ *     tags: [Recomendaciones]
+ *     parameters:
+ *       - in: path
+ *         name: neighborhoodId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del barrio
+ *       - in: query
+ *         name: budget
+ *         schema:
+ *           type: number
+ *           default: 1000000
+ *         description: Presupuesto disponible en USD
+ *       - in: query
+ *         name: timeframe
+ *         schema:
+ *           type: integer
+ *           default: 24
+ *         description: Plazo de implementación en meses
+ *       - in: query
+ *         name: maxInterventions
+ *         schema:
+ *           type: integer
+ *           default: 5
+ *         description: Número máximo de intervenciones a recomendar
+ *     responses:
+ *       200:
+ *         description: Recomendaciones de intervenciones
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 neighborhoodId:
+ *                   type: string
+ *                 neighborhoodName:
+ *                   type: string
+ *                 vulnerability:
+ *                   type: object
+ *                 recommendations:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 totalCost:
+ *                   type: number
+ *                 combinedImpact:
+ *                   type: object
+ */
+app.get('/api/recommendations/recommend/:neighborhoodId', async (req, res) => {
+  try {
+    const { neighborhoodId } = req.params;
+    const budget = parseFloat(req.query.budget) || 1000000;
+    const timeframe = parseInt(req.query.timeframe) || 24;
+    const maxInterventions = parseInt(req.query.maxInterventions) || 5;
+
+    const recommendations = await interventionRecommenderService.recommendInterventions(
+      neighborhoodId,
+      { budget, timeframe, maxInterventions }
+    );
+
+    res.json(recommendations);
+  } catch (error) {
+    console.error('Error generating recommendations:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate recommendations',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/recommendations/portfolio:
+ *   get:
+ *     summary: Generar portafolio de intervenciones
+ *     description: Genera un portafolio optimizado de intervenciones para múltiples barrios
+ *     tags: [Recomendaciones]
+ *     parameters:
+ *       - in: query
+ *         name: totalBudget
+ *         schema:
+ *           type: number
+ *           default: 5000000
+ *         description: Presupuesto total en USD
+ *       - in: query
+ *         name: timeframe
+ *         schema:
+ *           type: integer
+ *           default: 36
+ *         description: Plazo en meses
+ *       - in: query
+ *         name: neighborhoods
+ *         schema:
+ *           type: string
+ *         description: IDs de barrios separados por coma (opcional)
+ *     responses:
+ *       200:
+ *         description: Portafolio de intervenciones
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 portfolio:
+ *                   type: array
+ *                 summary:
+ *                   type: object
+ */
+app.get('/api/recommendations/portfolio', async (req, res) => {
+  try {
+    const totalBudget = parseFloat(req.query.totalBudget) || 5000000;
+    const timeframe = parseInt(req.query.timeframe) || 36;
+    const neighborhoodIds = req.query.neighborhoods 
+      ? req.query.neighborhoods.split(',')
+      : null;
+
+    const portfolio = await interventionRecommenderService.generateInterventionPortfolio({
+      totalBudget,
+      timeframe,
+      neighborhoodIds
+    });
+
+    res.json(portfolio);
+  } catch (error) {
+    console.error('Error generating portfolio:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate portfolio',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/recommendations/pdf/{neighborhoodId}:
+ *   get:
+ *     summary: Generar PDF de recomendaciones
+ *     description: Genera un reporte PDF automático con recomendaciones para un barrio
+ *     tags: [Recomendaciones]
+ *     parameters:
+ *       - in: path
+ *         name: neighborhoodId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: budget
+ *         schema:
+ *           type: number
+ *           default: 1000000
+ *       - in: query
+ *         name: timeframe
+ *         schema:
+ *           type: integer
+ *           default: 24
+ *     responses:
+ *       200:
+ *         description: PDF del reporte
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ */
+app.get('/api/recommendations/pdf/:neighborhoodId', async (req, res) => {
+  try {
+    const { neighborhoodId } = req.params;
+    const budget = parseFloat(req.query.budget) || 1000000;
+    const timeframe = parseInt(req.query.timeframe) || 24;
+
+    // Generar recomendaciones
+    const recommendations = await interventionRecommenderService.recommendInterventions(
+      neighborhoodId,
+      { budget, timeframe }
+    );
+
+    // Generar PDF
+    const pdfPath = await recommendationPdfService.generateNeighborhoodReport(recommendations);
+
+    // Enviar PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="recomendaciones_${neighborhoodId}.pdf"`);
+    
+    const fileStream = fs.createReadStream(pdfPath);
+    fileStream.pipe(res);
+
+    // Eliminar archivo temporal después de enviarlo
+    fileStream.on('end', () => {
+      fs.unlink(pdfPath, (err) => {
+        if (err) console.error('Error deleting temp PDF:', err);
+      });
+    });
+
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate PDF',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/recommendations/portfolio/pdf:
+ *   get:
+ *     summary: Generar PDF de portafolio
+ *     description: Genera un reporte PDF del portafolio completo de intervenciones
+ *     tags: [Recomendaciones]
+ *     parameters:
+ *       - in: query
+ *         name: totalBudget
+ *         schema:
+ *           type: number
+ *           default: 5000000
+ *       - in: query
+ *         name: timeframe
+ *         schema:
+ *           type: integer
+ *           default: 36
+ *     responses:
+ *       200:
+ *         description: PDF del portafolio
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ */
+app.get('/api/recommendations/portfolio/pdf', async (req, res) => {
+  try {
+    const totalBudget = parseFloat(req.query.totalBudget) || 5000000;
+    const timeframe = parseInt(req.query.timeframe) || 36;
+    const neighborhoodIds = req.query.neighborhoods 
+      ? req.query.neighborhoods.split(',')
+      : null;
+
+    // Generar portafolio
+    const portfolio = await interventionRecommenderService.generateInterventionPortfolio({
+      totalBudget,
+      timeframe,
+      neighborhoodIds
+    });
+
+    // Generar PDF
+    const pdfPath = await recommendationPdfService.generatePortfolioReport(portfolio);
+
+    // Enviar PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="portafolio_intervenciones.pdf"');
+    
+    const fileStream = fs.createReadStream(pdfPath);
+    fileStream.pipe(res);
+
+    // Eliminar archivo temporal después de enviarlo
+    fileStream.on('end', () => {
+      fs.unlink(pdfPath, (err) => {
+        if (err) console.error('Error deleting temp PDF:', err);
+      });
+    });
+
+  } catch (error) {
+    console.error('Error generating portfolio PDF:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate portfolio PDF',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/recommendations/interventions:
+ *   get:
+ *     summary: Obtener catálogo de intervenciones
+ *     description: Retorna el catálogo de todos los tipos de intervenciones disponibles
+ *     tags: [Recomendaciones]
+ *     responses:
+ *       200:
+ *         description: Catálogo de intervenciones
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   name:
+ *                     type: string
+ *                   description:
+ *                     type: string
+ *                   targetCriteria:
+ *                     type: array
+ *                   viability:
+ *                     type: string
+ *                   cobenefits:
+ *                     type: array
+ */
+app.get('/api/recommendations/interventions', (req, res) => {
+  try {
+    const catalog = interventionRecommenderService.getInterventionCatalog();
+    res.json(catalog);
+  } catch (error) {
+    console.error('Error getting intervention catalog:', error);
+    res.status(500).json({ 
+      error: 'Failed to get intervention catalog',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/recommendations/export/geojson:
+ *   get:
+ *     summary: Exportar ranking como GeoJSON
+ *     description: Exporta el ranking de barrios en formato GeoJSON para SIG
+ *     tags: [Recomendaciones]
+ *     responses:
+ *       200:
+ *         description: GeoJSON del ranking
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
+app.get('/api/recommendations/export/geojson', async (req, res) => {
+  try {
+    const ranking = await interventionRecommenderService.prioritizeNeighborhoods();
+
+    // Convertir a GeoJSON
+    const geojson = {
+      type: 'FeatureCollection',
+      features: ranking.map(neighborhood => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [
+            -77.0428 + (Math.random() - 0.5) * 0.2, // lng (placeholder)
+            -12.0464 + (Math.random() - 0.5) * 0.2  // lat (placeholder)
+          ]
+        },
+        properties: {
+          id: neighborhood.neighborhoodId,
+          name: neighborhood.neighborhoodName,
+          rank: neighborhood.rank,
+          vulnerability_score: neighborhood.score,
+          classification: neighborhood.classification,
+          priority: neighborhood.priority,
+          population: neighborhood.population
+        }
+      }))
+    };
+
+    res.json(geojson);
+  } catch (error) {
+    console.error('Error exporting GeoJSON:', error);
+    res.status(500).json({ 
+      error: 'Failed to export GeoJSON',
+      message: error.message 
+    });
+  }
+});
+
 // Serve the frontend
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
