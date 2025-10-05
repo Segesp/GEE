@@ -5885,6 +5885,54 @@ app.get('/api/advanced/socioeconomic', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/advanced/elevation:
+ *   get:
+ *     summary: Get elevation data from Copernicus DEM GLO-30
+ *     tags: [Advanced Data]
+ *     description: Returns digital elevation model (DEM) data at 30m resolution including elevation, slope, and aspect analysis
+ *     responses:
+ *       200:
+ *         description: Elevation data retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 variable:
+ *                   type: string
+ *                 source:
+ *                   type: string
+ *                 resolution:
+ *                   type: string
+ *                 unit:
+ *                   type: string
+ *                 statistics:
+ *                   type: object
+ *                 mapId:
+ *                   type: string
+ *                 token:
+ *                   type: string
+ *                 interpretation:
+ *                   type: string
+ *       503:
+ *         description: Earth Engine not initialized
+ */
+app.get('/api/advanced/elevation', async (req, res) => {
+  if (!eeInitialized) {
+    return res.status(503).json({ error: 'Earth Engine not initialized' });
+  }
+
+  try {
+    const result = await advancedDataService.getElevationData();
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/elevation:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ============================================================================
 
 app.get('/', (req, res) => {

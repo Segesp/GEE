@@ -64,14 +64,14 @@ async function getFireDetection(startDate, endDate) {
       maxPixels: 1e9
     }).getInfo();
     
-    // Get map visualization
+    // Get map visualization (solo banda T21)
     const visParams = {
       min: 300,
       max: 400,
       palette: ['yellow', 'orange', 'red']
     };
     
-    const mapId = await fires.mean().getMap(visParams);
+    const mapId = await fires.select('T21').mean().getMap(visParams);
     
     return {
       variable: 'Fire Detection',
@@ -179,17 +179,19 @@ async function getPopulationData(year = 2020) {
   try {
     const limaBounds = getLimaBounds();
     
-    // GPW v4.11 Population Count
+    // SEDAC GPW v4.11 - Population Count and Density
+    // Note: GPW uses ImageCollection, need to filter by year
     const population = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count')
-      .filter(ee.Filter.eq('year', year))
-      .select('population_count')
-      .first();
+      .filter(ee.Filter.date(year + '-01-01', year + '-12-31'))
+      .first()
+      .clip(limaBounds)
+      .select('population_count');
     
-    // GPW v4.11 Population Density
     const density = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Density')
-      .filter(ee.Filter.eq('year', year))
-      .select('population_density')
-      .first();
+      .filter(ee.Filter.date(year + '-01-01', year + '-12-31'))
+      .first()
+      .clip(limaBounds)
+      .select('population_density');
     
     // Get statistics
     const popStats = await population.reduceRegion({
@@ -312,10 +314,10 @@ async function getBuiltUpSurface(year = 2020) {
   try {
     const limaBounds = getLimaBounds();
     
-    // GHSL Built-up Surface
+        // GHSL Built-up Surface - usar año específico
     const builtUp = ee.ImageCollection('JRC/GHSL/P2023A/GHS_BUILT_S')
-      .filter(ee.Filter.eq('year', year))
-      .select(['built_surface', 'built_surface_nres']) // total y no-residencial
+      .filterBounds(limaBounds)
+      .filterDate(year + '-01-01', year + '-12-31')
       .first();
     
     // Get statistics
@@ -374,12 +376,12 @@ async function getAtmosphericComposition(date) {
     const limaBounds = getLimaBounds();
     const dateObj = new Date(date);
     
-    // CAMS Near Real-Time
+    // CAMS Near Real-Time - bandas con sufijo _surface
     const cams = ee.ImageCollection('ECMWF/CAMS/NRT')
       .filterBounds(limaBounds)
       .filterDate(date, new Date(dateObj.getTime() + 86400000))
-      .select(['total_aerosol_optical_depth_550nm', 'total_column_nitrogen_dioxide', 
-               'total_column_carbon_monoxide', 'total_column_ozone'])
+      .select(['total_aerosol_optical_depth_at_550nm_surface', 'total_column_nitrogen_dioxide_surface', 
+               'total_column_carbon_monoxide_surface', 'gems_total_column_ozone_surface'])
       .mean();
     
     // Get statistics
@@ -395,7 +397,7 @@ async function getAtmosphericComposition(date) {
     
     // Visualization for AOD
     const visParams = {
-      bands: ['total_aerosol_optical_depth_550nm'],
+      bands: ['total_aerosol_optical_depth_at_550nm_surface'],
       min: 0,
       max: 0.5,
       palette: ['blue', 'green', 'yellow', 'orange', 'red']
@@ -409,10 +411,10 @@ async function getAtmosphericComposition(date) {
       date,
       resolution: '~40 km',
       statistics: {
-        aod_550nm: stats.total_aerosol_optical_depth_550nm_mean,
-        no2_column: stats.total_column_nitrogen_dioxide_mean,
-        co_column: stats.total_column_carbon_monoxide_mean,
-        ozone_column: stats.total_column_ozone_mean
+        aod_550nm: stats.total_aerosol_optical_depth_at_550nm_surface_mean,
+        no2_column: stats.total_column_nitrogen_dioxide_surface_mean,
+        co_column: stats.total_column_carbon_monoxide_surface_mean,
+        ozone_column: stats.gems_total_column_ozone_surface_mean
       },
       mapId: mapId.mapid,
       token: mapId.token,
@@ -508,6 +510,97 @@ function interpretDynamicWorld(coverage) {
   
   return `Área urbana construida: ${built.toFixed(1)}%, Vegetación arbórea: ${trees.toFixed(1)}%, Pastizales: ${grass.toFixed(1)}%`;
 }
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 8. COPERNICUS DEM GLO-30 - ELEVATION DATA (Modelo Digital de Elevación)
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+async function getElevationData() {
+  try {
+    const limaBounds = getLimaBounds();
+    
+    // Copernicus DEM GLO-30 - Digital Elevation Model 30m
+    const dem = ee.ImageCollection('COPERNICUS/DEM/GLO30').mosaic().clip(limaBounds);
+    
+    // Calculate slope and aspect
+    const elevation = dem.select('DEM');
+    const slope = ee.Terrain.slope(elevation);
+    const aspect = ee.Terrain.aspect(elevation);
+    
+    // Statistics
+    const elevStats = await elevation.reduceRegion({
+      reducer: ee.Reducer.mean()
+        .combine(ee.Reducer.min(), '', true)
+        .combine(ee.Reducer.max(), '', true)
+        .combine(ee.Reducer.stdDev(), '', true),
+      geometry: limaBounds,
+      scale: 30,
+      maxPixels: 1e9
+    }).getInfo();
+    
+    const slopeStats = await slope.reduceRegion({
+      reducer: ee.Reducer.mean()
+        .combine(ee.Reducer.max(), '', true),
+      geometry: limaBounds,
+      scale: 30,
+      maxPixels: 1e9
+    }).getInfo();
+    
+    // Visualization parameters
+    const visParams = {
+      min: 0,
+      max: 1000,
+      palette: ['0000ff', '00ffff', '00ff00', 'ffff00', 'ff0000', 'ffffff']
+    };
+    
+    const mapId = await elevation.getMap(visParams);
+    
+    return {
+      variable: 'Elevation (DEM)',
+      source: 'Copernicus DEM GLO-30',
+      resolution: '30 m',
+      unit: 'meters above sea level',
+      statistics: {
+        elevation: {
+          mean_m: parseFloat(elevStats.DEM_mean?.toFixed(2) || 0),
+          min_m: parseFloat(elevStats.DEM_min?.toFixed(2) || 0),
+          max_m: parseFloat(elevStats.DEM_max?.toFixed(2) || 0),
+          stdDev_m: parseFloat(elevStats.DEM_stdDev?.toFixed(2) || 0)
+        },
+        slope: {
+          mean_degrees: parseFloat(slopeStats.slope_mean?.toFixed(2) || 0),
+          max_degrees: parseFloat(slopeStats.slope_max?.toFixed(2) || 0)
+        }
+      },
+      mapId: mapId.mapid,
+      token: mapId.token,
+      interpretation: interpretElevation(elevStats, slopeStats)
+    };
+  } catch (error) {
+    console.error('Error in getElevationData:', error);
+    throw error;
+  }
+}
+
+function interpretElevation(elevStats, slopeStats) {
+  const meanElev = elevStats.DEM_mean || 0;
+  const maxElev = elevStats.DEM_max || 0;
+  const meanSlope = slopeStats.slope_mean || 0;
+  
+  let interpretation = `Elevación promedio: ${meanElev.toFixed(0)} msnm, Máxima: ${maxElev.toFixed(0)} msnm. `;
+  
+  if (meanSlope < 5) {
+    interpretation += 'Terreno predominantemente plano - ideal para desarrollo urbano.';
+  } else if (meanSlope < 15) {
+    interpretation += 'Terreno con pendiente moderada - requiere planificación urbana cuidadosa.';
+  } else {
+    interpretation += 'Terreno con pendientes pronunciadas - riesgo de deslizamientos, limitar urbanización.';
+  }
+  
+  return interpretation;
+}
+
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -625,6 +718,9 @@ module.exports = {
   
   // Atmospheric
   getAtmosphericComposition,
+  
+  // Topography
+  getElevationData,
   
   // Comprehensive analysis
   getSocioeconomicAnalysis

@@ -399,6 +399,22 @@
             
             <div class="card">
                 <div class="card-header">
+                    <span class="card-icon">⛰️</span>
+                    <span class="card-title">Elevación Digital (DEM)</span>
+                </div>
+                <div class="card-body">
+                    Modelo digital de elevación de Copernicus a 30m con análisis de pendientes.
+                </div>
+                <div class="card-features">
+                    <span class="feature-tag">🏔️ Elevación</span>
+                    <span class="feature-tag">📐 Pendientes</span>
+                    <span class="feature-tag">30m</span>
+                </div>
+                <button class="btn" onclick="loadElevation()">Cargar Elevación</button>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
                     <span class="card-icon">📈</span>
                     <span class="card-title">Análisis Integral</span>
                 </div>
@@ -681,6 +697,39 @@
                 showResults();
             } catch (error) {
                 alert('Error al cargar análisis socioeconómico: ' + error.message);
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        async function loadElevation() {
+            showLoader();
+            try {
+                const response = await fetch('/api/advanced/elevation');
+                const data = await response.json();
+                
+                displayStats(data);
+                updateMap(data.mapId, data.token);
+                
+                if (data.interpretation) {
+                    const metricsDiv = document.getElementById('metrics');
+                    metricsDiv.innerHTML = `
+                        <div class="metric-card">
+                            <div class="metric-title">Análisis Topográfico</div>
+                            <p>${data.interpretation}</p>
+                            <div style="margin-top: 1rem;">
+                                <strong>Elevación Promedio:</strong> ${data.statistics.elevation.mean_m} msnm<br>
+                                <strong>Rango:</strong> ${data.statistics.elevation.min_m} - ${data.statistics.elevation.max_m} msnm<br>
+                                <strong>Pendiente Promedio:</strong> ${data.statistics.slope.mean_degrees.toFixed(2)}°<br>
+                                <strong>Pendiente Máxima:</strong> ${data.statistics.slope.max_degrees.toFixed(2)}°
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                showResults();
+            } catch (error) {
+                alert('Error al cargar datos de elevación: ' + error.message);
             } finally {
                 hideLoader();
             }
