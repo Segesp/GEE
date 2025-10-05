@@ -5577,6 +5577,316 @@ app.get('/api/vegetation-heat/priority', async (req, res) => {
 });
 
 // Serve the frontend
+// ============================================================================
+// ADVANCED DATA API ENDPOINTS (NASA, SEDAC, Copernicus, WorldPop, WRI, GHSL)
+// ============================================================================
+
+const advancedDataService = require('./services/advancedDataService');
+
+/**
+ * @swagger
+ * /api/advanced/fire-detection:
+ *   get:
+ *     summary: Detección de incendios usando NASA FIRMS
+ *     tags: [Advanced Data]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Fecha de inicio (YYYY-MM-DD)
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Fecha de fin (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Datos de detección de incendios
+ */
+app.get('/api/advanced/fire-detection', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'startDate and endDate are required' });
+    }
+
+    const result = await advancedDataService.getFireDetection(startDate, endDate);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/fire-detection:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/night-lights:
+ *   get:
+ *     summary: Luces nocturnas usando VIIRS Black Marble
+ *     tags: [Advanced Data]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Fecha de inicio (YYYY-MM-DD)
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Fecha de fin (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Datos de iluminación nocturna
+ */
+app.get('/api/advanced/night-lights', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'startDate and endDate are required' });
+    }
+
+    const result = await advancedDataService.getNightLights(startDate, endDate);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/night-lights:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/population:
+ *   get:
+ *     summary: Datos de población usando SEDAC GPW
+ *     tags: [Advanced Data]
+ *     parameters:
+ *       - in: query
+ *         name: year
+ *         required: false
+ *         schema:
+ *           type: integer
+ *         description: Año (default 2020)
+ *     responses:
+ *       200:
+ *         description: Datos de población y densidad
+ */
+app.get('/api/advanced/population', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const year = parseInt(req.query.year) || 2020;
+    const result = await advancedDataService.getPopulationData(year);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/population:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/worldpop:
+ *   get:
+ *     summary: Población alta resolución usando WorldPop
+ *     tags: [Advanced Data]
+ *     parameters:
+ *       - in: query
+ *         name: year
+ *         required: false
+ *         schema:
+ *           type: integer
+ *         description: Año (default 2020)
+ *     responses:
+ *       200:
+ *         description: Datos de población a 100m de resolución
+ */
+app.get('/api/advanced/worldpop', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const year = parseInt(req.query.year) || 2020;
+    const result = await advancedDataService.getWorldPopData(year);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/worldpop:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/built-up:
+ *   get:
+ *     summary: Superficie construida usando GHSL
+ *     tags: [Advanced Data]
+ *     parameters:
+ *       - in: query
+ *         name: year
+ *         required: false
+ *         schema:
+ *           type: integer
+ *         description: Año (default 2020)
+ *     responses:
+ *       200:
+ *         description: Datos de superficie construida
+ */
+app.get('/api/advanced/built-up', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const year = parseInt(req.query.year) || 2020;
+    const result = await advancedDataService.getBuiltUpSurface(year);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/built-up:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/atmospheric:
+ *   get:
+ *     summary: Composición atmosférica usando Copernicus CAMS
+ *     tags: [Advanced Data]
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Fecha (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Datos de composición atmosférica (AOD, NO2, CO, O3)
+ */
+app.get('/api/advanced/atmospheric', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const { date } = req.query;
+
+    if (!date) {
+      return res.status(400).json({ error: 'date is required' });
+    }
+
+    const result = await advancedDataService.getAtmosphericComposition(date);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/atmospheric:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/land-cover:
+ *   get:
+ *     summary: Cobertura del suelo en tiempo casi real usando Dynamic World
+ *     tags: [Advanced Data]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Fecha de inicio (YYYY-MM-DD)
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Fecha de fin (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Clasificación de cobertura del suelo a 10m
+ */
+app.get('/api/advanced/land-cover', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'startDate and endDate are required' });
+    }
+
+    const result = await advancedDataService.getDynamicWorldLandCover(startDate, endDate);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/land-cover:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/socioeconomic:
+ *   get:
+ *     summary: Análisis socioeconómico completo (Población, superficie construida, luces nocturnas, cobertura del suelo)
+ *     tags: [Advanced Data]
+ *     parameters:
+ *       - in: query
+ *         name: year
+ *         required: false
+ *         schema:
+ *           type: integer
+ *         description: Año de análisis (default 2020)
+ *       - in: query
+ *         name: date
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Fecha para datos temporales (default 30 días atrás)
+ *     responses:
+ *       200:
+ *         description: Análisis socioeconómico integral con múltiples indicadores
+ */
+app.get('/api/advanced/socioeconomic', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const year = parseInt(req.query.year) || 2020;
+    const date = req.query.date || null;
+
+    const result = await advancedDataService.getSocioeconomicAnalysis(year, date);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/socioeconomic:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });

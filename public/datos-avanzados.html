@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#9c27b0">
+    <title>Datos Socioeconómicos Avanzados - EcoPlan</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        :root {
+            --primary: #9c27b0;
+            --secondary: #00bcd4;
+            --accent: #ff9800;
+            --success: #4caf50;
+            --danger: #f44336;
+            --warning: #ff9800;
+            --bg: #0b1120;
+            --surface: #0f172a;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border: rgba(148, 163, 184, 0.24);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top left, rgba(156, 39, 176, 0.15), transparent 50%), #020617;
+            color: var(--text);
+            min-height: 100vh;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            padding: 2rem 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            font-size: clamp(0.9rem, 2vw, 1.1rem);
+            opacity: 0.95;
+        }
+        
+        nav {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        nav a {
+            color: var(--text);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+        
+        nav a:hover {
+            background: rgba(156, 39, 176, 0.2);
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        
+        .info-banner {
+            background: rgba(0, 188, 212, 0.15);
+            border: 1px solid rgba(0, 188, 212, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(156, 39, 176, 0.3);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border);
+        }
+        
+        .card-icon {
+            font-size: 2rem;
+        }
+        
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        .card-body {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+        
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            width: 100%;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background: #7b1fa2;
+            transform: scale(1.02);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .map-container {
+            height: 500px;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .stat-box {
+            background: rgba(156, 39, 176, 0.1);
+            border: 1px solid rgba(156, 39, 176, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.25rem;
+        }
+        
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 17, 32, 0.95);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            flex-direction: column;
+        }
+        
+        .loading-overlay.show {
+            display: flex !important;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(156, 39, 176, 0.3);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .results-section {
+            display: none;
+        }
+        
+        .results-section.show {
+            display: block;
+        }
+        
+        .metric-card {
+            background: var(--surface);
+            border-left: 4px solid var(--primary);
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 0.5rem 0;
+        }
+        
+        .metric-title {
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        
+        .metric-description {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        
+        footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            margin-top: 3rem;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+        
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div style="color: #e2e8f0; font-size: 1.2rem; font-weight: 600; margin-bottom: 8px;">
+            Procesando datos avanzados...
+        </div>
+        <div style="color: #94a3b8; font-size: 0.9rem;">
+            Esto puede tomar entre 15-60 segundos
+        </div>
+    </div>
+    
+    <header>
+        <div class="header-content">
+            <h1>📊 Datos Socioeconómicos Avanzados</h1>
+            <p class="subtitle">
+                Análisis integral usando NASA, SEDAC, Copernicus, WorldPop, WRI y GHSL
+            </p>
+        </div>
+    </header>
+    
+    <nav>
+        <ul>
+            <li><a href="/">🏠 Inicio</a></li>
+            <li><a href="calidad-aire-agua.html">🌊 Calidad Aire/Agua</a></li>
+            <li><a href="vegetacion-islas-calor.html">🌳 Vegetación/Calor</a></li>
+            <li><a href="/api-docs">📖 API</a></li>
+        </ul>
+    </nav>
+    
+    <div class="container">
+        <div class="info-banner">
+            <strong>ℹ️ Acerca de esta herramienta:</strong> Esta página integra datos de múltiples fuentes satelitales de primer nivel mundial incluyendo NASA Earthdata, SEDAC/CIESIN, Copernicus, WorldPop, WRI y GHSL para proporcionar un análisis socioeconómico integral de Lima Metropolitana.
+        </div>
+        
+        <!-- Dataset Cards -->
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">🔥</span>
+                    <span class="card-title">Detección de Incendios</span>
+                </div>
+                <div class="card-body">
+                    NASA FIRMS - Sistema de detección de incendios en tiempo casi real usando MODIS y VIIRS.
+                </div>
+                <button class="btn" onclick="loadFireDetection()">Cargar Datos</button>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">💡</span>
+                    <span class="card-title">Luces Nocturnas</span>
+                </div>
+                <div class="card-body">
+                    VIIRS Black Marble - Análisis de iluminación nocturna para medir actividad económica y urbanización.
+                </div>
+                <button class="btn" onclick="loadNightLights()">Cargar Datos</button>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">👥</span>
+                    <span class="card-title">Población (SEDAC)</span>
+                </div>
+                <div class="card-body">
+                    GPWv4.11 - Datos de población y densidad a ~1km de resolución para análisis demográfico.
+                </div>
+                <button class="btn" onclick="loadPopulation()">Cargar Datos</button>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">🌍</span>
+                    <span class="card-title">Población (WorldPop)</span>
+                </div>
+                <div class="card-body">
+                    WorldPop - Estimaciones de población de alta resolución (100m) usando aprendizaje automático.
+                </div>
+                <button class="btn" onclick="loadWorldPop()">Cargar Datos</button>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">🏗️</span>
+                    <span class="card-title">Superficie Construida</span>
+                </div>
+                <div class="card-body">
+                    GHSL - Mapas de áreas construidas (residencial y no-residencial) a 100m de resolución.
+                </div>
+                <button class="btn" onclick="loadBuiltUp()">Cargar Datos</button>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">🌫️</span>
+                    <span class="card-title">Composición Atmosférica</span>
+                </div>
+                <div class="card-body">
+                    Copernicus CAMS - Previsiones de aerosoles, NO₂, CO y ozono en tiempo casi real.
+                </div>
+                <button class="btn" onclick="loadAtmospheric()">Cargar Datos</button>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">🗺️</span>
+                    <span class="card-title">Cobertura del Suelo</span>
+                </div>
+                <div class="card-body">
+                    Dynamic World - Clasificación de cobertura del suelo a 10m en tiempo casi real.
+                </div>
+                <button class="btn" onclick="loadLandCover()">Cargar Datos</button>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">📈</span>
+                    <span class="card-title">Análisis Integral</span>
+                </div>
+                <div class="card-body">
+                    Análisis socioeconómico completo combinando todos los datasets disponibles.
+                </div>
+                <button class="btn" onclick="loadSocioeconomic()" style="background: #f39c12;">Análisis Completo</button>
+            </div>
+        </div>
+        
+        <!-- Results Section -->
+        <div id="results" class="results-section">
+            <h2 style="margin-bottom: 1rem;">📊 Resultados del Análisis</h2>
+            
+            <div class="stats-grid" id="stats-grid"></div>
+            
+            <div id="map" class="map-container"></div>
+            
+            <div id="metrics" style="margin-top: 2rem;"></div>
+        </div>
+    </div>
+    
+    <footer>
+        <p>
+            <strong>EcoPlan - Datos Socioeconómicos Avanzados</strong> | 
+            Datos: NASA, SEDAC, Copernicus, WorldPop, WRI, GHSL | 
+            <a href="/api-docs">API Docs</a>
+        </p>
+    </footer>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map;
+        let currentLayer = null;
+        
+        function initMap() {
+            if (!map) {
+                map = L.map('map').setView([-12.05, -76.95], 11);
+                
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; OpenStreetMap &copy; CARTO',
+                    maxZoom: 20
+                }).addTo(map);
+                
+                // Lima bounds
+                L.rectangle([
+                    [-12.4, -77.2],
+                    [-11.7, -76.7]
+                ], {
+                    color: '#9c27b0',
+                    weight: 2,
+                    fillOpacity: 0.1,
+                    dashArray: '5, 10'
+                }).addTo(map);
+            }
+        }
+        
+        function showLoader() {
+            document.getElementById('loading-overlay').classList.add('show');
+        }
+        
+        function hideLoader() {
+            document.getElementById('loading-overlay').classList.remove('show');
+        }
+        
+        function showResults() {
+            document.getElementById('results').classList.add('show');
+            document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        function updateMap(mapId, token) {
+            initMap();
+            
+            if (currentLayer) {
+                map.removeLayer(currentLayer);
+            }
+            
+            if (mapId) {
+                const tileUrl = `https://earthengine.googleapis.com/v1alpha/projects/github-nasa/maps/${mapId}/tiles/{z}/{x}/{y}`;
+                currentLayer = L.tileLayer(tileUrl, {
+                    attribution: 'Google Earth Engine',
+                    maxZoom: 20,
+                    opacity: 0.7
+                }).addTo(map);
+            }
+        }
+        
+        function displayStats(data) {
+            const statsGrid = document.getElementById('stats-grid');
+            statsGrid.innerHTML = '';
+            
+            const stats = data.statistics || {};
+            
+            Object.keys(stats).forEach(key => {
+                const value = stats[key];
+                if (value !== null && value !== undefined) {
+                    const statBox = document.createElement('div');
+                    statBox.className = 'stat-box';
+                    statBox.innerHTML = `
+                        <div class="stat-value">${formatNumber(value)}</div>
+                        <div class="stat-label">${formatLabel(key)}</div>
+                    `;
+                    statsGrid.appendChild(statBox);
+                }
+            });
+        }
+        
+        function displayMetrics(data) {
+            const metricsDiv = document.getElementById('metrics');
+            metricsDiv.innerHTML = `
+                <div class="metric-card">
+                    <div class="metric-title">${data.variable || 'Variable'}</div>
+                    <div class="metric-value">${data.source || 'Fuente de datos'}</div>
+                    <div class="metric-description">${data.interpretation || 'Sin interpretación disponible'}</div>
+                </div>
+            `;
+        }
+        
+        function formatNumber(num) {
+            if (typeof num === 'number') {
+                if (num > 1000000) return (num / 1000000).toFixed(2) + 'M';
+                if (num > 1000) return (num / 1000).toFixed(2) + 'K';
+                if (num < 1 && num > 0) return num.toFixed(4);
+                return num.toFixed(2);
+            }
+            return num;
+        }
+        
+        function formatLabel(key) {
+            return key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim();
+        }
+        
+        async function loadFireDetection() {
+            showLoader();
+            try {
+                const endDate = new Date().toISOString().split('T')[0];
+                const startDate = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
+                
+                const response = await fetch(`/api/advanced/fire-detection?startDate=${startDate}&endDate=${endDate}`);
+                const data = await response.json();
+                
+                displayStats(data);
+                displayMetrics(data);
+                updateMap(data.mapId, data.token);
+                showResults();
+            } catch (error) {
+                alert('Error al cargar datos de incendios: ' + error.message);
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        async function loadNightLights() {
+            showLoader();
+            try {
+                const endDate = new Date().toISOString().split('T')[0];
+                const startDate = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
+                
+                const response = await fetch(`/api/advanced/night-lights?startDate=${startDate}&endDate=${endDate}`);
+                const data = await response.json();
+                
+                displayStats(data);
+                displayMetrics(data);
+                updateMap(data.mapId, data.token);
+                showResults();
+            } catch (error) {
+                alert('Error al cargar luces nocturnas: ' + error.message);
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        async function loadPopulation() {
+            showLoader();
+            try {
+                const response = await fetch('/api/advanced/population?year=2020');
+                const data = await response.json();
+                
+                displayStats(data);
+                displayMetrics(data);
+                updateMap(data.mapId, data.token);
+                showResults();
+            } catch (error) {
+                alert('Error al cargar población: ' + error.message);
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        async function loadWorldPop() {
+            showLoader();
+            try {
+                const response = await fetch('/api/advanced/worldpop?year=2020');
+                const data = await response.json();
+                
+                displayStats(data);
+                displayMetrics(data);
+                updateMap(data.mapId, data.token);
+                showResults();
+            } catch (error) {
+                alert('Error al cargar WorldPop: ' + error.message);
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        async function loadBuiltUp() {
+            showLoader();
+            try {
+                const response = await fetch('/api/advanced/built-up?year=2020');
+                const data = await response.json();
+                
+                displayStats(data);
+                displayMetrics(data);
+                updateMap(data.mapId, data.token);
+                showResults();
+            } catch (error) {
+                alert('Error al cargar superficie construida: ' + error.message);
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        async function loadAtmospheric() {
+            showLoader();
+            try {
+                const date = new Date(Date.now() - 7*24*60*60*1000).toISOString().split('T')[0];
+                
+                const response = await fetch(`/api/advanced/atmospheric?date=${date}`);
+                const data = await response.json();
+                
+                displayStats(data);
+                displayMetrics(data);
+                updateMap(data.mapId, data.token);
+                showResults();
+            } catch (error) {
+                alert('Error al cargar composición atmosférica: ' + error.message);
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        async function loadLandCover() {
+            showLoader();
+            try {
+                const endDate = new Date().toISOString().split('T')[0];
+                const startDate = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
+                
+                const response = await fetch(`/api/advanced/land-cover?startDate=${startDate}&endDate=${endDate}`);
+                const data = await response.json();
+                
+                displayStats(data);
+                displayMetrics(data);
+                updateMap(data.mapId, data.token);
+                showResults();
+            } catch (error) {
+                alert('Error al cargar cobertura del suelo: ' + error.message);
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        async function loadSocioeconomic() {
+            showLoader();
+            try {
+                const response = await fetch('/api/advanced/socioeconomic?year=2020');
+                const data = await response.json();
+                
+                // Display comprehensive results
+                const metricsDiv = document.getElementById('metrics');
+                metricsDiv.innerHTML = `
+                    <h3 style="margin-bottom: 1rem;">Análisis Socioeconómico Integral</h3>
+                    ${renderSocioeconomicResults(data)}
+                `;
+                
+                if (data.components && data.components.population) {
+                    updateMap(data.components.population.mapId, data.components.population.token);
+                }
+                
+                showResults();
+            } catch (error) {
+                alert('Error al cargar análisis socioeconómico: ' + error.message);
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        function renderSocioeconomicResults(data) {
+            let html = '';
+            
+            if (data.derivedIndicators) {
+                html += '<div class="metric-card">';
+                html += '<div class="metric-title">Indicadores Derivados</div>';
+                Object.keys(data.derivedIndicators).forEach(key => {
+                    html += `<div style="margin: 0.5rem 0;"><strong>${formatLabel(key)}:</strong> ${data.derivedIndicators[key]}</div>`;
+                });
+                html += '</div>';
+            }
+            
+            if (data.recommendations) {
+                html += '<div class="metric-card" style="border-left-color: #f39c12;">';
+                html += '<div class="metric-title">Recomendaciones</div>';
+                html += '<ul style="margin-left: 1.5rem; margin-top: 0.5rem;">';
+                data.recommendations.forEach(rec => {
+                    html += `<li style="margin: 0.5rem 0;">${rec}</li>`;
+                });
+                html += '</ul></div>';
+            }
+            
+            return html;
+        }
+        
+        console.log('Datos Socioeconómicos Avanzados - EcoPlan initialized');
+    </script>
+</body>
+</html>
