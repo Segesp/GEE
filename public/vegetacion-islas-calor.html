@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2ecc71">
+    <meta name="description" content="Plataforma de análisis de vegetación e islas de calor urbano para Lima - EcoPlan">
+    <meta name="keywords" content="vegetación, islas de calor, NDVI, LST, Lima, análisis urbano">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Vegetación e Islas de Calor - EcoPlan">
+    <meta property="og:description" content="Análisis temporal de vegetación (NDVI) y temperatura superficial (LST) con detección de islas de calor urbano">
+    <meta property="og:type" content="website">
+    
+    <title>Vegetación e Islas de Calor - EcoPlan</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #2ecc71;
+            --secondary: #3498db;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+            --success: #27ae60;
+            --info: #17a2b8;
+            --bg: #0b1120;
+            --surface: #0f172a;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border: rgba(148, 163, 184, 0.24);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 40%), #020617;
+            min-height: 100vh;
+        }
+        
+        /* Skip to content */
+        .skip-to-content {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: var(--primary);
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            z-index: 10000;
+            border-radius: 0 0 4px 0;
+        }
+        
+        .skip-to-content:focus {
+            top: 0;
+        }
+        
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--success) 100%);
+            color: white;
+            padding: 2rem 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header-content h1 {
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            margin-bottom: 0.5rem;
+        }
+        
+        .header-content p {
+            font-size: clamp(0.9rem, 2vw, 1.1rem);
+            opacity: 0.95;
+            max-width: 800px;
+        }
+        
+        /* Navigation */
+        nav {
+            background: var(--surface);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            padding: 1rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        nav a {
+            color: var(--text);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        
+        nav a:hover, nav a:focus {
+            background: var(--primary);
+            color: white;
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+        
+        /* Main Container */
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+        
+        /* Loading State */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .loading-overlay.hidden {
+            display: none;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(46, 204, 113, 0.3);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* App Layout */
+        .app-layout {
+            display: grid;
+            grid-template-columns: 380px 1fr 420px;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        @media (max-width: 1600px) {
+            .app-layout {
+                grid-template-columns: 350px 1fr 380px;
+            }
+        }
+        
+        @media (max-width: 1400px) {
+            .app-layout {
+                grid-template-columns: 320px 1fr;
+            }
+            
+            .charts-panel {
+                grid-column: 1 / -1;
+                grid-row: 3;
+            }
+        }
+        
+        @media (max-width: 1024px) {
+            .app-layout {
+                grid-template-columns: 1fr;
+            }
+            
+            .control-panel,
+            .maps-panel,
+            .charts-panel {
+                grid-column: 1;
+            }
+        }
+        
+        /* Panel Styles */
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .panel-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 1.25rem;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            max-height: calc(100vh - 180px);
+            overflow-y: auto;
+        }
+        
+        .control-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .control-panel::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .control-panel::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+        
+        .control-group {
+            margin-bottom: 1.25rem;
+        }
+        
+        .control-label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-muted);
+        }
+        
+        .control-input,
+        .control-select {
+            width: 100%;
+            padding: 0.625rem;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        
+        .control-input:focus,
+        .control-select:focus {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+            border-color: var(--primary);
+        }
+        
+        .control-button {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 0.5rem;
+        }
+        
+        .control-button:hover {
+            background: var(--success);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.4);
+        }
+        
+        .control-button:active {
+            transform: translateY(0);
+        }
+        
+        .control-button.secondary {
+            background: var(--secondary);
+        }
+        
+        .control-button.secondary:hover {
+            background: #2980b9;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            color: var(--text);
+        }
+        
+        .checkbox-label input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .slider-container {
+            margin-top: 0.5rem;
+        }
+        
+        .slider {
+            width: 100%;
+            height: 6px;
+            background: rgba(148, 163, 184, 0.2);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 8px var(--primary);
+        }
+        
+        .slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .slider-value {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+            text-align: right;
+        }
+        
+        /* Color Bar Legend */
+        .color-bar {
+            height: 20px;
+            border-radius: 4px;
+            margin: 0.5rem 0;
+        }
+        
+        .color-bar-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        /* Maps Panel */
+        .maps-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .map-container {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .map-header {
+            padding: 1rem;
+            background: rgba(15, 23, 42, 0.8);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            color: var(--text);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .map-iframe {
+            width: 100%;
+            height: 400px;
+            border: none;
+            background: #1a1a1a;
+        }
+        
+        .map-placeholder {
+            width: 100%;
+            height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1rem;
+            color: var(--text-muted);
+            background: rgba(15, 23, 42, 0.6);
+        }
+        
+        .map-placeholder .icon {
+            font-size: 3rem;
+        }
+        
+        /* Charts Panel */
+        .charts-panel {
+            max-height: calc(100vh - 180px);
+            overflow-y: auto;
+        }
+        
+        .charts-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .charts-panel::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .charts-panel::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+        
+        .chart-container,
+        .table-container {
+            margin-bottom: 1.5rem;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        
+        .chart-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .chart-placeholder {
+            width: 100%;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            border: 1px dashed var(--border);
+            border-radius: 6px;
+        }
+        
+        /* Data Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 0.625rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .data-table th {
+            background: rgba(46, 204, 113, 0.2);
+            color: var(--primary);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        
+        .data-table tr:hover {
+            background: rgba(148, 163, 184, 0.1);
+        }
+        
+        .data-table td {
+            color: var(--text);
+        }
+        
+        .table-empty {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+        
+        /* Info Box */
+        .info-box {
+            background: rgba(52, 152, 219, 0.15);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .info-box-title {
+            font-weight: 600;
+            color: var(--secondary);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .info-box p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+        
+        /* Alert */
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        
+        .alert-warning {
+            background: rgba(243, 156, 18, 0.15);
+            border: 1px solid rgba(243, 156, 18, 0.3);
+            color: var(--warning);
+        }
+        
+        .alert-info {
+            background: rgba(52, 152, 219, 0.15);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            color: var(--secondary);
+        }
+        
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            margin-top: 3rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+        }
+        
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .app-layout {
+                gap: 0.75rem;
+            }
+            
+            .panel {
+                padding: 1rem;
+            }
+            
+            .map-iframe,
+            .map-placeholder {
+                height: 300px;
+            }
+            
+            .checkbox-group {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+        
+        /* Accessibility */
+        *:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+            border-radius: 4px;
+        }
+        
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="#main-content" class="skip-to-content">Saltar al contenido principal</a>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay hidden" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p>Cargando aplicación de Google Earth Engine...</p>
+    </div>
+    
+    <!-- Header -->
+    <header role="banner">
+        <div class="header-content">
+            <h1>🌳 Vegetación e Islas de Calor Urbano</h1>
+            <p>Plataforma de análisis temporal de NDVI (vegetación) y LST (temperatura superficial) para priorizar intervenciones urbanas en Lima</p>
+        </div>
+    </header>
+    
+    <!-- Navigation -->
+    <nav role="navigation" aria-label="Navegación principal">
+        <ul>
+            <li><a href="/">🏠 Inicio</a></li>
+            <li><a href="panel-autoridades.html">🏛️ Panel Autoridades</a></li>
+            <li><a href="transparencia.html">🔒 Transparencia</a></li>
+            <li><a href="tutoriales.html">📚 Tutoriales</a></li>
+            <li><a href="/api-docs">🔌 API</a></li>
+        </ul>
+    </nav>
+    
+    <!-- Main Content -->
+    <main id="main-content" class="container">
+        <!-- Info Banner -->
+        <div class="alert alert-info">
+            <strong>ℹ️ Acerca de esta herramienta:</strong> Esta aplicación integra datos de Sentinel-2 (NDVI), Landsat 8/9, MODIS (LST) y GHSL (población y urbanización) para identificar islas de calor, brechas de vegetación y priorizar distritos en Lima. Los datos se actualizan mensualmente.
+        </div>
+        
+        <!-- App Layout -->
+        <div class="app-layout">
+            <!-- Control Panel (Left) -->
+            <aside class="control-panel panel">
+                <h2 class="panel-title">⚙️ Controles de Análisis</h2>
+                
+                <!-- Info Box -->
+                <div class="info-box">
+                    <div class="info-box-title">📍 Instrucciones</div>
+                    <p>1. Ajusta el rango de fechas y mes de análisis<br>
+                    2. Selecciona filtros de urbanización (SMOD)<br>
+                    3. Define umbral de detección de islas de calor<br>
+                    4. Revisa mapas, series temporales y tablas</p>
+                </div>
+                
+                <!-- ROI Button -->
+                <div class="control-group">
+                    <button class="control-button" id="useRoiBtn" disabled>
+                        🗺️ Usar ROI del Dibujo (próximamente)
+                    </button>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
+                        Funcionalidad disponible en la versión completa de GEE
+                    </p>
+                </div>
+                
+                <!-- Temporal Aggregation -->
+                <div class="control-group">
+                    <label class="control-label" for="aggSelect">Agregación Temporal</label>
+                    <select class="control-select" id="aggSelect">
+                        <option value="monthly">Mensual</option>
+                        <option value="quarterly">Trimestral</option>
+                        <option value="annual">Anual</option>
+                    </select>
+                </div>
+                
+                <!-- Cloud Mask -->
+                <div class="control-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="cloudMask" checked>
+                        Aplicar máscara de nubes (S2/Landsat)
+                    </label>
+                </div>
+                
+                <!-- LST Day/Night -->
+                <div class="control-group">
+                    <label class="control-label" for="lstSelect">LST (MODIS)</label>
+                    <select class="control-select" id="lstSelect">
+                        <option value="day">Día (~10:30 LT)</option>
+                        <option value="night">Noche (~22:30 LT)</option>
+                    </select>
+                </div>
+                
+                <!-- Date Range -->
+                <div class="control-group">
+                    <label class="control-label">Rango de Análisis</label>
+                    <input type="date" class="control-input" id="startDate" value="2020-01-01">
+                    <input type="date" class="control-input" id="endDate" style="margin-top: 0.5rem;">
+                </div>
+                
+                <!-- Month Index -->
+                <div class="control-group">
+                    <label class="control-label" for="monthSlider">
+                        Mes a Visualizar: <span id="monthLabel">-</span>
+                    </label>
+                    <div class="slider-container">
+                        <input type="range" class="slider" id="monthSlider" min="0" max="24" value="0" step="1">
+                        <div class="slider-value">Mes <span id="monthValue">1</span> de <span id="monthTotal">1</span></div>
+                    </div>
+                </div>
+                
+                <!-- SMOD Filters -->
+                <div class="control-group">
+                    <label class="control-label">Filtro por SMOD (grado de urbanización)</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="smodUrban" checked>
+                            Centro urbano (30)
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="smodSemi" checked>
+                            Ciudad/Periurbano (21-23)
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="smodRural" checked>
+                            Rural (11-13)
+                        </label>
+                    </div>
+                    
+                    <!-- SMOD Legend -->
+                    <div style="margin-top: 0.75rem;">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.25rem;">Leyenda SMOD (Rural → Urbano)</div>
+                        <div class="color-bar" style="background: linear-gradient(to right, #edf8fb, #b3cde3, #8c96c6, #8856a7, #810f7c);"></div>
+                    </div>
+                </div>
+                
+                <!-- Heat Island Threshold -->
+                <div class="control-group">
+                    <label class="control-label" for="heatThreshold">
+                        Umbral LST Anomalía (°C): <span id="heatThresholdValue">2.0</span>
+                    </label>
+                    <div class="slider-container">
+                        <input type="range" class="slider" id="heatThreshold" min="-1" max="5" value="2" step="0.1">
+                    </div>
+                </div>
+                
+                <!-- GIF Buttons -->
+                <div class="control-group">
+                    <label class="control-label">Generar Animaciones</label>
+                    <button class="control-button secondary" id="gifNDVI" disabled>
+                        🎬 GIF NDVI (próximamente)
+                    </button>
+                    <button class="control-button secondary" id="gifLST" disabled>
+                        🎬 GIF LST Anomalía (próximamente)
+                    </button>
+                </div>
+                
+                <!-- Legends -->
+                <div class="control-group">
+                    <label class="control-label">Leyendas</label>
+                    
+                    <div style="margin-bottom: 0.75rem;">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.25rem;">NDVI (0.0 - 0.8)</div>
+                        <div class="color-bar" style="background: linear-gradient(to right, #9e9e9e, #d9f0a3, #78c679, #238443);"></div>
+                        <div class="color-bar-labels">
+                            <span>0.0</span>
+                            <span>0.4</span>
+                            <span>0.8</span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.25rem;">LST Anomalía (°C)</div>
+                        <div class="color-bar" style="background: linear-gradient(to right, #2c7bb6, #abd9e9, #ffffbf, #fdae61, #d7191c);"></div>
+                        <div class="color-bar-labels">
+                            <span>-2.5</span>
+                            <span>0.5</span>
+                            <span>3.5</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Admin Asset -->
+                <div class="control-group">
+                    <label class="control-label">Unidades Administrativas</label>
+                    <input type="text" class="control-input" id="adminAsset" placeholder="users/tu_usuario/Lima_Distritos (opcional)">
+                    <button class="control-button" id="loadAdminBtn" disabled>
+                        📁 Cargar Distritos (próximamente)
+                    </button>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
+                        Por defecto usa provincias (FAO GAUL nivel 2)
+                    </p>
+                </div>
+            </aside>
+            
+            <!-- Maps Panel (Center) -->
+            <section class="maps-panel">
+                <!-- NDVI Map -->
+                <div class="map-container">
+                    <div class="map-header">
+                        <span>🌿 NDVI (Vegetación)</span>
+                        <span id="ndviMonth">-</span>
+                    </div>
+                    <div class="map-placeholder">
+                        <div class="icon">🗺️</div>
+                        <p>Mapa NDVI se cargará aquí</p>
+                        <p style="font-size: 0.8rem; color: var(--text-muted);">Requiere integración con Google Earth Engine</p>
+                    </div>
+                </div>
+                
+                <!-- LST Anomaly Map -->
+                <div class="map-container">
+                    <div class="map-header">
+                        <span>🌡️ LST Anomalía (Islas de Calor)</span>
+                        <span id="lstMonth">-</span>
+                    </div>
+                    <div class="map-placeholder">
+                        <div class="icon">🗺️</div>
+                        <p>Mapa LST Anomalía se cargará aquí</p>
+                        <p style="font-size: 0.8rem; color: var(--text-muted);">Requiere integración con Google Earth Engine</p>
+                    </div>
+                </div>
+                
+                <!-- Implementation Note -->
+                <div class="alert alert-warning">
+                    <strong>⚠️ Nota de Implementación:</strong> Los mapas interactivos requieren la integración completa con Google Earth Engine Code Editor. Para usar esta funcionalidad:
+                    <ol style="margin: 0.5rem 0; padding-left: 1.5rem; font-size: 0.85rem;">
+                        <li>Copia el código JavaScript proporcionado</li>
+                        <li>Pégalo en <a href="https://code.earthengine.google.com/" target="_blank" style="color: var(--primary); text-decoration: underline;">code.earthengine.google.com</a></li>
+                        <li>Ejecuta el script en el Code Editor</li>
+                        <li>Opcionalmente, publícalo como GEE App</li>
+                    </ol>
+                </div>
+            </section>
+            
+            <!-- Charts Panel (Right) -->
+            <aside class="charts-panel panel">
+                <h2 class="panel-title">📊 Series Temporales y Tablas</h2>
+                
+                <!-- NDVI Time Series -->
+                <div class="chart-container">
+                    <h3 class="chart-title">Serie Temporal NDVI (promedio ROI)</h3>
+                    <div class="chart-placeholder">
+                        📈 Gráfico de series temporales aquí
+                    </div>
+                </div>
+                
+                <!-- LST Anomaly Time Series -->
+                <div class="chart-container">
+                    <h3 class="chart-title">Serie Temporal LST Anomalía (°C promedio ROI)</h3>
+                    <div class="chart-placeholder">
+                        📈 Gráfico de series temporales aquí
+                    </div>
+                </div>
+                
+                <!-- Heat Islands Events Table -->
+                <div class="table-container">
+                    <h3 class="chart-title">🔥 Eventos de Islas de Calor Detectados</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                        Eventos donde LST anomalía > <strong><span id="currentThreshold">2.0</span> °C</strong>
+                    </p>
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        <table class="data-table" id="heatEventsTable">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Hora (aprox.)</th>
+                                    <th>Área administrativa</th>
+                                    <th>LST anom. (°C)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="4" class="table-empty">
+                                        Ajusta los controles para generar datos de eventos
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Priority Table -->
+                <div class="table-container">
+                    <h3 class="chart-title">🎯 Prioridades por Distrito/Provincia</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                        Ordenado por <strong>PRIOR_mean</strong> (LST anóm. − NDVI)
+                    </p>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <table class="data-table" id="priorityTable">
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>PRIOR_mean</th>
+                                    <th>NDVI_mean</th>
+                                    <th>LSTa_mean</th>
+                                    <th>POP_sum</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="5" class="table-empty">
+                                        Selecciona un mes para ver prioridades por distrito
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Methodology Note -->
+                <div class="info-box">
+                    <div class="info-box-title">📖 Metodología</div>
+                    <p><strong>NDVI:</strong> Sentinel-2 (10m) + Landsat 8/9 (30m), compuesto mensual (mediana)</p>
+                    <p><strong>LST:</strong> MODIS MOD11A2 (1km, 8 días), anomalía respecto climatología 2018-2022</p>
+                    <p><strong>PRIORIDAD:</strong> z(LST_anom) - z(NDVI), ponderado por población (GHSL)</p>
+                    <p><strong>SMOD:</strong> GHSL P2023A (100m), clasifica grado de urbanización</p>
+                </div>
+                
+                <!-- Export Placeholder -->
+                <div class="control-group">
+                    <button class="control-button secondary" disabled>
+                        💾 Exportar Datos (próximamente)
+                    </button>
+                </div>
+            </aside>
+        </div>
+        
+        <!-- Implementation Guide -->
+        <div class="panel" style="margin-top: 2rem;">
+            <h2 class="panel-title">🚀 Guía de Implementación Completa</h2>
+            
+            <div class="info-box">
+                <div class="info-box-title">📋 Pasos para Implementar en Google Earth Engine</div>
+                <ol style="font-size: 0.9rem; line-height: 1.8; color: var(--text-muted);">
+                    <li>Abre el <a href="https://code.earthengine.google.com/" target="_blank" style="color: var(--primary);">Google Earth Engine Code Editor</a></li>
+                    <li>Crea un nuevo script (File → New → Repository → New File)</li>
+                    <li>Copia y pega el código JavaScript completo proporcionado en la documentación</li>
+                    <li>Opcionalmente, carga tu propio asset de distritos de Lima (Format: FeatureCollection)</li>
+                    <li>Ejecuta el script (Run button) - la aplicación se cargará en el Code Editor</li>
+                    <li>Para publicar como app web: Apps → Publish → New App</li>
+                    <li>Configura permisos y comparte el enlace público</li>
+                </ol>
+            </div>
+            
+            <div class="alert alert-info">
+                <strong>💡 Datasets Utilizados (IDs de GEE):</strong>
+                <ul style="font-size: 0.85rem; margin: 0.5rem 0; padding-left: 1.5rem; line-height: 1.8;">
+                    <li><code>COPERNICUS/S2_SR_HARMONIZED</code> - Sentinel-2 Surface Reflectance</li>
+                    <li><code>LANDSAT/LC08/C02/T1_L2</code> - Landsat 8 Collection 2 Tier 1 Level 2</li>
+                    <li><code>LANDSAT/LC09/C02/T1_L2</code> - Landsat 9 Collection 2 Tier 1 Level 2</li>
+                    <li><code>MODIS/061/MOD11A2</code> - MODIS Land Surface Temperature (8-day, 1km)</li>
+                    <li><code>JRC/GHSL/P2023A/GHS_POP/2020</code> - Global Human Settlement Layer Population</li>
+                    <li><code>JRC/GHSL/P2023A/GHS_SMOD_V2-0/2020</code> - Settlement Model Grid</li>
+                    <li><code>FAO/GAUL/2015/level2</code> - Global Administrative Unit Layers (fallback)</li>
+                </ul>
+            </div>
+            
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-top: 1rem;">
+                <h4 style="color: var(--text); margin-bottom: 0.5rem; font-size: 0.95rem;">🔗 Recursos Adicionales</h4>
+                <ul style="font-size: 0.85rem; line-height: 1.8; color: var(--text-muted);">
+                    <li><a href="https://developers.google.com/earth-engine" target="_blank" style="color: var(--secondary);">Documentación oficial de Google Earth Engine</a></li>
+                    <li><a href="https://developers.google.com/earth-engine/tutorials/community/intro-to-python-api" target="_blank" style="color: var(--secondary);">Tutorial de Python API</a></li>
+                    <li><a href="https://github.com/google/earthengine-api" target="_blank" style="color: var(--secondary);">Earth Engine API en GitHub</a></li>
+                    <li><a href="/api-docs" style="color: var(--primary);">API REST de EcoPlan (integración futura)</a></li>
+                </ul>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Footer -->
+    <footer role="contentinfo">
+        <p>&copy; 2025 EcoPlan - Plataforma de Monitoreo Ambiental Urbano</p>
+        <p>
+            <a href="/">Inicio</a> · 
+            <a href="transparencia.html">Transparencia</a> · 
+            <a href="tutoriales.html">Tutoriales</a> · 
+            <a href="/api-docs">API</a> · 
+            <a href="mailto:ayuda@ecoplan.gob.pe">Contacto</a>
+        </p>
+        <p style="font-size: 0.85rem; margin-top: 0.5rem;">
+            Powered by Google Earth Engine · Sentinel-2 · Landsat · MODIS · GHSL
+        </p>
+    </footer>
+    
+    <script>
+        // =====================================================================
+        // DEMO FUNCTIONALITY (UI interactions only)
+        // Full GEE implementation requires integration with Earth Engine API
+        // =====================================================================
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeUI();
+        });
+        
+        function initializeUI() {
+            // Set current date as end date
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('endDate').value = today;
+            
+            // Month slider
+            const monthSlider = document.getElementById('monthSlider');
+            const monthValue = document.getElementById('monthValue');
+            const monthLabel = document.getElementById('monthLabel');
+            const monthTotal = document.getElementById('monthTotal');
+            
+            monthSlider.addEventListener('input', (e) => {
+                const val = parseInt(e.target.value) + 1;
+                monthValue.textContent = val;
+                monthLabel.textContent = `Mes ${val}`;
+                
+                // Update map headers (demo)
+                document.getElementById('ndviMonth').textContent = `Mes ${val}`;
+                document.getElementById('lstMonth').textContent = `Mes ${val}`;
+                
+                // Simulate data update
+                updateDemoData(val);
+            });
+            
+            // Calculate month range
+            updateMonthRange();
+            
+            // Heat threshold slider
+            const heatThreshold = document.getElementById('heatThreshold');
+            const heatThresholdValue = document.getElementById('heatThresholdValue');
+            const currentThreshold = document.getElementById('currentThreshold');
+            
+            heatThreshold.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value).toFixed(1);
+                heatThresholdValue.textContent = val;
+                currentThreshold.textContent = val;
+            });
+            
+            // Date inputs
+            document.getElementById('startDate').addEventListener('change', updateMonthRange);
+            document.getElementById('endDate').addEventListener('change', updateMonthRange);
+            
+            // SMOD filters
+            ['smodUrban', 'smodSemi', 'smodRural'].forEach(id => {
+                document.getElementById(id).addEventListener('change', () => {
+                    console.log('SMOD filter changed:', id);
+                });
+            });
+            
+            // LST Day/Night
+            document.getElementById('lstSelect').addEventListener('change', (e) => {
+                console.log('LST mode changed:', e.target.value);
+            });
+            
+            // Cloud mask
+            document.getElementById('cloudMask').addEventListener('change', (e) => {
+                console.log('Cloud mask:', e.target.checked);
+            });
+            
+            // Initial demo data
+            loadDemoData();
+        }
+        
+        function updateMonthRange() {
+            const startDate = new Date(document.getElementById('startDate').value);
+            const endDate = new Date(document.getElementById('endDate').value);
+            
+            if (isNaN(startDate) || isNaN(endDate)) return;
+            
+            // Calculate number of months
+            const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 
+                         + (endDate.getMonth() - startDate.getMonth()) + 1;
+            
+            const monthSlider = document.getElementById('monthSlider');
+            const monthTotal = document.getElementById('monthTotal');
+            
+            monthSlider.max = Math.max(0, months - 1);
+            monthTotal.textContent = months;
+            
+            console.log(`Date range: ${months} months from ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+        }
+        
+        function loadDemoData() {
+            // Demo heat events
+            const heatEventsTable = document.getElementById('heatEventsTable').getElementsByTagName('tbody')[0];
+            heatEventsTable.innerHTML = `
+                <tr>
+                    <td>2024-01</td>
+                    <td>10:30 LT (Terra, día)</td>
+                    <td>Lima Metropolitana</td>
+                    <td style="color: var(--danger); font-weight: 600;">+3.2</td>
+                </tr>
+                <tr>
+                    <td>2024-02</td>
+                    <td>10:30 LT (Terra, día)</td>
+                    <td>Lima Metropolitana</td>
+                    <td style="color: var(--danger); font-weight: 600;">+2.8</td>
+                </tr>
+                <tr>
+                    <td>2024-03</td>
+                    <td>10:30 LT (Terra, día)</td>
+                    <td>Callao</td>
+                    <td style="color: var(--warning); font-weight: 600;">+2.1</td>
+                </tr>
+                <tr>
+                    <td>2024-01</td>
+                    <td>10:30 LT (Terra, día)</td>
+                    <td>San Juan de Lurigancho</td>
+                    <td style="color: var(--danger); font-weight: 600;">+2.9</td>
+                </tr>
+            `;
+            
+            // Demo priority table
+            const priorityTable = document.getElementById('priorityTable').getElementsByTagName('tbody')[0];
+            priorityTable.innerHTML = `
+                <tr>
+                    <td style="font-weight: 600;">Lima Metropolitana</td>
+                    <td style="color: var(--danger); font-weight: 600;">0.82</td>
+                    <td>0.28</td>
+                    <td style="color: var(--danger);">+2.8</td>
+                    <td>8,574,974</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 600;">San Juan de Lurigancho</td>
+                    <td style="color: var(--danger); font-weight: 600;">0.75</td>
+                    <td>0.31</td>
+                    <td style="color: var(--danger);">+2.6</td>
+                    <td>1,091,303</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 600;">San Martín de Porres</td>
+                    <td style="color: var(--warning); font-weight: 600;">0.68</td>
+                    <td>0.34</td>
+                    <td style="color: var(--warning);">+2.3</td>
+                    <td>700,177</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 600;">Ate</td>
+                    <td style="color: var(--warning); font-weight: 600;">0.62</td>
+                    <td>0.37</td>
+                    <td style="color: var(--warning);">+2.1</td>
+                    <td>630,085</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 600;">Comas</td>
+                    <td style="color: var(--warning); font-weight: 600;">0.58</td>
+                    <td>0.39</td>
+                    <td style="color: var(--warning);">+2.0</td>
+                    <td>524,894</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 600;">Villa El Salvador</td>
+                    <td>0.45</td>
+                    <td>0.42</td>
+                    <td>+1.7</td>
+                    <td>463,014</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 600;">Villa María del Triunfo</td>
+                    <td>0.38</td>
+                    <td>0.45</td>
+                    <td>+1.5</td>
+                    <td>448,545</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 600;">Callao</td>
+                    <td>0.35</td>
+                    <td>0.47</td>
+                    <td>+1.4</td>
+                    <td>406,889</td>
+                </tr>
+            `;
+        }
+        
+        function updateDemoData(monthNum) {
+            // Simulate updating data based on month selection
+            console.log('Updating demo data for month:', monthNum);
+            
+            // In a real implementation, this would:
+            // 1. Filter imageCollections by month
+            // 2. Update map layers
+            // 3. Recalculate statistics
+            // 4. Update charts and tables
+        }
+        
+        // Placeholder for GEE integration
+        console.log(`
+═══════════════════════════════════════════════════════════════════
+ 🌍 Vegetación e Islas de Calor - EcoPlan
+═══════════════════════════════════════════════════════════════════
+
+Esta es una interfaz de demostración. Para funcionalidad completa:
+
+1. Copia el código JavaScript de GEE (proporcionado en la documentación)
+2. Pégalo en https://code.earthengine.google.com/
+3. Ejecuta el script en el Code Editor de Google Earth Engine
+
+El código completo incluye:
+- Procesamiento de NDVI (Sentinel-2 + Landsat)
+- Cálculo de anomalías LST (MODIS)
+- Filtros SMOD (GHSL)
+- Generación de mapas sincronizados
+- Series temporales interactivas
+- Tablas de eventos y prioridades
+- Exportación de GIFs animados
+
+Para integrarlo en esta plataforma web:
+- Se requiere autenticación con Google Earth Engine API
+- Configuración de service account
+- Procesamiento server-side de datos satelitales
+
+═══════════════════════════════════════════════════════════════════
+        `);
+    </script>
+</body>
+</html>
