@@ -2236,6 +2236,206 @@ app.get('/api/validation/moderators', async (req, res) => {
 // FIN ENDPOINTS DE VALIDACIÓN COMUNITARIA
 // ============================================================================
 
+// ============================================================================
+// MICRO-ENCUESTAS DE 1 CLIC
+// ============================================================================
+const microSurveyService = require('./services/microSurveyService');
+
+/**
+ * GET /api/citizen-reports/:id/survey/questions
+ * Obtiene preguntas de micro-encuesta aplicables para un reporte
+ */
+app.get('/api/citizen-reports/:id/survey/questions', async (req, res) => {
+  try {
+    const reportId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(reportId)) {
+      return res.status(400).json({ error: 'ID de reporte inválido' });
+    }
+
+    // Obtener reporte para conocer su categoría
+    const allReports = await citizenReportsRepository.listReports({});
+    const report = allReports.find(r => r.id === reportId);
+    
+    if (!report) {
+      return res.status(404).json({ error: 'Reporte no encontrado' });
+    }
+
+    // Obtener preguntas aplicables
+    const questions = microSurveyService.getQuestionsForReport(report.category);
+    
+    // Obtener progreso actual
+    const progress = microSurveyService.getReportProgress(reportId, report.category);
+    
+    // Obtener respuestas existentes
+    const existingResponses = microSurveyService.getReportResponses(reportId);
+
+    res.json({
+      reportId,
+      category: report.category,
+      questions,
+      progress,
+      existingResponses
+    });
+  } catch (error) {
+    console.error('Error en GET /api/citizen-reports/:id/survey/questions:', error);
+    res.status(500).json({ error: 'No se pudo obtener preguntas' });
+  }
+});
+
+/**
+ * POST /api/citizen-reports/:id/survey/respond
+ * Registra respuesta de micro-encuesta
+ * 
+ * Body: {
+ *   questionKey: 'duration',
+ *   selectedOption: 'days',
+ *   userIdentifier: 'device-uuid-or-ip',
+ *   latitude: -12.0464,
+ *   longitude: -77.0428
+ * }
+ */
+app.post('/api/citizen-reports/:id/survey/respond', async (req, res) => {
+  try {
+    const reportId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(reportId)) {
+      return res.status(400).json({ error: 'ID de reporte inválido' });
+    }
+
+    const { questionKey, selectedOption, userIdentifier, latitude, longitude } = req.body;
+
+    // Validaciones
+    if (!questionKey || !selectedOption) {
+      return res.status(400).json({ 
+        error: 'Faltan campos requeridos: questionKey, selectedOption' 
+      });
+    }
+
+    if (!userIdentifier) {
+      return res.status(400).json({ 
+        error: 'Se requiere identificador de usuario (device ID o IP)' 
+      });
+    }
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return res.status(400).json({ 
+        error: 'Coordenadas inválidas' 
+      });
+    }
+
+    // Registrar respuesta
+    const result = await microSurveyService.recordResponse({
+      reportId,
+      questionKey,
+      selectedOption,
+      userIdentifier,
+      latitude,
+      longitude
+    });
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    // Respuesta con datos para el UX
+    res.json({
+      success: true,
+      isNewResponse: result.isNewResponse,
+      message: result.isNewResponse 
+        ? '¡Gracias por tu respuesta!' 
+        : 'Respuesta actualizada',
+      neighborhood: result.neighborhood,
+      district: result.district,
+      progress: result.progress,
+      neighborhoodStats: result.neighborhoodStats
+    });
+  } catch (error) {
+    console.error('Error en POST /api/citizen-reports/:id/survey/respond:', error);
+    res.status(500).json({ error: 'No se pudo registrar la respuesta' });
+  }
+});
+
+/**
+ * GET /api/surveys/neighborhood/:name/progress
+ * Obtiene progreso de respuestas en un barrio
+ */
+app.get('/api/surveys/neighborhood/:name/progress', async (req, res) => {
+  try {
+    const neighborhood = decodeURIComponent(req.params.name);
+    const stats = microSurveyService.getNeighborhoodStats(neighborhood);
+
+    res.json({
+      neighborhood,
+      ...stats
+    });
+  } catch (error) {
+    console.error('Error en GET /api/surveys/neighborhood/:name/progress:', error);
+    res.status(500).json({ error: 'No se pudo obtener progreso del barrio' });
+  }
+});
+
+/**
+ * GET /api/surveys/neighborhood/:name/results
+ * Obtiene resultados agregados de un barrio
+ */
+app.get('/api/surveys/neighborhood/:name/results', async (req, res) => {
+  try {
+    const neighborhood = decodeURIComponent(req.params.name);
+    const aggregations = microSurveyService.getNeighborhoodAggregations(neighborhood);
+    const stats = microSurveyService.getNeighborhoodStats(neighborhood);
+
+    res.json({
+      neighborhood,
+      stats,
+      aggregations
+    });
+  } catch (error) {
+    console.error('Error en GET /api/surveys/neighborhood/:name/results:', error);
+    res.status(500).json({ error: 'No se pudo obtener resultados del barrio' });
+  }
+});
+
+/**
+ * GET /api/surveys/metrics
+ * Obtiene métricas globales de micro-encuestas
+ */
+app.get('/api/surveys/metrics', async (req, res) => {
+  try {
+    const metrics = microSurveyService.getGlobalMetrics();
+    const topNeighborhoods = microSurveyService.getTopNeighborhoods(10);
+
+    res.json({
+      metrics,
+      topNeighborhoods
+    });
+  } catch (error) {
+    console.error('Error en GET /api/surveys/metrics:', error);
+    res.status(500).json({ error: 'No se pudo obtener métricas' });
+  }
+});
+
+/**
+ * GET /api/surveys/templates
+ * Obtiene todas las plantillas de preguntas
+ */
+app.get('/api/surveys/templates', async (req, res) => {
+  try {
+    const category = req.query.category || null;
+    const templates = microSurveyService.getTemplates(category);
+
+    res.json({
+      templates,
+      totalQuestions: templates.length
+    });
+  } catch (error) {
+    console.error('Error en GET /api/surveys/templates:', error);
+    res.status(500).json({ error: 'No se pudo obtener plantillas' });
+  }
+});
+
+// ============================================================================
+// FIN ENDPOINTS DE MICRO-ENCUESTAS
+// ============================================================================
+
 // Generación de reportes EcoPlan
 app.post('/api/reports/generate', async (req, res) => {
     if (!eeInitialized) {
