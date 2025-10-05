@@ -2415,6 +2415,272 @@
               </div>
             </div>
           </section>
+
+          <!-- ÍNDICES COMPUESTOS AMBIENTALES - Punto 7 -->
+          <section class="card" style="border-left: 4px solid #8b5cf6;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+              <span style="font-size: 2rem;" role="img" aria-label="Medidor">🎯</span>
+              <div>
+                <h2 class="section-title" style="margin: 0;">Índices Ambientales Compuestos</h2>
+                <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">
+                  Vulnerabilidad calor · Áreas verdes · Contaminación · Riesgo hídrico
+                </p>
+              </div>
+            </div>
+
+            <!-- Selector de barrio -->
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85rem;">
+                Selecciona un barrio:
+              </label>
+              <select id="compositeNeighborhoodSelector" style="width: 100%; padding: 10px; font-size: 0.9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;">
+                <option value="">Cargando barrios...</option>
+              </select>
+            </div>
+
+            <!-- Controles de visualización -->
+            <div id="compositeControls" style="display: none; margin-bottom: 16px; padding: 16px; background: rgba(139, 92, 246, 0.1); border-radius: 12px;">
+              <div style="margin-bottom: 12px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.85rem;">
+                  Seleccionar índices a visualizar:
+                </label>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--surface); border-radius: 6px; font-size: 0.85rem;">
+                    <input type="checkbox" id="indexHeat" checked>
+                    <span>🔥 Vulnerabilidad Calor</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--surface); border-radius: 6px; font-size: 0.85rem;">
+                    <input type="checkbox" id="indexGreen" checked>
+                    <span>🌳 Déficit Áreas Verdes</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--surface); border-radius: 6px; font-size: 0.85rem;">
+                    <input type="checkbox" id="indexPollution" checked>
+                    <span>💨 Contaminación</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--surface); border-radius: 6px; font-size: 0.85rem;">
+                    <input type="checkbox" id="indexWater" checked>
+                    <span>💧 Riesgo Hídrico</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Pesos personalizados -->
+              <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-weight: 600; font-size: 0.85rem;">Pesos personalizados:</span>
+                  <button type="button" id="resetWeightsBtn" style="font-size: 0.75rem; padding: 4px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; color: var(--text);">
+                    Restablecer
+                  </button>
+                </div>
+
+                <div style="display: grid; gap: 12px;">
+                  <div>
+                    <label style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.8rem;">
+                      <span>🔥 Calor:</span>
+                      <span id="weightHeatValue" style="color: var(--primary); font-weight: 600;">0.30</span>
+                    </label>
+                    <input type="range" id="weightHeat" min="0" max="1" step="0.05" value="0.30" style="width: 100%;">
+                  </div>
+
+                  <div>
+                    <label style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.8rem;">
+                      <span>🌳 Áreas Verdes:</span>
+                      <span id="weightGreenValue" style="color: var(--primary); font-weight: 600;">0.25</span>
+                    </label>
+                    <input type="range" id="weightGreen" min="0" max="1" step="0.05" value="0.25" style="width: 100%;">
+                  </div>
+
+                  <div>
+                    <label style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.8rem;">
+                      <span>💨 Contaminación:</span>
+                      <span id="weightPollutionValue" style="color: var(--primary); font-weight: 600;">0.25</span>
+                    </label>
+                    <input type="range" id="weightPollution" min="0" max="1" step="0.05" value="0.25" style="width: 100%;">
+                  </div>
+
+                  <div>
+                    <label style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.8rem;">
+                      <span>💧 Riesgo Hídrico:</span>
+                      <span id="weightWaterValue" style="color: var(--primary); font-weight: 600;">0.20</span>
+                    </label>
+                    <input type="range" id="weightWater" min="0" max="1" step="0.05" value="0.20" style="width: 100%;">
+                  </div>
+
+                  <div style="padding: 8px; background: rgba(59, 130, 246, 0.1); border-radius: 6px; text-align: center;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Suma total: </span>
+                    <span id="weightsTotalValue" style="font-weight: 700; font-size: 0.9rem; color: var(--primary);">1.00</span>
+                  </div>
+
+                  <button type="button" id="applyCustomWeightsBtn" class="button-primary" style="width: 100%; padding: 10px;">
+                    Aplicar pesos personalizados
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Estado de carga -->
+            <div id="compositeLoading" style="display: none; text-align: center; padding: 40px 20px; color: var(--text-muted);">
+              <div style="font-size: 2rem; margin-bottom: 12px;">⏳</div>
+              <div>Calculando índices compuestos...</div>
+              <div style="font-size: 0.8rem; margin-top: 8px;">MODIS, Sentinel-2, SRTM</div>
+            </div>
+
+            <!-- Contenedor de resultados -->
+            <div id="compositeResults" style="display: none;">
+              <!-- Header con índice total -->
+              <div id="compositeHeader" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(124, 58, 237, 0.2)); padding: 20px; border-radius: 12px; margin-bottom: 16px; text-align: center;">
+                <div style="font-size: 1.5rem; font-weight: 600; margin-bottom: 8px;" id="compositeNeighborhoodName">-</div>
+                <div style="display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 12px;">
+                  <div style="text-align: center;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">Índice Ambiental Total</div>
+                    <div style="font-size: 3rem; font-weight: 700; color: var(--primary);" id="compositeTotalIndex">-</div>
+                    <div style="font-size: 0.85rem; margin-top: 4px;" id="compositeTotalInterpretation">-</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Gráfico radar/barras de los 4 índices -->
+              <div style="padding: 16px; background: var(--surface); border-radius: 12px; margin-bottom: 16px;">
+                <h3 style="margin: 0 0 12px 0; font-size: 1rem;">Desglose de Índices</h3>
+                <canvas id="compositeRadarChart" style="max-height: 300px;"></canvas>
+              </div>
+
+              <!-- Tarjetas de los 4 índices -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                <!-- Vulnerabilidad Calor -->
+                <div class="composite-index-card" data-index="heat" style="padding: 16px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.15)); border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.3); cursor: pointer; transition: transform 0.2s;">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 1.5rem;">🔥</span>
+                    <span style="font-size: 0.85rem; font-weight: 600;">Vulnerabilidad Calor</span>
+                  </div>
+                  <div style="font-size: 2rem; font-weight: 700; color: #ef4444;" id="heatIndex">-</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;" id="heatInterpretation">-</div>
+                  <button type="button" class="index-details-btn" data-index="heat" style="margin-top: 12px; width: 100%; padding: 6px; font-size: 0.75rem; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; cursor: pointer; color: var(--text);">
+                    Ver componentes
+                  </button>
+                </div>
+
+                <!-- Déficit Áreas Verdes -->
+                <div class="composite-index-card" data-index="green" style="padding: 16px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(22, 163, 74, 0.15)); border-radius: 12px; border: 1px solid rgba(34, 197, 94, 0.3); cursor: pointer; transition: transform 0.2s;">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 1.5rem;">🌳</span>
+                    <span style="font-size: 0.85rem; font-weight: 600;">Déficit Áreas Verdes</span>
+                  </div>
+                  <div style="font-size: 2rem; font-weight: 700; color: #22c55e;" id="greenIndex">-</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;" id="greenInterpretation">-</div>
+                  <button type="button" class="index-details-btn" data-index="green" style="margin-top: 12px; width: 100%; padding: 6px; font-size: 0.75rem; background: rgba(34, 197, 94, 0.2); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 6px; cursor: pointer; color: var(--text);">
+                    Ver componentes
+                  </button>
+                </div>
+
+                <!-- Contaminación -->
+                <div class="composite-index-card" data-index="pollution" style="padding: 16px; background: linear-gradient(135deg, rgba(251, 146, 60, 0.15), rgba(234, 88, 12, 0.15)); border-radius: 12px; border: 1px solid rgba(251, 146, 60, 0.3); cursor: pointer; transition: transform 0.2s;">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 1.5rem;">💨</span>
+                    <span style="font-size: 0.85rem; font-weight: 600;">Contaminación</span>
+                  </div>
+                  <div style="font-size: 2rem; font-weight: 700; color: #fb923c;" id="pollutionIndex">-</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;" id="pollutionInterpretation">-</div>
+                  <button type="button" class="index-details-btn" data-index="pollution" style="margin-top: 12px; width: 100%; padding: 6px; font-size: 0.75rem; background: rgba(251, 146, 60, 0.2); border: 1px solid rgba(251, 146, 60, 0.4); border-radius: 6px; cursor: pointer; color: var(--text);">
+                    Ver componentes
+                  </button>
+                </div>
+
+                <!-- Riesgo Hídrico -->
+                <div class="composite-index-card" data-index="water" style="padding: 16px; background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.15)); border-radius: 12px; border: 1px solid rgba(59, 130, 246, 0.3); cursor: pointer; transition: transform 0.2s;">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 1.5rem;">💧</span>
+                    <span style="font-size: 0.85rem; font-weight: 600;">Riesgo Hídrico</span>
+                  </div>
+                  <div style="font-size: 2rem; font-weight: 700; color: #3b82f6;" id="waterIndex">-</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;" id="waterInterpretation">-</div>
+                  <button type="button" class="index-details-btn" data-index="water" style="margin-top: 12px; width: 100%; padding: 6px; font-size: 0.75rem; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; cursor: pointer; color: var(--text);">
+                    Ver componentes
+                  </button>
+                </div>
+              </div>
+
+              <!-- Simulador de escenarios -->
+              <div style="padding: 16px; background: var(--surface); border-radius: 12px; border: 2px solid rgba(245, 158, 11, 0.3); margin-bottom: 16px;">
+                <h3 style="margin: 0 0 12px 0; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
+                  <span>🎬</span>
+                  <span>Simulador de Escenarios "Antes vs Después"</span>
+                </h3>
+
+                <div style="display: grid; gap: 12px; margin-bottom: 12px;">
+                  <div>
+                    <label style="display: block; margin-bottom: 4px; font-size: 0.8rem;">
+                      Aumento de vegetación (%):
+                      <span id="scenarioVegetationValue" style="color: var(--primary); font-weight: 600; margin-left: 8px;">0</span>
+                    </label>
+                    <input type="range" id="scenarioVegetation" min="0" max="50" step="5" value="0" style="width: 100%;">
+                  </div>
+
+                  <div>
+                    <label style="display: block; margin-bottom: 4px; font-size: 0.8rem;">
+                      Reducción de contaminación (%):
+                      <span id="scenarioPollutionValue" style="color: var(--primary); font-weight: 600; margin-left: 8px;">0</span>
+                    </label>
+                    <input type="range" id="scenarioPollution" min="0" max="50" step="5" value="0" style="width: 100%;">
+                  </div>
+
+                  <div>
+                    <label style="display: block; margin-bottom: 4px; font-size: 0.8rem;">
+                      Áreas verdes adicionales (m²/hab):
+                      <span id="scenarioGreenSpaceValue" style="color: var(--primary); font-weight: 600; margin-left: 8px;">0</span>
+                    </label>
+                    <input type="range" id="scenarioGreenSpace" min="0" max="10" step="0.5" value="0" style="width: 100%;">
+                  </div>
+                </div>
+
+                <button type="button" id="simulateScenarioBtn" class="button-primary" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                  🎬 Simular escenario
+                </button>
+
+                <div id="scenarioResults" style="display: none; margin-top: 16px; padding: 12px; background: rgba(16, 185, 129, 0.1); border-radius: 8px;">
+                  <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 8px;">Mejora proyectada:</div>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; font-size: 0.8rem;">
+                    <div>
+                      <span>🔥 Calor:</span>
+                      <span id="scenarioHeatImprovement" style="color: var(--success); font-weight: 600;">-</span>
+                    </div>
+                    <div>
+                      <span>🌳 Verde:</span>
+                      <span id="scenarioGreenImprovement" style="color: var(--success); font-weight: 600;">-</span>
+                    </div>
+                    <div>
+                      <span>💨 Contaminación:</span>
+                      <span id="scenarioPollutionImprovement" style="color: var(--success); font-weight: 600;">-</span>
+                    </div>
+                    <div>
+                      <span>📊 Total:</span>
+                      <span id="scenarioTotalImprovement" style="color: var(--success); font-weight: 600;">-</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Resumen y descarga -->
+              <div style="padding: 12px; background: rgba(100, 116, 139, 0.1); border-radius: 8px; font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px;">
+                <strong>Resumen:</strong> <span id="compositeSummary">-</span>
+              </div>
+
+              <button type="button" id="downloadCompositeDataBtn" class="button-secondary" style="width: 100%; padding: 10px;">
+                📥 Descargar datos completos
+              </button>
+            </div>
+
+            <!-- Mensaje de ayuda inicial -->
+            <div id="compositeHelp" style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+              <div style="font-size: 3rem; margin-bottom: 12px;">🎯</div>
+              <div style="font-size: 0.9rem;">
+                Selecciona un barrio para ver sus índices compuestos
+              </div>
+              <div style="font-size: 0.8rem; margin-top: 8px;">
+                Calor · Verde · Contaminación · Agua
+              </div>
+            </div>
+          </section>
     </div>
   </main>
 
@@ -7460,5 +7726,8 @@
 
   <!-- Script de datos socioeconómicos -->
   <script src="js/socioeconomic.js"></script>
+
+  <!-- Script de índices compuestos ambientales -->
+  <script src="js/compositeIndices.js"></script>
 </body>
 </html>

@@ -3509,6 +3509,463 @@ app.post('/api/socioeconomic/filter', async (req, res) => {
 // FIN ENDPOINTS DATOS SOCIOECONÓMICOS
 // ============================================================================
 
+// ============================================================================
+// ÍNDICES COMPUESTOS AMBIENTALES - Fase 12 (Punto 7)
+// ============================================================================
+const compositeIndicesService = require('./services/compositeIndicesService');
+
+/**
+ * @swagger
+ * /api/composite-indices/{neighborhoodId}:
+ *   get:
+ *     summary: Calcular índices compuestos ambientales de un barrio
+ *     description: Retorna 4 índices compuestos vulnerabilidad al calor, déficit áreas verdes, contaminación atmosférica y riesgo hídrico
+ *     tags: [Índices Compuestos]
+ *     parameters:
+ *       - in: path
+ *         name: neighborhoodId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del barrio
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha inicio análisis (YYYY-MM-DD)
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha fin análisis (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Índices compuestos calculados
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 neighborhood:
+ *                   type: string
+ *                 indices:
+ *                   type: object
+ *                   properties:
+ *                     heatVulnerability:
+ *                       type: object
+ *                       description: Índice de vulnerabilidad al calor (0-1)
+ *                     greenSpaceDeficit:
+ *                       type: object
+ *                       description: Índice de déficit de áreas verdes (0-1)
+ *                     airPollution:
+ *                       type: object
+ *                       description: Índice de contaminación atmosférica (0-1)
+ *                     waterRisk:
+ *                       type: object
+ *                       description: Índice de riesgo hídrico (0-1)
+ *                 totalEnvironmentalIndex:
+ *                   type: object
+ *                   properties:
+ *                     value:
+ *                       type: number
+ *                       description: Índice ambiental total (0-1)
+ *                     interpretation:
+ *                       type: string
+ *       404:
+ *         description: Barrio no encontrado
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
+app.get('/api/composite-indices/:neighborhoodId', async (req, res) => {
+  try {
+    const { neighborhoodId } = req.params;
+    const { 
+      startDate = '2023-01-01', 
+      endDate = '2023-12-31' 
+    } = req.query;
+
+    // Obtener barrio
+    const neighborhood = neighborhoodAnalysisService.getNeighborhoodById(neighborhoodId);
+    if (!neighborhood) {
+      return res.status(404).json({ error: 'Barrio no encontrado' });
+    }
+
+    // Obtener datos de población (necesarios para índices)
+    const population = await socioeconomicDataService.calculatePopulationDensity(
+      neighborhood.geometry,
+      2020
+    );
+
+    // Calcular todos los índices
+    const result = await compositeIndicesService.calculateAllIndices(
+      neighborhood.geometry,
+      neighborhood.name,
+      population,
+      { startDate, endDate }
+    );
+
+    // Normalizar respuesta para el frontend
+    const normalizedResponse = {
+      neighborhoodId: neighborhoodId,
+      neighborhoodName: result.neighborhood || neighborhood.name,
+      timestamp: result.timestamp,
+      totalIndex: result.totalEnvironmentalIndex.value,
+      indices: {
+        heatVulnerability: {
+          value: result.indices.heatVulnerability.index,
+          components: {
+            lst: result.indices.heatVulnerability.components.temperature.normalized,
+            ndvi: result.indices.heatVulnerability.components.vegetation.normalized,
+            density: result.indices.heatVulnerability.components.density.normalized,
+            vulnerability: result.indices.heatVulnerability.components.vulnerability.normalized
+          },
+          interpretation: result.indices.heatVulnerability.interpretation
+        },
+        greenSpaceDeficit: {
+          value: result.indices.greenSpaceDeficit.index,
+          components: {
+            parkCoverage: result.indices.greenSpaceDeficit.components.greenAreaKm2 / 10, // Normalizar
+            ndvi: 1 - result.indices.greenSpaceDeficit.index, // Aproximación
+            greenSpacePerCapita: result.indices.greenSpaceDeficit.components.greenPerCapitaM2,
+            deficit: result.indices.greenSpaceDeficit.components.deficit
+          },
+          interpretation: result.indices.greenSpaceDeficit.interpretation
+        },
+        airPollution: {
+          value: result.indices.airPollution.index,
+          components: {
+            aod: result.indices.airPollution.components.aod.normalized,
+            pm25: result.indices.airPollution.components.pm25.value,
+            no2: result.indices.airPollution.components.no2.normalized,
+            densityFactor: result.indices.airPollution.components.density.normalized
+          },
+          interpretation: result.indices.airPollution.interpretation
+        },
+        waterRisk: {
+          value: result.indices.waterRisk.index,
+          components: {
+            slope: result.indices.waterRisk.components.slope.value,
+            impermeability: result.indices.waterRisk.components.imperviousness.value / 100,
+            waterProximity: result.indices.waterRisk.components.waterProximity.normalized
+          },
+          interpretation: result.indices.waterRisk.interpretation
+        }
+      },
+      metadata: {
+        datasets: [
+          { name: 'MODIS/006/MOD11A1', description: 'Land Surface Temperature' },
+          { name: 'MODIS/006/MOD13A1', description: 'Vegetation Indices' },
+          { name: 'MODIS/006/MCD19A2_GRANULES', description: 'Aerosol Optical Depth' },
+          { name: 'COPERNICUS/S2_SR_HARMONIZED', description: 'Sentinel-2 Surface Reflectance' },
+          { name: 'COPERNICUS/S5P/OFFL/L3_NO2', description: 'Sentinel-5P Nitrogen Dioxide' },
+          { name: 'USGS/SRTMGL1_003', description: 'SRTM Digital Elevation Model' }
+        ],
+        dateRange: { startDate, endDate }
+      },
+      summary: result.summary
+    };
+
+    res.json(normalizedResponse);
+  } catch (error) {
+    console.error(`Error en GET /api/composite-indices/${req.params.neighborhoodId}:`, error);
+    res.status(500).json({ 
+      error: 'No se pudieron calcular índices compuestos',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/composite-indices/compare:
+ *   post:
+ *     summary: Comparar índices compuestos de múltiples barrios
+ *     description: Permite comparar índices ambientales entre barrios
+ *     tags: [Índices Compuestos]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               neighborhoodIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               startDate:
+ *                 type: string
+ *               endDate:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Comparación de índices
+ */
+app.post('/api/composite-indices/compare', async (req, res) => {
+  try {
+    const { 
+      neighborhoodIds, 
+      startDate = '2023-01-01', 
+      endDate = '2023-12-31' 
+    } = req.body;
+
+    if (!neighborhoodIds || !Array.isArray(neighborhoodIds)) {
+      return res.status(400).json({ error: 'Se requiere array "neighborhoodIds"' });
+    }
+
+    // Calcular índices para cada barrio
+    const indicesPromises = neighborhoodIds.map(async (id) => {
+      const neighborhood = neighborhoodAnalysisService.getNeighborhoodById(id);
+      if (!neighborhood) return null;
+
+      const population = await socioeconomicDataService.calculatePopulationDensity(
+        neighborhood.geometry,
+        2020
+      );
+
+      return compositeIndicesService.calculateAllIndices(
+        neighborhood.geometry,
+        neighborhood.name,
+        population,
+        { startDate, endDate }
+      );
+    });
+
+    const results = await Promise.all(indicesPromises);
+    const validResults = results.filter(r => r !== null);
+
+    // Generar rankings
+    const rankings = {
+      heatVulnerability: [...validResults].sort((a, b) => 
+        a.indices.heatVulnerability.index - b.indices.heatVulnerability.index),
+      greenDeficit: [...validResults].sort((a, b) => 
+        a.indices.greenSpaceDeficit.index - b.indices.greenSpaceDeficit.index),
+      airPollution: [...validResults].sort((a, b) => 
+        a.indices.airPollution.index - b.indices.airPollution.index),
+      waterRisk: [...validResults].sort((a, b) => 
+        a.indices.waterRisk.index - b.indices.waterRisk.index),
+      total: [...validResults].sort((a, b) => 
+        a.totalEnvironmentalIndex.value - b.totalEnvironmentalIndex.value)
+    };
+
+    res.json({
+      neighborhoods: validResults,
+      rankings: {
+        heatVulnerability: rankings.heatVulnerability.map((d, i) => ({ 
+          rank: i + 1, 
+          neighborhood: d.neighborhood, 
+          value: d.indices.heatVulnerability.index,
+          interpretation: d.indices.heatVulnerability.interpretation
+        })),
+        greenDeficit: rankings.greenDeficit.map((d, i) => ({ 
+          rank: i + 1, 
+          neighborhood: d.neighborhood, 
+          value: d.indices.greenSpaceDeficit.index,
+          interpretation: d.indices.greenSpaceDeficit.interpretation
+        })),
+        airPollution: rankings.airPollution.map((d, i) => ({ 
+          rank: i + 1, 
+          neighborhood: d.neighborhood, 
+          value: d.indices.airPollution.index,
+          interpretation: d.indices.airPollution.interpretation
+        })),
+        waterRisk: rankings.waterRisk.map((d, i) => ({ 
+          rank: i + 1, 
+          neighborhood: d.neighborhood, 
+          value: d.indices.waterRisk.index,
+          interpretation: d.indices.waterRisk.interpretation
+        })),
+        total: rankings.total.map((d, i) => ({ 
+          rank: i + 1, 
+          neighborhood: d.neighborhood, 
+          value: d.totalEnvironmentalIndex.value,
+          interpretation: d.totalEnvironmentalIndex.interpretation
+        }))
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error en POST /api/composite-indices/compare:', error);
+    res.status(500).json({ 
+      error: 'No se pudo comparar índices',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/composite-indices/scenario:
+ *   post:
+ *     summary: Simular escenario de mejora ambiental
+ *     description: Calcula impacto de intervenciones hipotéticas en los índices
+ *     tags: [Índices Compuestos]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               neighborhoodId:
+ *                 type: string
+ *               scenario:
+ *                 type: object
+ *                 properties:
+ *                   vegetationIncrease:
+ *                     type: number
+ *                     description: % de aumento de vegetación
+ *                   pollutionReduction:
+ *                     type: number
+ *                     description: % de reducción de contaminación
+ *                   greenSpaceIncrease:
+ *                     type: number
+ *                     description: m² adicionales de áreas verdes per cápita
+ *     responses:
+ *       200:
+ *         description: Comparación baseline vs escenario
+ */
+app.post('/api/composite-indices/scenario', async (req, res) => {
+  try {
+    const { neighborhoodId, scenario } = req.body;
+
+    if (!neighborhoodId || !scenario) {
+      return res.status(400).json({ 
+        error: 'Se requieren "neighborhoodId" y "scenario"' 
+      });
+    }
+
+    // Obtener índices baseline
+    const neighborhood = neighborhoodAnalysisService.getNeighborhoodById(neighborhoodId);
+    if (!neighborhood) {
+      return res.status(404).json({ error: 'Barrio no encontrado' });
+    }
+
+    const population = await socioeconomicDataService.calculatePopulationDensity(
+      neighborhood.geometry,
+      2020
+    );
+
+    const baselineIndices = await compositeIndicesService.calculateAllIndices(
+      neighborhood.geometry,
+      neighborhood.name,
+      population
+    );
+
+    // Simular escenario
+    const comparison = compositeIndicesService.simulateScenario(
+      baselineIndices,
+      scenario
+    );
+
+    res.json(comparison);
+  } catch (error) {
+    console.error('Error en POST /api/composite-indices/scenario:', error);
+    res.status(500).json({ 
+      error: 'No se pudo simular escenario',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/composite-indices/custom-weights:
+ *   post:
+ *     summary: Calcular índice con pesos personalizados
+ *     description: Permite al usuario definir pesos custom para cada sub-índice
+ *     tags: [Índices Compuestos]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               neighborhoodId:
+ *                 type: string
+ *               weights:
+ *                 type: object
+ *                 properties:
+ *                   heat:
+ *                     type: number
+ *                   green:
+ *                     type: number
+ *                   pollution:
+ *                     type: number
+ *                   water:
+ *                     type: number
+ *     responses:
+ *       200:
+ *         description: Índice total con pesos custom
+ */
+app.post('/api/composite-indices/custom-weights', async (req, res) => {
+  try {
+    const { neighborhoodId, weights } = req.body;
+
+    if (!neighborhoodId || !weights) {
+      return res.status(400).json({ 
+        error: 'Se requieren "neighborhoodId" y "weights"' 
+      });
+    }
+
+    // Validar que los pesos sumen 1.0
+    const totalWeight = (weights.heat || 0) + (weights.green || 0) + 
+                       (weights.pollution || 0) + (weights.water || 0);
+    
+    if (Math.abs(totalWeight - 1.0) > 0.01) {
+      return res.status(400).json({ 
+        error: `Los pesos deben sumar 1.0 (actual: ${totalWeight})` 
+      });
+    }
+
+    // Calcular índices
+    const neighborhood = neighborhoodAnalysisService.getNeighborhoodById(neighborhoodId);
+    if (!neighborhood) {
+      return res.status(404).json({ error: 'Barrio no encontrado' });
+    }
+
+    const population = await socioeconomicDataService.calculatePopulationDensity(
+      neighborhood.geometry,
+      2020
+    );
+
+    const indices = await compositeIndicesService.calculateAllIndices(
+      neighborhood.geometry,
+      neighborhood.name,
+      population
+    );
+
+    // Recalcular índice total con pesos custom
+    const customTotal = 
+      (indices.indices.heatVulnerability.index * weights.heat) +
+      (indices.indices.greenSpaceDeficit.index * weights.green) +
+      (indices.indices.airPollution.index * weights.pollution) +
+      (indices.indices.waterRisk.index * weights.water);
+
+    res.json({
+      ...indices,
+      customWeights: weights,
+      customTotalIndex: {
+        value: Math.round(customTotal * 1000) / 1000,
+        interpretation: customTotal < 0.5 ? 'Buena calidad ambiental' : 'Calidad ambiental deficiente'
+      }
+    });
+  } catch (error) {
+    console.error('Error en POST /api/composite-indices/custom-weights:', error);
+    res.status(500).json({ 
+      error: 'No se pudo calcular índice con pesos custom',
+      message: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// FIN ENDPOINTS ÍNDICES COMPUESTOS
+// ============================================================================
+
 // Generación de reportes EcoPlan
 app.post('/api/reports/generate', async (req, res) => {
     if (!eeInitialized) {
