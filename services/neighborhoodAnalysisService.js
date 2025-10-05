@@ -109,6 +109,36 @@ class NeighborhoodAnalysisService {
   }
 
   /**
+   * Obtiene un barrio por ID
+   * @param {string} neighborhoodId - ID del barrio
+   * @returns {Object|null} - Barrio completo o null si no existe
+   */
+  getNeighborhoodById(neighborhoodId) {
+    const neighborhood = this.neighborhoods.find(n => n.id === neighborhoodId);
+    if (!neighborhood) {
+      return null;
+    }
+
+    // Crear geometría para el barrio
+    const [[west, south], [east, north]] = neighborhood.bounds;
+    const geometry = {
+      type: 'Polygon',
+      coordinates: [[
+        [west, north],
+        [east, north],
+        [east, south],
+        [west, south],
+        [west, north]
+      ]]
+    };
+
+    return {
+      ...neighborhood,
+      geometry
+    };
+  }
+
+  /**
    * Convierte bounds a geometría de Earth Engine
    */
   boundsToEEGeometry(bounds) {

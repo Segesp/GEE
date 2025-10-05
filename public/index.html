@@ -2212,6 +2212,209 @@
           </div>
         </div>
       </section>
+
+          <!-- DATOS SOCIOECONÓMICOS - Punto 6 -->
+          <section class="card" style="border-left: 4px solid #06b6d4;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+              <span style="font-size: 2rem;" role="img" aria-label="Gráfico">📊</span>
+              <div>
+                <h2 class="section-title" style="margin: 0;">Datos Socioeconómicos</h2>
+                <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">
+                  Población, infraestructura y privación (GPW v4 SEDAC)
+                </p>
+              </div>
+            </div>
+
+            <!-- Selector de barrio -->
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85rem;">
+                Selecciona un barrio:
+              </label>
+              <select id="socioNeighborhoodSelector" style="width: 100%; padding: 10px; font-size: 0.9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;">
+                <option value="">Cargando barrios...</option>
+              </select>
+            </div>
+
+            <!-- Selector de año -->
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85rem;">
+                Año de análisis poblacional:
+              </label>
+              <select id="socioYearSelector" style="width: 100%; padding: 10px; font-size: 0.9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;">
+                <option value="2020" selected>2020</option>
+                <option value="2015">2015</option>
+                <option value="2010">2010</option>
+                <option value="2005">2005</option>
+                <option value="2000">2000</option>
+              </select>
+            </div>
+
+            <!-- Estado de carga -->
+            <div id="socioLoading" style="display: none; text-align: center; padding: 40px 20px; color: var(--text-muted);">
+              <div style="font-size: 2rem; margin-bottom: 12px;">⏳</div>
+              <div>Analizando datos socioeconómicos...</div>
+              <div style="font-size: 0.8rem; margin-top: 8px;">GPW v4, VIIRS, Sentinel-2</div>
+            </div>
+
+            <!-- Controles de capas y filtros -->
+            <div id="socioControls" style="display: none; margin-bottom: 16px; padding: 16px; background: rgba(6, 182, 212, 0.1); border-radius: 12px;">
+              <div style="margin-bottom: 12px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.85rem;">
+                  Capas del mapa:
+                </label>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 12px; background: var(--surface); border-radius: 6px; font-size: 0.85rem;">
+                    <input type="checkbox" id="layerDensity" checked>
+                    <span>Densidad poblacional</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 12px; background: var(--surface); border-radius: 6px; font-size: 0.85rem;">
+                    <input type="checkbox" id="layerServices" checked>
+                    <span>Servicios per cápita</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 12px; background: var(--surface); border-radius: 6px; font-size: 0.85rem;">
+                    <input type="checkbox" id="layerDeprivation" checked>
+                    <span>Privación relativa</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Sliders de filtro -->
+              <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px;">
+                <div style="margin-bottom: 8px; font-weight: 600; font-size: 0.85rem;">Filtros:</div>
+                
+                <!-- Filtro densidad -->
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 4px; font-size: 0.8rem;">
+                    Densidad (hab/km²): 
+                    <span id="filterDensityValue" style="color: var(--primary); font-weight: 600;">0 - 30000</span>
+                    <button type="button" class="info-tooltip" data-info="density" style="border: none; background: none; cursor: pointer; color: var(--primary); font-size: 0.9rem; padding: 0 4px;" aria-label="Información sobre densidad poblacional">ⓘ</button>
+                  </label>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="range" id="filterDensityMin" min="0" max="30000" step="100" value="0" style="flex: 1;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">hasta</span>
+                    <input type="range" id="filterDensityMax" min="0" max="30000" step="100" value="30000" style="flex: 1;">
+                  </div>
+                </div>
+
+                <!-- Filtro privación -->
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 4px; font-size: 0.8rem;">
+                    Privación mínima: 
+                    <span id="filterDeprivationValue" style="color: var(--primary); font-weight: 600;">0</span>
+                    <button type="button" class="info-tooltip" data-info="deprivation" style="border: none; background: none; cursor: pointer; color: var(--primary); font-size: 0.9rem; padding: 0 4px;" aria-label="Información sobre índice de privación">ⓘ</button>
+                  </label>
+                  <input type="range" id="filterDeprivation" min="0" max="1" step="0.01" value="0" style="width: 100%;">
+                  <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">
+                    <span>Bajo</span>
+                    <span>Moderado</span>
+                    <span>Alto</span>
+                    <span>Muy alto</span>
+                  </div>
+                </div>
+
+                <!-- Filtro servicios -->
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 4px; font-size: 0.8rem;">
+                    Servicios per cápita mínimos: 
+                    <span id="filterServicesValue" style="color: var(--primary); font-weight: 600;">0</span>
+                    <button type="button" class="info-tooltip" data-info="services" style="border: none; background: none; cursor: pointer; color: var(--primary); font-size: 0.9rem; padding: 0 4px;" aria-label="Información sobre servicios per cápita">ⓘ</button>
+                  </label>
+                  <input type="range" id="filterServices" min="0" max="10" step="0.1" value="0" style="width: 100%;">
+                </div>
+
+                <button type="button" id="applyFiltersBtn" class="button-primary" style="width: 100%; padding: 10px; font-size: 0.85rem; margin-top: 8px;">
+                  Aplicar filtros
+                </button>
+              </div>
+            </div>
+
+            <!-- Contenedor de resultados -->
+            <div id="socioResults" style="display: none;">
+              <!-- Header con resumen -->
+              <div id="socioHeader" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(14, 165, 233, 0.2)); padding: 16px; border-radius: 12px; margin-bottom: 16px;">
+                <div style="font-size: 1.5rem; font-weight: 600; margin-bottom: 12px;" id="socioNeighborhoodName">-</div>
+                <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;" id="socioSummary">-</div>
+              </div>
+
+              <!-- Gráfico comparativo principal -->
+              <div style="padding: 16px; background: var(--surface); border-radius: 12px; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <h3 style="margin: 0; font-size: 1rem;">Comparación de Indicadores</h3>
+                  <button type="button" id="downloadSocioDataBtn" class="button-secondary" style="font-size: 0.8rem; padding: 6px 12px;">
+                    📥 Descargar datos
+                  </button>
+                </div>
+                <canvas id="socioComparisonChart" style="max-height: 280px;"></canvas>
+              </div>
+
+              <!-- Tarjetas de métricas -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                <!-- Población -->
+                <div style="padding: 16px; background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.15)); border-radius: 12px; border: 1px solid rgba(59, 130, 246, 0.3);">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 1.5rem;">👥</span>
+                    <span style="font-size: 0.85rem; font-weight: 600;">Población</span>
+                  </div>
+                  <div style="font-size: 1.8rem; font-weight: 700; color: var(--primary);" id="socioPopTotal">-</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">habitantes totales</div>
+                  <div style="font-size: 0.9rem; margin-top: 8px;">
+                    <strong id="socioDensity">-</strong> hab/km²
+                  </div>
+                  <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">
+                    Área: <span id="socioArea">-</span> km²
+                  </div>
+                </div>
+
+                <!-- Servicios -->
+                <div style="padding: 16px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.15)); border-radius: 12px; border: 1px solid rgba(16, 185, 129, 0.3);">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 1.5rem;">🏥</span>
+                    <span style="font-size: 0.85rem; font-weight: 600;">Servicios</span>
+                  </div>
+                  <div style="font-size: 1.8rem; font-weight: 700; color: var(--success);" id="socioServicesTotal">-</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">por cada 10k habitantes</div>
+                  <div style="margin-top: 12px; font-size: 0.8rem;">
+                    <div style="margin-bottom: 4px;">🏥 <span id="socioHospitals">-</span> hospitales</div>
+                    <div style="margin-bottom: 4px;">🏫 <span id="socioSchools">-</span> colegios</div>
+                    <div>🌳 <span id="socioParks">-</span> m²/hab de parques</div>
+                  </div>
+                </div>
+
+                <!-- Privación -->
+                <div style="padding: 16px; background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.15)); border-radius: 12px; border: 1px solid rgba(245, 158, 11, 0.3);">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 1.5rem;">📉</span>
+                    <span style="font-size: 0.85rem; font-weight: 600;">Privación</span>
+                  </div>
+                  <div style="font-size: 1.8rem; font-weight: 700; color: var(--warning);" id="socioDeprivationIndex">-</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;" id="socioDeprivationLevel">-</div>
+                  <div style="margin-top: 12px; font-size: 0.8rem;">
+                    <div style="margin-bottom: 4px;">💡 Luminosidad: <span id="socioNightlight">-</span></div>
+                    <div>🌿 Acceso verde: <span id="socioGreenAccess">-</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Fuentes de datos -->
+              <div style="padding: 12px; background: rgba(100, 116, 139, 0.1); border-radius: 8px; font-size: 0.75rem; color: var(--text-muted); line-height: 1.5;">
+                <strong>Fuentes de datos:</strong><br>
+                • <strong>Población:</strong> <span id="socioPopSource">-</span><br>
+                • <strong>Infraestructura:</strong> <span id="socioInfraSource">-</span><br>
+                • <strong>Privación:</strong> <span id="socioDeprivSource">-</span>
+              </div>
+            </div>
+
+            <!-- Mensaje de ayuda inicial -->
+            <div id="socioHelp" style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+              <div style="font-size: 3rem; margin-bottom: 12px;">📊</div>
+              <div style="font-size: 0.9rem;">
+                Selecciona un barrio para ver sus datos socioeconómicos
+              </div>
+              <div style="font-size: 0.8rem; margin-top: 8px;">
+                Población GPW v4 · Infraestructura · Privación
+              </div>
+            </div>
+          </section>
     </div>
   </main>
 
@@ -7254,5 +7457,8 @@
       logStatus('Interfaz lista. Usa "Ver imagen satelital simple" para probar rápidamente.', 'info');
     });
   </script>
+
+  <!-- Script de datos socioeconómicos -->
+  <script src="js/socioeconomic.js"></script>
 </body>
 </html>

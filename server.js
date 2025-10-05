@@ -3236,6 +3236,279 @@ app.get('/api/simulator/recommended/:neighborhoodId', (req, res) => {
 // FIN ENDPOINTS DEL SIMULADOR
 // ============================================================================
 
+// ============================================================================
+// DATOS SOCIOECONÓMICOS - Fase 11 (Punto 6)
+// ============================================================================
+const socioeconomicDataService = require('./services/socioeconomicDataService');
+
+/**
+ * @swagger
+ * /api/socioeconomic/{neighborhoodId}:
+ *   get:
+ *     summary: Obtener datos socioeconómicos de un barrio
+ *     description: Retorna población, densidad, infraestructura social y privación usando GPW v4 y Earth Engine
+ *     tags: [Datos Socioeconómicos]
+ *     parameters:
+ *       - in: path
+ *         name: neighborhoodId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del barrio
+ *       - in: query
+ *         name: year
+ *         schema:
+ *           type: integer
+ *           enum: [2000, 2005, 2010, 2015, 2020]
+ *           default: 2020
+ *         description: Año de análisis poblacional
+ *     responses:
+ *       200:
+ *         description: Datos socioeconómicos del barrio
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 neighborhood:
+ *                   type: string
+ *                 year:
+ *                   type: integer
+ *                 population:
+ *                   type: object
+ *                   properties:
+ *                     densityMean:
+ *                       type: number
+ *                       description: Densidad poblacional (personas/km²)
+ *                     populationTotal:
+ *                       type: integer
+ *                       description: Población total estimada
+ *                     source:
+ *                       type: string
+ *                       example: "GPW v4.11 (SEDAC/NASA/CIESIN)"
+ *                 infrastructure:
+ *                   type: object
+ *                   properties:
+ *                     hospitals:
+ *                       type: object
+ *                     schools:
+ *                       type: object
+ *                     parks:
+ *                       type: object
+ *                     servicesPerCapita:
+ *                       type: number
+ *                 deprivation:
+ *                   type: object
+ *                   properties:
+ *                     deprivationIndex:
+ *                       type: number
+ *                       description: Índice de privación (0-1, mayor = más privado)
+ *                     interpretation:
+ *                       type: string
+ *                 normalized:
+ *                   type: object
+ *                   description: Valores normalizados (0-1) para comparación
+ *       404:
+ *         description: Barrio no encontrado
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
+app.get('/api/socioeconomic/:neighborhoodId', async (req, res) => {
+  try {
+    const { neighborhoodId } = req.params;
+    const year = parseInt(req.query.year) || 2020;
+
+    // Validar año
+    const validYears = [2000, 2005, 2010, 2015, 2020];
+    if (!validYears.includes(year)) {
+      return res.status(400).json({ 
+        error: `Año inválido. Debe ser uno de: ${validYears.join(', ')}` 
+      });
+    }
+
+    // Obtener barrio
+    const neighborhood = neighborhoodAnalysisService.getNeighborhoodById(neighborhoodId);
+    if (!neighborhood) {
+      return res.status(404).json({ error: 'Barrio no encontrado' });
+    }
+
+    // Calcular datos socioeconómicos
+    const data = await socioeconomicDataService.getNeighborhoodSocioeconomicData(
+      neighborhood.geometry,
+      neighborhood.name,
+      year
+    );
+
+    res.json(data);
+  } catch (error) {
+    console.error(`Error en GET /api/socioeconomic/${req.params.neighborhoodId}:`, error);
+    res.status(500).json({ 
+      error: 'No se pudieron obtener datos socioeconómicos',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/socioeconomic/compare:
+ *   post:
+ *     summary: Comparar datos socioeconómicos de múltiples barrios
+ *     description: Permite comparar población, servicios y privación entre barrios
+ *     tags: [Datos Socioeconómicos]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               neighborhoodIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["miraflores", "san-isidro", "barranco"]
+ *               year:
+ *                 type: integer
+ *                 default: 2020
+ *     responses:
+ *       200:
+ *         description: Comparación de barrios
+ *       400:
+ *         description: Parámetros inválidos
+ */
+app.post('/api/socioeconomic/compare', async (req, res) => {
+  try {
+    const { neighborhoodIds, year = 2020 } = req.body;
+
+    if (!neighborhoodIds || !Array.isArray(neighborhoodIds)) {
+      return res.status(400).json({ error: 'Se requiere array "neighborhoodIds"' });
+    }
+
+    if (neighborhoodIds.length < 2) {
+      return res.status(400).json({ error: 'Se requieren al menos 2 barrios para comparar' });
+    }
+
+    // Obtener datos de todos los barrios en paralelo
+    const dataPromises = neighborhoodIds.map(async (id) => {
+      const neighborhood = neighborhoodAnalysisService.getNeighborhoodById(id);
+      if (!neighborhood) return null;
+
+      return socioeconomicDataService.getNeighborhoodSocioeconomicData(
+        neighborhood.geometry,
+        neighborhood.name,
+        year
+      );
+    });
+
+    const results = await Promise.all(dataPromises);
+    const validResults = results.filter(r => r !== null);
+
+    // Generar rankings
+    const rankings = {
+      density: [...validResults].sort((a, b) => b.population.densityMean - a.population.densityMean),
+      services: [...validResults].sort((a, b) => b.infrastructure.servicesPerCapita - a.infrastructure.servicesPerCapita),
+      deprivation: [...validResults].sort((a, b) => a.deprivation.deprivationIndex - b.deprivation.deprivationIndex) // Menor = mejor
+    };
+
+    res.json({
+      neighborhoods: validResults,
+      rankings: {
+        density: rankings.density.map((d, i) => ({ 
+          rank: i + 1, 
+          neighborhood: d.neighborhood, 
+          value: d.population.densityMean 
+        })),
+        services: rankings.services.map((d, i) => ({ 
+          rank: i + 1, 
+          neighborhood: d.neighborhood, 
+          value: d.infrastructure.servicesPerCapita 
+        })),
+        deprivation: rankings.deprivation.map((d, i) => ({ 
+          rank: i + 1, 
+          neighborhood: d.neighborhood, 
+          value: d.deprivation.deprivationIndex 
+        }))
+      },
+      year,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error en POST /api/socioeconomic/compare:', error);
+    res.status(500).json({ 
+      error: 'No se pudo comparar barrios',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/socioeconomic/filter:
+ *   post:
+ *     summary: Filtrar barrios por criterios socioeconómicos
+ *     description: Filtra barrios según rangos de densidad, privación y servicios
+ *     tags: [Datos Socioeconómicos]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               densityMin:
+ *                 type: number
+ *               densityMax:
+ *                 type: number
+ *               deprivationMin:
+ *                 type: number
+ *               servicesMin:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Barrios filtrados
+ */
+app.post('/api/socioeconomic/filter', async (req, res) => {
+  try {
+    const filters = req.body;
+    const year = filters.year || 2020;
+
+    // Obtener todos los barrios
+    const neighborhoods = neighborhoodAnalysisService.getNeighborhoods();
+    
+    // Obtener datos de todos en paralelo
+    const dataPromises = neighborhoods.map(async (n) => {
+      return socioeconomicDataService.getNeighborhoodSocioeconomicData(
+        n.geometry,
+        n.name,
+        year
+      );
+    });
+
+    const allData = await Promise.all(dataPromises);
+
+    // Aplicar filtros
+    const filtered = socioeconomicDataService.filterNeighborhoods(allData, filters);
+
+    res.json({
+      neighborhoods: filtered,
+      total: filtered.length,
+      filters,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error en POST /api/socioeconomic/filter:', error);
+    res.status(500).json({ 
+      error: 'No se pudo filtrar barrios',
+      message: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// FIN ENDPOINTS DATOS SOCIOECONÓMICOS
+// ============================================================================
+
 // Generación de reportes EcoPlan
 app.post('/api/reports/generate', async (req, res) => {
     if (!eeInitialized) {
