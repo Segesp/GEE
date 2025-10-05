@@ -2436,6 +2436,287 @@ app.get('/api/surveys/templates', async (req, res) => {
 // FIN ENDPOINTS DE MICRO-ENCUESTAS
 // ============================================================================
 
+// ============================================================================
+// DESCARGAS ABIERTAS (CSV/GeoJSON)
+// ============================================================================
+const dataExportService = require('./services/dataExportService');
+
+/**
+ * GET /api/exports/layers
+ * Lista capas disponibles para descarga
+ */
+app.get('/api/exports/layers', async (req, res) => {
+  try {
+    const layers = dataExportService.getAvailableLayers();
+    
+    res.json({
+      layers,
+      totalLayers: layers.length
+    });
+  } catch (error) {
+    console.error('Error en GET /api/exports/layers:', error);
+    res.status(500).json({ error: 'No se pudo obtener capas' });
+  }
+});
+
+/**
+ * GET /api/exports/download
+ * Descarga datos en formato especificado
+ * 
+ * Query params:
+ *   - layer: ID de la capa (citizen-reports, validated-reports, etc.)
+ *   - format: csv o geojson
+ *   - startDate: Fecha inicio (opcional)
+ *   - endDate: Fecha fin (opcional)
+ *   - category: Filtrar por categoría (opcional)
+ *   - validationStatus: Filtrar por estado validación (opcional)
+ *   - onlyValidated: true/false (opcional)
+ */
+app.get('/api/exports/download', async (req, res) => {
+  try {
+    const {
+      layer: layerId,
+      format,
+      startDate,
+      endDate,
+      category,
+      validationStatus,
+      severity,
+      status,
+      onlyValidated
+    } = req.query;
+
+    // Validaciones
+    if (!layerId) {
+      return res.status(400).json({ error: 'Parámetro "layer" requerido' });
+    }
+
+    if (!format || !['csv', 'geojson'].includes(format)) {
+      return res.status(400).json({ 
+        error: 'Parámetro "format" debe ser "csv" o "geojson"' 
+      });
+    }
+
+    // Obtener datos según la capa
+    let data;
+    let filename;
+    let contentType;
+    let recordCount = 0;
+
+    // Preparar criterios de filtrado
+    const filterCriteria = {
+      category,
+      startDate,
+      endDate,
+      validationStatus,
+      severity,
+      status,
+      onlyValidated: onlyValidated === 'true'
+    };
+
+    if (layerId.includes('reports')) {
+      // Capas de reportes ciudadanos
+      const allReports = await citizenReportsRepository.listReports({});
+      let reports = allReports;
+
+      // Filtrar por categoría específica si la capa lo indica
+      if (layerId === 'heat-reports') {
+        filterCriteria.category = 'heat';
+      } else if (layerId === 'green-reports') {
+        filterCriteria.category = 'green';
+      } else if (layerId === 'flooding-reports') {
+        filterCriteria.category = 'flooding';
+      } else if (layerId === 'waste-reports') {
+        filterCriteria.category = 'waste';
+      } else if (layerId === 'validated-reports') {
+        filterCriteria.onlyValidated = true;
+      }
+
+      // Aplicar filtros
+      reports = dataExportService.filterReports(reports, filterCriteria);
+      recordCount = reports.length;
+
+      // Enriquecer con datos de validación
+      const enrichedReports = reports.map(report => {
+        const validations = reportValidationService.getReportValidations(report.id);
+        const confirmations = validations.filter(v => v.vote === 'confirm').length;
+        const rejections = validations.filter(v => v.vote === 'reject').length;
+        
+        return {
+          ...report,
+          confirmations,
+          rejections,
+          validationStatus: report.status === 'confirmed' ? 'confirmed' : 
+                           report.status === 'rejected' ? 'rejected' : 'pending',
+          moderatorValidated: false // TODO: implementar lógica de moderador
+        };
+      });
+
+      if (format === 'csv') {
+        data = dataExportService.exportReportsToCSV(enrichedReports, {
+          includeValidation: true,
+          includePhotos: true
+        });
+        contentType = 'text/csv; charset=utf-8';
+        filename = `ecoplan-${layerId}-${new Date().toISOString().split('T')[0]}.csv`;
+      } else {
+        data = JSON.stringify(
+          dataExportService.exportReportsToGeoJSON(enrichedReports, {
+            includeValidation: true,
+            includePhotos: true
+          }),
+          null,
+          2
+        );
+        contentType = 'application/geo+json; charset=utf-8';
+        filename = `ecoplan-${layerId}-${new Date().toISOString().split('T')[0]}.geojson`;
+      }
+    } else if (layerId === 'neighborhood-aggregations') {
+      // Agregaciones por barrio (simulado - en producción vendría de la BD)
+      const neighborhoods = [
+        {
+          neighborhood: 'San Isidro Centro',
+          district: 'San Isidro',
+          totalReports: 15,
+          heatReports: 8,
+          greenReports: 4,
+          floodingReports: 2,
+          wasteReports: 1,
+          validatedReports: 12,
+          surveyResponseRate: 75,
+          lastActivity: new Date().toISOString()
+        }
+        // TODO: Obtener agregaciones reales
+      ];
+
+      recordCount = neighborhoods.length;
+
+      if (format === 'csv') {
+        data = dataExportService.exportNeighborhoodAggregationsToCSV(neighborhoods);
+        contentType = 'text/csv; charset=utf-8';
+        filename = `ecoplan-${layerId}-${new Date().toISOString().split('T')[0]}.csv`;
+      } else {
+        return res.status(400).json({ 
+          error: 'GeoJSON no disponible para agregaciones de barrio' 
+        });
+      }
+    } else if (layerId === 'survey-results') {
+      // Resultados de micro-encuestas
+      const surveyResults = [
+        {
+          neighborhood: 'San Isidro Centro',
+          aggregations: microSurveyService.getNeighborhoodAggregations('San Isidro Centro')
+        }
+        // TODO: Obtener todos los barrios
+      ];
+
+      recordCount = surveyResults.length;
+
+      if (format === 'csv') {
+        data = dataExportService.exportSurveyResultsToCSV(surveyResults);
+        contentType = 'text/csv; charset=utf-8';
+        filename = `ecoplan-${layerId}-${new Date().toISOString().split('T')[0]}.csv`;
+      } else {
+        return res.status(400).json({ 
+          error: 'GeoJSON no disponible para resultados de encuestas' 
+        });
+      }
+    } else {
+      return res.status(404).json({ error: 'Capa no encontrada' });
+    }
+
+    // Registrar descarga
+    const downloadId = dataExportService.registerDownload({
+      layerId,
+      format,
+      recordCount,
+      filterCriteria,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
+
+    // Enviar respuesta con headers apropiados
+    res.set({
+      'Content-Type': contentType,
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'X-Download-ID': downloadId,
+      'X-Record-Count': recordCount,
+      'X-Generated': new Date().toISOString()
+    });
+
+    res.send(data);
+  } catch (error) {
+    console.error('Error en GET /api/exports/download:', error);
+    res.status(500).json({ error: 'No se pudo generar la descarga' });
+  }
+});
+
+/**
+ * GET /api/exports/stats
+ * Obtiene estadísticas de descargas
+ */
+app.get('/api/exports/stats', async (req, res) => {
+  try {
+    const { startDate, endDate, layerId, format } = req.query;
+    
+    const stats = dataExportService.getDownloadStats({
+      startDate,
+      endDate,
+      layerId,
+      format
+    });
+
+    const topLayers = dataExportService.getTopLayers(5);
+
+    res.json({
+      stats,
+      topLayers
+    });
+  } catch (error) {
+    console.error('Error en GET /api/exports/stats:', error);
+    res.status(500).json({ error: 'No se pudo obtener estadísticas' });
+  }
+});
+
+/**
+ * GET /api/exports/metadata/:layerId
+ * Obtiene metadatos de una capa
+ */
+app.get('/api/exports/metadata/:layerId', async (req, res) => {
+  try {
+    const { layerId } = req.params;
+    const { format } = req.query;
+
+    if (!format || !['csv', 'geojson'].includes(format)) {
+      return res.status(400).json({ 
+        error: 'Parámetro "format" debe ser "csv" o "geojson"' 
+      });
+    }
+
+    // Obtener conteo de registros
+    let recordCount = 0;
+    if (layerId.includes('reports')) {
+      const allReports = await citizenReportsRepository.listReports({});
+      recordCount = allReports.length;
+    }
+
+    const metadata = dataExportService.generateDownloadMetadata(
+      layerId,
+      format,
+      recordCount
+    );
+
+    res.json(metadata);
+  } catch (error) {
+    console.error('Error en GET /api/exports/metadata/:layerId:', error);
+    res.status(500).json({ error: 'No se pudo obtener metadatos' });
+  }
+});
+
+// ============================================================================
+// FIN ENDPOINTS DE DESCARGAS ABIERTAS
+// ============================================================================
+
 // Generación de reportes EcoPlan
 app.post('/api/reports/generate', async (req, res) => {
     if (!eeInitialized) {
