@@ -57,6 +57,20 @@ const MAX_CITIZEN_REPORT_DESCRIPTION_LENGTH = 2000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// ============================================================================
+// RUTA PRINCIPAL - Redirigir al Hub (ANTES de express.static)
+// ============================================================================
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'hub.html'));
+});
+
+// Mantener compatibilidad con /index.html para reportes ciudadanos
+app.get('/reportes', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Ahora servir archivos estáticos (excepto index.html en raíz que ya manejamos)
 app.use(express.static('public'));
 
 // ============================================================================
@@ -66,11 +80,11 @@ app.use(express.static('public'));
  * @swagger
  * /:
  *   get:
- *     summary: Página principal de EcoPlan
+ *     summary: Hub principal de EcoPlan con todas las herramientas
  *     tags: [Frontend]
  *     responses:
  *       200:
- *         description: Aplicación web principal
+ *         description: Hub de navegación a todas las herramientas
  */
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customCss: '.swagger-ui .topbar { display: none }',
@@ -4938,6 +4952,626 @@ app.get('/api/recommendations/export/geojson', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to export GeoJSON',
       message: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// AIR AND WATER QUALITY ENDPOINTS (Google Earth Engine)
+// ============================================================================
+
+const airWaterQualityService = require('./services/airWaterQualityService');
+
+/**
+ * @swagger
+ * /api/air-water-quality/all:
+ *   get:
+ *     summary: Get all air and water quality variables for a specific date
+ *     tags: [Air & Water Quality]
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Date in YYYY-MM-DD format
+ *     responses:
+ *       200:
+ *         description: Combined data for all variables (AOD, NO₂, Chlorophyll, NDWI)
+ */
+app.get('/api/air-water-quality/all', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine not initialized',
+        message: 'Please configure service account credentials'
+      });
+    }
+
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({
+        error: 'Missing required parameter',
+        message: 'Date parameter is required (format: YYYY-MM-DD)'
+      });
+    }
+
+    const data = await airWaterQualityService.getAllVariables(date);
+    res.json(data);
+  } catch (error) {
+    console.error('Error in /api/air-water-quality/all:', error);
+    res.status(500).json({
+      error: 'Failed to fetch air and water quality data',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/air-water-quality/aod:
+ *   get:
+ *     summary: Get AOD (Aerosol Optical Depth) data
+ *     tags: [Air & Water Quality]
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Date in YYYY-MM-DD format
+ *     responses:
+ *       200:
+ *         description: AOD data with statistics and map visualization
+ */
+app.get('/api/air-water-quality/aod', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine not initialized',
+        message: 'Please configure service account credentials'
+      });
+    }
+
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({
+        error: 'Missing required parameter',
+        message: 'Date parameter is required (format: YYYY-MM-DD)'
+      });
+    }
+
+    const data = await airWaterQualityService.getAOD(date);
+    res.json(data);
+  } catch (error) {
+    console.error('Error in /api/air-water-quality/aod:', error);
+    res.status(500).json({
+      error: 'Failed to fetch AOD data',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/air-water-quality/no2:
+ *   get:
+ *     summary: Get NO₂ (Nitrogen Dioxide) data
+ *     tags: [Air & Water Quality]
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Date in YYYY-MM-DD format
+ *     responses:
+ *       200:
+ *         description: NO₂ data with statistics and map visualization
+ */
+app.get('/api/air-water-quality/no2', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine not initialized',
+        message: 'Please configure service account credentials'
+      });
+    }
+
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({
+        error: 'Missing required parameter',
+        message: 'Date parameter is required (format: YYYY-MM-DD)'
+      });
+    }
+
+    const data = await airWaterQualityService.getNO2(date);
+    res.json(data);
+  } catch (error) {
+    console.error('Error in /api/air-water-quality/no2:', error);
+    res.status(500).json({
+      error: 'Failed to fetch NO₂ data',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/air-water-quality/chlorophyll:
+ *   get:
+ *     summary: Get Chlorophyll-a data
+ *     tags: [Air & Water Quality]
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Date in YYYY-MM-DD format
+ *     responses:
+ *       200:
+ *         description: Chlorophyll-a data with statistics and map visualization
+ */
+app.get('/api/air-water-quality/chlorophyll', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine not initialized',
+        message: 'Please configure service account credentials'
+      });
+    }
+
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({
+        error: 'Missing required parameter',
+        message: 'Date parameter is required (format: YYYY-MM-DD)'
+      });
+    }
+
+    const data = await airWaterQualityService.getChlorophyll(date);
+    res.json(data);
+  } catch (error) {
+    console.error('Error in /api/air-water-quality/chlorophyll:', error);
+    res.status(500).json({
+      error: 'Failed to fetch Chlorophyll data',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/air-water-quality/ndwi:
+ *   get:
+ *     summary: Get NDWI (Normalized Difference Water Index) data
+ *     tags: [Air & Water Quality]
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Date in YYYY-MM-DD format
+ *     responses:
+ *       200:
+ *         description: NDWI data with statistics and map visualization
+ */
+app.get('/api/air-water-quality/ndwi', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine not initialized',
+        message: 'Please configure service account credentials'
+      });
+    }
+
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({
+        error: 'Missing required parameter',
+        message: 'Date parameter is required (format: YYYY-MM-DD)'
+      });
+    }
+
+    const data = await airWaterQualityService.getNDWI(date);
+    res.json(data);
+  } catch (error) {
+    console.error('Error in /api/air-water-quality/ndwi:', error);
+    res.status(500).json({
+      error: 'Failed to fetch NDWI data',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/air-water-quality/timeseries:
+ *   get:
+ *     summary: Get time series data for a specific variable
+ *     tags: [Air & Water Quality]
+ *     parameters:
+ *       - in: query
+ *         name: variable
+ *         schema:
+ *           type: string
+ *           enum: [aod, no2, chlorophyll, ndwi]
+ *         required: true
+ *         description: Variable name
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Start date in YYYY-MM-DD format
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: End date in YYYY-MM-DD format
+ *       - in: query
+ *         name: district
+ *         schema:
+ *           type: string
+ *         description: Optional district ID
+ *     responses:
+ *       200:
+ *         description: Time series data for the specified variable
+ */
+app.get('/api/air-water-quality/timeseries', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine not initialized',
+        message: 'Please configure service account credentials'
+      });
+    }
+
+    const { variable, startDate, endDate, district } = req.query;
+    if (!variable || !startDate || !endDate) {
+      return res.status(400).json({
+        error: 'Missing required parameters',
+        message: 'variable, startDate, and endDate parameters are required'
+      });
+    }
+
+    const data = await airWaterQualityService.getTimeSeries(variable, startDate, endDate, district);
+    res.json(data);
+  } catch (error) {
+    console.error('Error in /api/air-water-quality/timeseries:', error);
+    res.status(500).json({
+      error: 'Failed to fetch time series data',
+      message: error.message
+    });
+  }
+});
+
+// ============================================================================
+// VEGETATION AND HEAT ISLAND ENDPOINTS (Google Earth Engine)
+// ============================================================================
+
+const vegetationHeatIslandService = require('./services/vegetationHeatIslandService');
+
+/**
+ * @swagger
+ * /api/vegetation-heat/ndvi:
+ *   get:
+ *     summary: Get NDVI (vegetation index) data
+ *     tags: [Vegetation & Heat Islands]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Start date in YYYY-MM-DD format
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: End date in YYYY-MM-DD format
+ *     responses:
+ *       200:
+ *         description: NDVI composite from Sentinel-2 and Landsat
+ */
+app.get('/api/vegetation-heat/ndvi', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine not initialized',
+        message: 'Please configure service account credentials'
+      });
+    }
+
+    const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        error: 'Missing required parameters',
+        message: 'startDate and endDate parameters are required (format: YYYY-MM-DD)'
+      });
+    }
+
+    const data = await vegetationHeatIslandService.getNDVI(startDate, endDate);
+    res.json(data);
+  } catch (error) {
+    console.error('Error in /api/vegetation-heat/ndvi:', error);
+    res.status(500).json({
+      error: 'Failed to fetch NDVI data',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/vegetation-heat/lst:
+ *   get:
+ *     summary: Get LST (Land Surface Temperature) data
+ *     tags: [Vegetation & Heat Islands]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Start date in YYYY-MM-DD format
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: End date in YYYY-MM-DD format
+ *       - in: query
+ *         name: timeOfDay
+ *         schema:
+ *           type: string
+ *           enum: [day, night]
+ *         description: Time of day (default: day)
+ *     responses:
+ *       200:
+ *         description: LST data from MODIS
+ */
+app.get('/api/vegetation-heat/lst', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine not initialized',
+        message: 'Please configure service account credentials'
+      });
+    }
+
+    const { startDate, endDate, timeOfDay = 'day' } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        error: 'Missing required parameters',
+        message: 'startDate and endDate parameters are required (format: YYYY-MM-DD)'
+      });
+    }
+
+    const data = await vegetationHeatIslandService.getLST(startDate, endDate, timeOfDay);
+    res.json(data);
+  } catch (error) {
+    console.error('Error in /api/vegetation-heat/lst:', error);
+    res.status(500).json({
+      error: 'Failed to fetch LST data',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/vegetation-heat/lst-anomaly:
+ *   get:
+ *     summary: Get LST anomaly (difference from climatology)
+ *     tags: [Vegetation & Heat Islands]
+ *     parameters:
+ *       - in: query
+ *         name: targetDate
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Target date in YYYY-MM-DD format
+ *       - in: query
+ *         name: timeOfDay
+ *         schema:
+ *           type: string
+ *           enum: [day, night]
+ *         description: Time of day (default: day)
+ *     responses:
+ *       200:
+ *         description: LST anomaly compared to 2018-2022 climatology
+ */
+app.get('/api/vegetation-heat/lst-anomaly', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine not initialized',
+        message: 'Please configure service account credentials'
+      });
+    }
+
+    const { targetDate, timeOfDay = 'day' } = req.query;
+    if (!targetDate) {
+      return res.status(400).json({
+        error: 'Missing required parameter',
+        message: 'targetDate parameter is required (format: YYYY-MM-DD)'
+      });
+    }
+
+    const data = await vegetationHeatIslandService.getLSTAnomaly(
+      targetDate,
+      '2018-01-01',
+      '2022-12-31',
+      timeOfDay
+    );
+    res.json(data);
+  } catch (error) {
+    console.error('Error in /api/vegetation-heat/lst-anomaly:', error);
+    res.status(500).json({
+      error: 'Failed to fetch LST anomaly data',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/vegetation-heat/heat-islands:
+ *   get:
+ *     summary: Detect heat island events
+ *     tags: [Vegetation & Heat Islands]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Start date in YYYY-MM-DD format
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: End date in YYYY-MM-DD format
+ *       - in: query
+ *         name: threshold
+ *         schema:
+ *           type: number
+ *         description: Temperature threshold in °C (default: 30)
+ *     responses:
+ *       200:
+ *         description: Heat island events and affected area
+ */
+app.get('/api/vegetation-heat/heat-islands', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine not initialized',
+        message: 'Please configure service account credentials'
+      });
+    }
+
+    const { startDate, endDate, threshold = 30 } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        error: 'Missing required parameters',
+        message: 'startDate and endDate parameters are required (format: YYYY-MM-DD)'
+      });
+    }
+
+    const data = await vegetationHeatIslandService.detectHeatIslands(
+      startDate,
+      endDate,
+      parseFloat(threshold)
+    );
+    res.json(data);
+  } catch (error) {
+    console.error('Error in /api/vegetation-heat/heat-islands:', error);
+    res.status(500).json({
+      error: 'Failed to detect heat islands',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/vegetation-heat/analysis:
+ *   get:
+ *     summary: Get combined vegetation and heat analysis
+ *     tags: [Vegetation & Heat Islands]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Start date in YYYY-MM-DD format
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: End date in YYYY-MM-DD format
+ *     responses:
+ *       200:
+ *         description: Combined NDVI, LST day/night, and heat island analysis
+ */
+app.get('/api/vegetation-heat/analysis', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine not initialized',
+        message: 'Please configure service account credentials'
+      });
+    }
+
+    const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        error: 'Missing required parameters',
+        message: 'startDate and endDate parameters are required (format: YYYY-MM-DD)'
+      });
+    }
+
+    const data = await vegetationHeatIslandService.getVegetationHeatAnalysis(startDate, endDate);
+    res.json(data);
+  } catch (error) {
+    console.error('Error in /api/vegetation-heat/analysis:', error);
+    res.status(500).json({
+      error: 'Failed to generate vegetation and heat analysis',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/vegetation-heat/priority:
+ *   get:
+ *     summary: Calculate priority index for interventions
+ *     tags: [Vegetation & Heat Islands]
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Date in YYYY-MM-DD format
+ *     responses:
+ *       200:
+ *         description: Priority index based on LST anomaly, NDVI, and population
+ */
+app.get('/api/vegetation-heat/priority', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({
+        error: 'Earth Engine not initialized',
+        message: 'Please configure service account credentials'
+      });
+    }
+
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({
+        error: 'Missing required parameter',
+        message: 'date parameter is required (format: YYYY-MM-DD)'
+      });
+    }
+
+    const data = await vegetationHeatIslandService.calculatePriorityIndex(date);
+    res.json(data);
+  } catch (error) {
+    console.error('Error in /api/vegetation-heat/priority:', error);
+    res.status(500).json({
+      error: 'Failed to calculate priority index',
+      message: error.message
     });
   }
 });
