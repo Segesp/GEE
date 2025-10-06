@@ -397,6 +397,17 @@ class AdvancedAirQualityService {
     return recommendations;
   }
 
+
+
+  /**
+   * Genera recomendaciones simples basadas en AQI (legacy - puede eliminarse)
+   * @private
+   */
+      }
+
+    return recommendations;
+  }
+
   /**
    * Clasifica nivel según umbrales
    */
@@ -446,6 +457,244 @@ class AdvancedAirQualityService {
             no2: analysis.data.pollutants.no2.mean,
             aod: analysis.data.pollutants.aod.mean,
             pm25_proxy: analysis.data.pollutants.pm25_proxy.mean
+          });
+        }
+      } catch (error) {
+        console.warn(`Error analyzing year ${year}:`, error.message);
+        // Continuar con el siguiente año
+      }
+    }
+
+    // Validar que tengamos resultados
+    if (results.length === 0) {
+      return {
+        success: true,
+        data: {
+          timeSeries: [],
+          trend: null,
+          summary: {
+            avgAQI: 0,
+            maxAQI: 0,
+            minAQI: 0
+          },
+          interpretation: 'No se obtuvieron datos para los años solicitados'
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        timeSeries: results,
+        trend: this._calculateTrend(results, 'aqi'),
+        summary: {
+          avgAQI: Math.round(results.reduce((sum, r) => sum + r.aqi, 0) / results.length),
+          maxAQI: Math.max(...results.map(r => r.aqi)),
+          minAQI: Math.min(...results.map(r => r.aqi))
+        }
+      }
+    };
+  }
+
+  /**
+   * Calcula tendencia simple
+   * @private
+   */
+  _calculateTrend(data, field) {
+    if (data.length < 2) return null;
+
+    const n = data.length;
+    const sumX = data.reduce((sum, d, i) => sum + i, 0);
+    const sumY = data.reduce((sum, d) => sum + d[field], 0);
+    const sumXY = data.reduce((sum, d, i) => sum + i * d[field], 0);
+    const sumX2 = data.reduce((sum, d, i) => sum + i * i, 0);
+
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+
+    return {
+      slope,
+      direction: slope > 1 ? 'worsening' : slope < -1 ? 'improving' : 'stable'
+    };
+  }
+}
+
+module.exports = new AdvancedAirQualityService();
+
+  /**
+   * Análisis temporal de calidad del aire (series de tiempo)
+   * 
+   * @param {Object} params - Parámetros
+   * @param {ee.Geometry} params.geometry - Geometría del área
+   * @param {Array<Number>} params.years - Años a analizar [2020, 2021, 2022, ...]
+   * @returns {Promise<Object>} Series temporales por contaminante
+   */
+  async analyzeTemporalTrends(params) {
+
+  /**
+   * Calcula Índice de Calidad del Aire (AQI) combinado
+   * @private
+   */
+  _calculateAQI(values) {
+    const { no2, pm25, aod } = values;
+
+    // Normalizar cada valor (0-100 escala)
+    const no2Score = Math.min(100, (no2 / this.thresholds.no2.critical) * 100);
+    const pm25Score = Math.min(100, (pm25 / this.thresholds.pm25.critical) * 100);
+    const aodScore = Math.min(100, (aod / this.thresholds.aod550.critical) * 100);
+
+    // Promedio ponderado (PM2.5 tiene mayor peso)
+    const aqi = (pm25Score * 0.5) + (no2Score * 0.3) + (aodScore * 0.2);
+
+    let level, color, description;
+
+    if (aqi <= 25) {
+      level = 'excellent';
+      color = 'green';
+      description = 'Calidad del aire excelente';
+    } else if (aqi <= 50) {
+      level = 'good';
+      color = 'yellow';
+      description = 'Calidad del aire buena';
+    } else if (aqi <= 75) {
+      level = 'moderate';
+      color = 'orange';
+      description = 'Calidad del aire moderada - grupos sensibles en riesgo';
+    } else {
+      level = 'poor';
+      color = 'red';
+      description = 'Calidad del aire mala - toda la población en riesgo';
+    }
+
+    return {
+      value: Math.round(aqi),
+      level,
+      color,
+      description,
+      components: {
+        pm25: Math.round(pm25Score),
+        no2: Math.round(no2Score),
+        aod: Math.round(aodScore)
+      }
+    };
+  }
+
+  /**
+   * Clasifica nivel de un contaminante
+   * @private
+   */
+  _classifyLevel(value, thresholds) {
+    if (value <= thresholds.low) return 'low';
+    if (value <= thresholds.medium) return 'medium';
+    if (value <= thresholds.high) return 'high';
+    return 'critical';
+  }
+
+  /**
+   * Identifica el contaminante con mayor concentración relativa
+   * @private
+   */
+  _identifyPrimaryConcern(values) {
+    const { no2, pm25, aod } = values;
+    
+    const scores = {
+      no2: (no2 / this.thresholds.no2.critical) * 100,
+      pm25: (pm25 / this.thresholds.pm25.critical) * 100,
+      aod: (aod / this.thresholds.aod550.critical) * 100
+    };
+
+    const max = Math.max(scores.no2, scores.pm25, scores.aod);
+    
+    if (scores.pm25 === max) return 'PM2.5 (Material Particulado)';
+    if (scores.no2 === max) return 'NO₂ (Dióxido de Nitrógeno)';
+    return 'AOD (Aerosoles)';
+  }
+
+  /**
+   * Genera recomendaciones basadas en AQI y exposición
+   * @private
+   */
+  _generateRecommendations(aqi, exposure) {
+    const recommendations = [];
+
+    if (aqi.level === 'poor' || aqi.level === 'moderate') {
+      recommendations.push({
+        priority: 'high',
+        target: 'Población general',
+        action: 'Reducir actividades al aire libre',
+        reason: `AQI: ${aqi.value} - ${aqi.description}`
+      });
+    }
+
+    if (exposure.percentage > 25) {
+      recommendations.push({
+        priority: 'high',
+        target: 'Autoridades',
+        action: 'Implementar restricciones vehiculares',
+        reason: `${exposure.percentage}% de población expuesta a múltiples contaminantes`
+      });
+    }
+
+    if (aqi.components.pm25 > 50) {
+      recommendations.push({
+        priority: 'medium',
+        target: 'Grupos sensibles',
+        action: 'Usar mascarillas N95 al aire libre',
+        reason: 'Niveles elevados de PM2.5'
+      });
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push({
+        priority: 'low',
+        target: 'Población general',
+        action: 'Continuar con actividades normales',
+        reason: 'Calidad del aire en niveles aceptables'
+      });
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Análisis temporal de calidad del aire (series de tiempo)
+   * 
+   * @param {Object} params - Parámetros
+   * @param {ee.Geometry} params.geometry - Geometría del área
+   * @param {Array<Number>} params.years - Años a analizar [2020, 2021, 2022, ...]
+   * @returns {Promise<Object>} Series temporales por contaminante
+   */
+  async analyzeTemporalTrends(params) {
+    await this.initialize();
+
+    const { geometry, years } = params;
+    
+    // Validar que years sea un array
+    if (!Array.isArray(years)) {
+      throw new Error('Parameter "years" must be an array');
+    }
+
+    const results = [];
+
+    // Analizar cada año completo
+    for (const year of years) {
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
+
+      try {
+        const analysis = await this.analyzeAirQuality({
+          geometry,
+          startDate,
+          endDate
+        });
+
+        if (analysis.success && analysis.data) {
+          results.push({
+            year: year,
+            aqi: analysis.data.airQualityIndex.value,
+            no2: analysis.data.pollutants.no2.mean,
+            pm25: analysis.data.pollutants.pm25.mean,
+            aod: analysis.data.pollutants.aod550.mean,
+            exposedPopulation: analysis.data.exposure.exposedPopulation
           });
         }
       } catch (error) {
