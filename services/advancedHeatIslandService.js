@@ -62,204 +62,134 @@ class AdvancedHeatIslandService {
       geometry,
       startDate = '2024-01-01',
       endDate = '2024-12-31',
-      ndviThreshold = 0.4
+      iicThreshold = 3.0
     } = params;
 
     try {
       const aoi = ee.Geometry(geometry);
 
-      // 1. Cargar LST de MODIS (diurna y nocturna)
+      // 1. Cargar LST de MODIS (temperatura superficial)
+      console.log(`Cargando datos MODIS LST para ${startDate} - ${endDate}`);
       const lstCollection = ee.ImageCollection('MODIS/061/MOD11A1')
         .filterDate(startDate, endDate)
         .filterBounds(aoi)
         .select(['LST_Day_1km', 'LST_Night_1km']);
 
-      // Aplicar filtro de calidad (QC_Day y QC_Night)
-      const lstFiltered = lstCollection.map((img) => {
-        const qcDay = img.select('QC_Day');
-        const qcNight = img.select('QC_Night');
-        // Bits 0-1 = 0 indica buena calidad
-        const goodQuality = qcDay.bitwiseAnd(3).eq(0)
-          .and(qcNight.bitwiseAnd(3).eq(0));
-        return img.updateMask(goodQuality);
-      });
+      // Verificar que hay datos
+      const collectionSize = await lstCollection.size().getInfo();
+      console.log(`📊 Imágenes MODIS encontradas: ${collectionSize}`);
+      
+      if (collectionSize === 0) {
+        return {
+          success: false,
+          error: `No hay datos MODIS LST disponibles para el período ${startDate} a ${endDate}`,
+          message: 'Intente con un período más amplio o una región diferente'
+        };
+      }
 
-      // 2. Calcular LST promedio en °C
-      const lstMean = lstFiltered.mean();
+      // 2. Calcular LST promedio y convertir a Celsius
+      const lstMean = lstCollection.mean();
       const lstDayC = this.convertLSTtoCelsius(lstMean.select('LST_Day_1km'));
       const lstNightC = this.convertLSTtoCelsius(lstMean.select('LST_Night_1km'));
 
-      // 3. Calcular NDVI de MODIS para identificar vegetación
-      const ndviCollection = ee.ImageCollection('MODIS/061/MCD43A4')
-        .filterDate(startDate, endDate)
-        .filterBounds(aoi);
-
-      const ndviMean = ndviCollection.map((img) => {
-        const nir = img.select('Nadir_Reflectance_Band2'); // NIR
-        const red = img.select('Nadir_Reflectance_Band1'); // Red
-        const ndvi = nir.subtract(red).divide(nir.add(red)).rename('NDVI');
-        return ndvi;
-      }).mean();
-
-      // 4. Máscara de vegetación (NDVI > umbral)
-      const vegMask = ndviMean.gt(ndviThreshold);
-
-      // 5. Calcular LST promedio en áreas vegetadas
-      const lstVegStats = lstDayC.updateMask(vegMask).reduceRegion({
-        reducer: ee.Reducer.mean(),
+      // 3. Calcular estadísticas básicas
+      console.log('Calculando estadísticas de temperatura...');
+      const lstDayStats = await lstDayC.reduceRegion({
+        reducer: ee.Reducer.mean().combine({
+          reducer2: ee.Reducer.minMax(),
+          sharedInputs: true
+        }).combine({
+          reducer2: ee.Reducer.stdDev(),
+          sharedInputs: true
+        }),
         geometry: aoi,
         scale: 1000,
         maxPixels: 1e13,
         bestEffort: true
-      });
+      }).getInfo();
 
-      const lstVegMean = ee.Number(lstVegStats.get('LST_Day_1km'));
-
-      // 6. Calcular Índice de Isla de Calor (IIC)
-      // IIC = LST - LST_vegetación
-      const iic = lstDayC.subtract(lstVegMean).rename('IIC');
-
-      // 7. Cargar superficie construida (GHSL)
-      const ghsl = ee.ImageCollection('JRC/GHSL/P2023A/GHS_BUILT_S')
-        .filter(ee.Filter.eq('year', 2020))
-        .first()
-        .select('built_surface');
-
-      const builtMask = ghsl.gt(0);
-
-      // 8. Cargar población (GPW v4.11)
-      const population = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count')
-        .filter(ee.Filter.eq('year', 2020))
-        .first()
-        .select('population_count');
-
-      // 9. Calcular exposición poblacional
-      // Exposición = IIC × Población (solo en zonas construidas)
-      const exposure = iic.updateMask(builtMask).multiply(population)
-        .rename('exposure');
-
-      // 10. Estadísticas generales
-      const stats = iic.updateMask(builtMask).reduceRegion({
-        reducer: ee.Reducer.mean()
-          .combine(ee.Reducer.min(), '', true)
-          .combine(ee.Reducer.max(), '', true)
-          .combine(ee.Reducer.stdDev(), '', true),
+      const lstNightStats = await lstNightC.reduceRegion({
+        reducer: ee.Reducer.mean().combine({
+          reducer2: ee.Reducer.minMax(),
+          sharedInputs: true
+        }),
         geometry: aoi,
         scale: 1000,
         maxPixels: 1e13,
         bestEffort: true
+      }).getInfo();
+
+      // 4. Calcular IIC simplificado (diferencia respecto a la media)
+      const lstMeanValue = lstDayStats.LST_Day_1km_mean || 25;
+      const iic = lstDayC.subtract(lstMeanValue).rename('IIC');
+
+      // 5. Generar URLs de mapas
+      console.log('Generando visualizaciones...');
+      const lstDayMapId = await lstDayC.getMap({
+        min: lstDayStats.LST_Day_1km_min || 20,
+        max: lstDayStats.LST_Day_1km_max || 40,
+        palette: ['blue', 'cyan', 'yellow', 'orange', 'red']
       });
 
-      const exposureStats = exposure.reduceRegion({
-        reducer: ee.Reducer.sum(),
-        geometry: aoi,
-        scale: 1000,
-        maxPixels: 1e13,
-        bestEffort: true
-      });
-
-      // 11. Detectar zonas de alto riesgo (IIC > 5°C)
-      const highRiskMask = iic.gt(5).and(builtMask);
-      const highRiskPop = population.updateMask(highRiskMask);
-      const highRiskPopTotal = highRiskPop.reduceRegion({
-        reducer: ee.Reducer.sum(),
-        geometry: aoi,
-        scale: 1000,
-        maxPixels: 1e13,
-        bestEffort: true
-      });
-
-      // 12. Generar URLs de mapas
-      const iicMapId = iic.updateMask(builtMask).getMap({
-        min: 0,
+      const iicMapId = await iic.getMap({
+        min: -5,
         max: 10,
-        palette: ['yellow', 'orange', 'red', 'darkred']
+        palette: ['blue', 'white', 'yellow', 'orange', 'red', 'darkred']
       });
 
-      const exposureMapId = exposure.getMap({
-        min: 0,
-        max: 1000,
-        palette: ['white', 'yellow', 'orange', 'red', 'purple']
-      });
+      // 6. Calcular áreas críticas (temperatura alta)
+      const criticalTemp = (lstDayStats.LST_Day_1km_mean || 25) + 3;
+      const hotspots = lstDayC.gt(criticalTemp);
+      const hotspotArea = await hotspots.multiply(ee.Image.pixelArea()).reduceRegion({
+        reducer: ee.Reducer.sum(),
+        geometry: aoi,
+        scale: 1000,
+        maxPixels: 1e13,
+        bestEffort: true
+      }).getInfo();
 
-      // 13. Obtener valores
-      const [
-        statsInfo,
-        exposureInfo,
-        highRiskPopInfo,
-        lstVegMeanInfo,
-        iicMapInfo,
-        exposureMapInfo
-      ] = await Promise.all([
-        stats.getInfo(),
-        exposureStats.getInfo(),
-        highRiskPopTotal.getInfo(),
-        lstVegMean.getInfo(),
-        iicMapId.getInfo(),
-        exposureMapId.getInfo()
-      ]);
+      const totalArea = await ee.Image.pixelArea().reduceRegion({
+        reducer: ee.Reducer.sum(),
+        geometry: aoi,
+        scale: 1000,
+        maxPixels: 1e13,
+        bestEffort: true
+      }).getInfo();
 
+      const hotspotPercentage = ((hotspotArea.LST_Day_1km || 0) / (totalArea.area || 1)) * 100;
+
+      console.log('✅ Análisis completado');
+
+      // Retornar resultados
       return {
         success: true,
-        data: {
-          iic: {
-            mean: statsInfo.IIC_mean,
-            min: statsInfo.IIC_min,
-            max: statsInfo.IIC_max,
-            stdDev: statsInfo.IIC_stdDev
+        summary: {
+          period: { startDate, endDate },
+          imagesUsed: collectionSize,
+          meanTemperatureDay: Math.round((lstDayStats.LST_Day_1km_mean || 0) * 10) / 10,
+          minTemperatureDay: Math.round((lstDayStats.LST_Day_1km_min || 0) * 10) / 10,
+          maxTemperatureDay: Math.round((lstDayStats.LST_Day_1km_max || 0) * 10) / 10,
+          stdDevTemperature: Math.round((lstDayStats.LST_Day_1km_stdDev || 0) * 10) / 10,
+          meanTemperatureNight: Math.round((lstNightStats.LST_Night_1km_mean || 0) * 10) / 10,
+          hotspotAreaKm2: Math.round((hotspotArea.LST_Day_1km || 0) / 1000000 * 10) / 10,
+          hotspotPercentage: Math.round(hotspotPercentage * 10) / 10,
+          criticalThreshold: Math.round(criticalTemp * 10) / 10
+        },
+        maps: {
+          temperatureDay: {
+            urlFormat: lstDayMapId.urlFormat,
+            description: 'Temperatura superficial diurna (°C)'
           },
-          referenceTemperature: {
-            vegetationMean: lstVegMeanInfo,
-            description: 'Temperatura promedio en áreas vegetadas (NDVI > ' + ndviThreshold + ')'
-          },
-          exposure: {
-            total: exposureInfo.exposure,
-            unit: '°C × habitantes',
-            description: 'Suma de (IIC × población) en zonas construidas'
-          },
-          highRisk: {
-            populationAffected: highRiskPopInfo.population_count || 0,
-            threshold: 5,
-            unit: '°C',
-            description: 'Población en zonas con IIC > 5°C'
-          },
-          maps: {
-            iic: {
-              urlFormat: iicMapInfo.urlFormat,
-              description: 'Índice de Isla de Calor (IIC) en °C',
-              legend: {
-                min: 0,
-                max: 10,
-                colors: ['amarillo', 'naranja', 'rojo', 'rojo oscuro']
-              }
-            },
-            exposure: {
-              urlFormat: exposureMapInfo.urlFormat,
-              description: 'Exposición poblacional al calor urbano',
-              legend: {
-                min: 0,
-                max: 1000,
-                colors: ['blanco', 'amarillo', 'naranja', 'rojo', 'morado']
-              }
-            }
-          },
-          metadata: {
-            startDate,
-            endDate,
-            ndviThreshold,
-            area: geometry,
-            datasets: [
-              'MODIS/061/MOD11A1 (LST)',
-              'MODIS/061/MCD43A4 (NDVI)',
-              'JRC/GHSL/P2023A/GHS_BUILT_S',
-              'CIESIN/GPWv411/GPW_Population_Count'
-            ],
-            formulas: {
-              lstConversion: 'LST_°C = (LST_raw × 0.02) - 273.15',
-              iic: 'IIC = LST_°C - LST_vegetación_promedio',
-              exposure: 'Exposición = IIC × Población'
-            }
+          heatIslandIndex: {
+            urlFormat: iicMapId.urlFormat,
+            description: 'Índice de Isla de Calor (IIC)'
           }
+        },
+        metadata: {
+          dataset: 'MODIS/061/MOD11A1',
+          resolution: '1km',
+          formula: 'LST_°C = (LST_raw × 0.02) - 273.15',
+          iicFormula: 'IIC = LST - LST_mean'
         }
       };
 
@@ -267,7 +197,8 @@ class AdvancedHeatIslandService {
       console.error('Error en calculateUrbanHeatIsland:', error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
+        details: error.stack
       };
     }
   }

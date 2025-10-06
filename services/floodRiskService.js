@@ -30,7 +30,7 @@ class FloodRiskService {
   }
 
   /**
-   * Análisis completo de riesgo de inundaciones
+   * Análisis simplificado de riesgo de inundaciones
    * 
    * @param {Object} params - Parámetros de análisis
    * @param {ee.Geometry} params.geometry - Geometría del área
@@ -44,194 +44,174 @@ class FloodRiskService {
 
     const {
       geometry,
-      startDate = '2015-01-01',
-      endDate = '2024-12-31',
-      extremeThreshold = 100
+      startDate = '2024-01-01',
+      endDate = '2024-01-31',
+      extremeThreshold = 50
     } = params;
 
     try {
       const aoi = ee.Geometry(geometry);
 
-      // 1. Precipitación extrema de GPM IMERG
+      console.log(`[Flood Risk] Analizando período ${startDate} a ${endDate}`);
+
+      // 1. Precipitación de GPM IMERG (último año para rapidez)
       const gpm = ee.ImageCollection('NASA/GPM_L3/IMERG_V07')
         .filterDate(startDate, endDate)
         .filterBounds(aoi)
-        .select('precipitationCal');
+        .select('precipitation'); // Banda correcta: 'precipitation' (no 'precipitationCal')
 
-      // Convertir a precipitación diaria (acumular cada día)
-      const days = ee.List.sequence(
-        ee.Date(startDate).millis(),
-        ee.Date(endDate).millis(),
-        24 * 60 * 60 * 1000 // 1 día en ms
-      );
+      // VALIDACIÓN: Verificar imágenes disponibles
+      const gpmSize = await gpm.size().getInfo();
+      console.log(`[Flood Risk] Imágenes GPM disponibles: ${gpmSize}`);
 
-      const dailyPrecip = ee.ImageCollection.fromImages(
-        days.map((day) => {
-          const start = ee.Date(day);
-          const end = start.advance(1, 'day');
-          const dayImages = gpm.filterDate(start, end);
-          return dayImages.sum()
-            .set('system:time_start', start.millis())
-            .set('date', start.format('YYYY-MM-dd'));
-        })
-      );
+      if (gpmSize === 0) {
+        return {
+          success: false,
+          error: `No hay datos de precipitación (GPM) disponibles para el período ${startDate} a ${endDate}`,
+          suggestion: 'GPM IMERG comenzó operaciones en 2000. Intente con fechas más recientes.'
+        };
+      }
 
-      // Calcular percentil 90 (precipitaciones extremas)
-      const p90 = dailyPrecip.reduce(ee.Reducer.percentile([90])).rename('P90');
+      // Precipitación total del período (suma de todas las mediciones en mm)
+      const totalPrecip = gpm.sum().multiply(0.5).rename('PRECIP_TOTAL'); // 0.5 = cada medición es 30min
+      
+      // Precipitación máxima diaria (aproximación: max de todas las mediciones)
+      const maxPrecip = gpm.max().rename('PRECIP_MAX');
 
       // 2. Copernicus DEM para análisis topográfico
-      const dem = ee.Image('COPERNICUS/DEM/GLO30').select('DEM');
+      const dem = ee.ImageCollection('COPERNICUS/DEM/GLO30')
+        .select('DEM')
+        .mosaic()
+        .clip(aoi);
 
-      // Rellenar valores sin datos
-      const filled = dem.unmask(0).focal_min(1, 'square', 'pixels');
+      // Pendiente en grados
+      const slope = ee.Terrain.slope(dem);
 
-      // 3. Calcular pendiente (en radianes)
-      const slope = ee.Terrain.slope(filled).multiply(Math.PI / 180);
+      // Áreas de bajo drenaje (pendiente < 5 grados)
+      const lowDrainage = slope.lt(5);
 
-      // 4. Calcular TWI (Topographic Wetness Index)
-      // TWI = ln(a / tan(β))
-      // donde 'a' es área de contribución aguas arriba y 'β' es pendiente
-      
-      // Simplificación: usar acumulación de flujo como proxy de 'a'
-      const flowAccumulation = filled.focal_mean(5, 'square', 'pixels')
-        .divide(filled.add(1)); // Proxy simplificado
-
-      const twi = flowAccumulation
-        .divide(slope.tan().add(0.001)) // Evitar división por 0
-        .log()
-        .rename('TWI');
-
-      // 5. Identificar zonas bajas (< percentil 25 de elevación)
-      const elevStats = filled.reduceRegion({
-        reducer: ee.Reducer.percentile([25]),
-        geometry: aoi,
-        scale: 30,
-        maxPixels: 1e13,
-        bestEffort: true
-      });
-
-      const [elevP25Info] = await Promise.all([elevStats.getInfo()]);
-      const lowlandThreshold = elevP25Info.DEM_p25 || 0;
-      const lowlands = filled.lte(lowlandThreshold);
-
-      // 6. Matriz de Riesgo
-      // Riesgo = (P90 > umbral) AND (TWI > media) AND (elevación baja)
-      const twiStats = twi.reduceRegion({
-        reducer: ee.Reducer.mean(),
-        geometry: aoi,
-        scale: 30,
-        maxPixels: 1e13,
-        bestEffort: true
-      });
-
-      const [twiMeanInfo] = await Promise.all([twiStats.getInfo()]);
-      const twiMean = twiMeanInfo.TWI || 0;
-
-      const highPrecip = p90.gt(extremeThreshold);
-      const highTWI = twi.gt(twiMean);
-
-      // Riesgo alto: cumple al menos 2 de 3 criterios
-      const riskScore = highPrecip.add(highTWI).add(lowlands);
-      const highRisk = riskScore.gte(2);
-
-      // 7. Cargar población e infraestructura
-      const population = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count')
-        .filter(ee.Filter.eq('year', 2020))
-        .first()
-        .select('population_count');
-
-      const built = ee.ImageCollection('JRC/GHSL/P2023A/GHS_BUILT_S')
-        .filter(ee.Filter.eq('year', 2020))
-        .first()
-        .select('built_surface')
-        .gt(0);
-
-      // 8. Población e infraestructura en riesgo
-      const popRisk = population.updateMask(highRisk);
-      const infraRisk = built.updateMask(highRisk);
-
-      const riskStats = popRisk.addBands(infraRisk).reduceRegion({
-        reducer: ee.Reducer.sum().repeat(2),
+      // Áreas bajas (elevación < percentil 30)
+      const elevMean = dem.reduceRegion({
+        reducer: ee.Reducer.percentile([30]),
         geometry: aoi,
         scale: 100,
         maxPixels: 1e13,
         bestEffort: true
       });
 
-      // 9. Estadísticas generales
-      const precipStats = p90.reduceRegion({
+      const elevInfo = await elevMean.getInfo();
+      const lowElevThreshold = elevInfo.DEM_p30 || 100;
+      const lowlands = dem.lt(lowElevThreshold);
+
+      // 3. Calcular Riesgo de Inundación
+      // Riesgo = (precipitación alta) + (pendiente baja) + (elevación baja)
+      const highPrecip = totalPrecip.gt(extremeThreshold);
+      const riskScore = highPrecip.add(lowDrainage).add(lowlands);
+      
+      // Riesgo alto = al menos 2 factores presentes
+      const highRisk = riskScore.gte(2);
+
+      // 4. Estadísticas de precipitación
+      const precipStats = totalPrecip.addBands(maxPrecip).reduceRegion({
         reducer: ee.Reducer.mean()
+          .combine(ee.Reducer.min(), '', true)
           .combine(ee.Reducer.max(), '', true)
-          .combine(ee.Reducer.percentile([75, 90, 95]), '', true),
+          .combine(ee.Reducer.stdDev(), '', true),
         geometry: aoi,
         scale: 11000,
         maxPixels: 1e13,
         bestEffort: true
       });
 
-      // 10. Generar mapas
-      const riskMapId = riskScore.getMap({
+      // 5. Área en riesgo
+      const riskArea = highRisk.multiply(ee.Image.pixelArea()).divide(1e6); // a km²
+      const riskStats = riskArea.reduceRegion({
+        reducer: ee.Reducer.sum(),
+        geometry: aoi,
+        scale: 100,
+        maxPixels: 1e13,
+        bestEffort: true
+      });
+
+      // 6. Estadísticas topográficas
+      const topoStats = slope.addBands(dem).reduceRegion({
+        reducer: ee.Reducer.mean(),
+        geometry: aoi,
+        scale: 100,
+        maxPixels: 1e13,
+        bestEffort: true
+      });
+
+      // 7. Generar mapas
+      const riskMapInfo = riskScore.getMap({
         min: 0,
         max: 3,
         palette: ['green', 'yellow', 'orange', 'red']
       });
 
-      const p90MapId = p90.getMap({
+      const precipMapInfo = totalPrecip.getMap({
         min: 0,
         max: 200,
         palette: ['white', 'lightblue', 'blue', 'darkblue', 'purple']
       });
 
-      const twiMapId = twi.getMap({
+      const slopeMapInfo = slope.getMap({
         min: 0,
-        max: 15,
-        palette: ['brown', 'yellow', 'lightblue', 'blue']
+        max: 30,
+        palette: ['blue', 'green', 'yellow', 'orange', 'red']
       });
 
-      // 11. Obtener valores
-      const [
-        riskInfo,
-        precipInfo,
-        riskMapInfo,
-        p90MapInfo,
-        twiMapInfo
-      ] = await Promise.all([
-        riskStats.getInfo(),
+      // 8. Obtener todos los valores
+      const [precipInfo, riskAreaInfo, topoInfo] = await Promise.all([
         precipStats.getInfo(),
-        riskMapId.getInfo(),
-        p90MapId.getInfo(),
-        twiMapId.getInfo()
+        riskStats.getInfo(),
+        topoStats.getInfo()
       ]);
 
-      const popAtRisk = riskInfo.sum || 0;
-      const infraAtRisk = riskInfo.sum_1 || 0;
+      const riskLevel = this._classifyRisk(riskAreaInfo.constant || 0);
+
+      console.log(`[Flood Risk] Precipitación total: ${precipInfo.PRECIP_TOTAL_mean.toFixed(1)} mm, Área en riesgo: ${(riskAreaInfo.constant || 0).toFixed(2)} km²`);
 
       return {
         success: true,
-        data: {
+        summary: {
+          period: { startDate, endDate },
+          imagesUsed: gpmSize,
           precipitation: {
-            p90Mean: precipInfo.P90_mean,
-            p90Max: precipInfo.P90_max,
-            p75: precipInfo.P90_p75,
-            p95: precipInfo.P90_p95,
-            unit: 'mm/día',
-            extremeThreshold: extremeThreshold,
-            description: 'Percentil 90 de precipitación diaria (2015-2024)'
-          },
-          topography: {
-            twiMean: twiMean,
-            lowlandThreshold: lowlandThreshold,
-            unit: 'metros (elevación)',
-            description: 'Índice de humedad topográfica y zonas bajas'
+            total: precipInfo.PRECIP_TOTAL_mean,
+            max: precipInfo.PRECIP_MAX_mean,
+            unit: 'mm'
           },
           risk: {
-            populationAffected: Math.round(popAtRisk),
-            infrastructureAreaM2: Math.round(infraAtRisk),
-            level: this._classifyRisk(popAtRisk),
+            areaKm2: riskAreaInfo.constant || 0,
+            level: riskLevel,
+            threshold: extremeThreshold
+          }
+        },
+        data: {
+          precipitation: {
+            totalMean: precipInfo.PRECIP_TOTAL_mean,
+            totalMin: precipInfo.PRECIP_TOTAL_min,
+            totalMax: precipInfo.PRECIP_TOTAL_max,
+            maxDaily: precipInfo.PRECIP_MAX_mean,
+            unit: 'mm',
+            extremeThreshold: extremeThreshold,
+            description: `Precipitación acumulada ${startDate} a ${endDate}`
+          },
+          topography: {
+            meanSlope: topoInfo.slope,
+            meanElevation: topoInfo.DEM,
+            lowlandThreshold: lowElevThreshold,
+            unit: 'grados (pendiente), metros (elevación)',
+            description: 'Áreas con pendiente < 5° consideradas de bajo drenaje'
+          },
+          risk: {
+            areaKm2: riskAreaInfo.constant || 0,
+            level: riskLevel,
             criteria: [
-              `Precipitación P90 > ${extremeThreshold} mm`,
-              `TWI > ${twiMean.toFixed(2)}`,
-              `Elevación < ${lowlandThreshold.toFixed(1)} m`
+              `Precipitación total > ${extremeThreshold} mm`,
+              'Pendiente < 5° (bajo drenaje)',
+              `Elevación < ${lowElevThreshold.toFixed(1)} m (zonas bajas)`
             ],
             description: 'Zonas que cumplen al menos 2 de 3 criterios'
           },
@@ -242,49 +222,46 @@ class FloodRiskService {
               legend: {
                 min: 0,
                 max: 3,
-                colors: ['verde (bajo)', 'amarillo', 'naranja', 'rojo (alto)'],
-                description: '0=sin riesgo, 3=todos los factores'
+                colors: ['verde (bajo)', 'amarillo', 'naranja', 'rojo (alto)']
               }
             },
             precipitation: {
-              urlFormat: p90MapInfo.urlFormat,
-              description: 'Precipitación extrema (P90)',
+              urlFormat: precipMapInfo.urlFormat,
+              description: 'Precipitación total acumulada',
               legend: {
                 min: 0,
                 max: 200,
-                unit: 'mm/día',
+                unit: 'mm',
                 colors: ['blanco', 'azul claro', 'azul', 'azul oscuro', 'morado']
               }
             },
-            twi: {
-              urlFormat: twiMapInfo.urlFormat,
-              description: 'Índice de Humedad Topográfica (TWI)',
+            slope: {
+              urlFormat: slopeMapInfo.urlFormat,
+              description: 'Pendiente del terreno',
               legend: {
                 min: 0,
-                max: 15,
-                colors: ['café (seco)', 'amarillo', 'azul claro', 'azul (húmedo)']
+                max: 30,
+                unit: 'grados',
+                colors: ['azul (plano)', 'verde', 'amarillo', 'naranja', 'rojo (empinado)']
               }
             }
           },
-          recommendations: this._generateFloodRecommendations(popAtRisk, infraAtRisk),
+          recommendations: this._generateFloodRecommendations(riskAreaInfo.constant || 0),
           metadata: {
             startDate,
             endDate,
-            period: `${startDate} a ${endDate}`,
             extremeThreshold,
             area: geometry,
             datasets: [
               'NASA/GPM_L3/IMERG_V07',
-              'COPERNICUS/DEM/GLO30',
-              'CIESIN/GPWv411/GPW_Population_Count',
-              'JRC/GHSL/P2023A/GHS_BUILT_S'
+              'COPERNICUS/DEM/GLO30'
             ],
             formulas: {
-              p90: 'Percentil 90 de precipitación diaria acumulada',
-              twi: 'TWI = ln(área_contribución / tan(pendiente))',
-              risk: 'Riesgo = Σ(precipitación_extrema + TWI_alto + elevación_baja) ≥ 2'
+              precipitation: 'Suma de mediciones cada 30min × 0.5',
+              risk: 'Riesgo = Σ(precip_alta + pendiente_baja + elevación_baja) ≥ 2'
             },
-            resolution: 'GPM: 11km, DEM: 30m'
+            resolution: 'GPM: 11km, DEM: 30m',
+            note: 'Análisis simplificado sin cálculo de población afectada'
           }
         }
       };
@@ -314,7 +291,12 @@ class FloodRiskService {
       const aoi = ee.Geometry(geometry);
 
       // 1. Cargar DEM
-      const dem = ee.Image('COPERNICUS/DEM/GLO30').select('DEM');
+      // GLO30 es una ImageCollection, no una Image individual
+      const dem = ee.ImageCollection('COPERNICUS/DEM/GLO30')
+        .select('DEM')
+        .mosaic()  // Crear mosaico de todas las tiles
+        .clip(aoi); // Recortar al área de interés
+        
       const filled = dem.unmask(0).focal_min(1, 'square', 'pixels');
 
       // 2. Calcular dirección de flujo
@@ -375,45 +357,43 @@ class FloodRiskService {
   }
 
   /**
-   * Clasifica nivel de riesgo
+   * Clasifica nivel de riesgo basado en área afectada
    * @private
    */
-  _classifyRisk(populationAffected) {
-    if (populationAffected > 50000) return 'critical';
-    if (populationAffected > 10000) return 'high';
-    if (populationAffected > 1000) return 'medium';
+  _classifyRisk(areaKm2) {
+    if (areaKm2 > 100) return 'critical';
+    if (areaKm2 > 50) return 'high';
+    if (areaKm2 > 10) return 'medium';
     return 'low';
   }
 
   /**
-   * Genera recomendaciones de mitigación
+   * Genera recomendaciones basadas en área en riesgo
    * @private
    */
-  _generateFloodRecommendations(popAtRisk, infraAtRisk) {
+  _generateFloodRecommendations(riskAreaKm2) {
     const recommendations = [];
 
-    if (popAtRisk > 10000) {
+    if (riskAreaKm2 > 50) {
       recommendations.push({
         priority: 'urgent',
         action: 'Implementar sistema de alerta temprana de inundaciones',
         target: 'Defensa Civil',
-        reason: `${Math.round(popAtRisk).toLocaleString()} personas en zonas de riesgo`
+        reason: `${riskAreaKm2.toFixed(1)} km² en zona de alto riesgo`
       });
 
-      recommendations.push({
-        priority: 'urgent',
-        action: 'Crear refugios temporales en zonas seguras',
-        target: 'Municipalidad',
-        reason: 'Alta población vulnerable'
-      });
-    }
-
-    if (infraAtRisk > 100000) {
       recommendations.push({
         priority: 'high',
-        action: 'Reforzar infraestructura de drenaje',
+        action: 'Crear refugios temporales en zonas seguras',
+        target: 'Municipalidad',
+        reason: 'Área extensa vulnerable a inundaciones'
+      });
+    } else if (riskAreaKm2 > 10) {
+      recommendations.push({
+        priority: 'high',
+        action: 'Reforzar infraestructura de drenaje en áreas identificadas',
         target: 'Obras públicas',
-        reason: `${(infraAtRisk/10000).toFixed(1)} hectáreas de construcciones en riesgo`
+        reason: `${riskAreaKm2.toFixed(1)} km² requieren atención`
       });
     }
 

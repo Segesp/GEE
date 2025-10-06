@@ -30,14 +30,13 @@ class EnergyAccessService {
   }
 
   /**
-   * Análisis completo de acceso a energía mediante luces nocturnas
+   * Análisis simplificado de acceso a energía mediante luces nocturnas
    * 
    * @param {Object} params - Parámetros de análisis
    * @param {ee.Geometry} params.geometry - Geometría del área
    * @param {String} params.startDate - Fecha inicial
    * @param {String} params.endDate - Fecha final
-   * @param {Number} params.poorAccessThreshold - Umbral de radiancia per cápita (default: 0.5)
-   * @param {Boolean} params.analyzeByDistrict - Si se analiza por distritos
+   * @param {Number} params.lowLightThreshold - Umbral de radiancia baja (default: 5)
    * @returns {Promise<Object>} Análisis de acceso a energía
    */
   async analyzeEnergyAccess(params) {
@@ -47,56 +46,47 @@ class EnergyAccessService {
       geometry,
       startDate = '2023-01-01',
       endDate = '2023-12-31',
-      poorAccessThreshold = 0.5,
-      analyzeByDistrict = false
+      lowLightThreshold = 5
     } = params;
 
     try {
       const aoi = ee.Geometry(geometry);
 
-      // 1. Cargar VIIRS Black Marble VNP46A2
-      // Dataset de luces nocturnas corregido por BRDF y rellenado
+      console.log(`[Energy Access] Analizando período ${startDate} a ${endDate}`);
+
+      // 1. Cargar VIIRS Black Marble (luces nocturnas)
       const blackMarble = ee.ImageCollection('NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG')
         .filterDate(startDate, endDate)
         .filterBounds(aoi)
-        .select('avg_rad'); // Radiancia promedio mensual
+        .select('avg_rad');
+
+      // VALIDACIÓN: Verificar imágenes disponibles
+      const viirsSize = await blackMarble.size().getInfo();
+      console.log(`[Energy Access] Imágenes VIIRS disponibles: ${viirsSize}`);
+
+      if (viirsSize === 0) {
+        return {
+          success: false,
+          error: `No hay datos de VIIRS Black Marble disponibles para el período ${startDate} a ${endDate}`,
+          suggestion: 'VIIRS comenzó operaciones en 2012. Use fechas desde 2012 en adelante.'
+        };
+      }
 
       // Calcular promedio del período
       const avgRadiance = blackMarble.mean().rename('radiance');
 
-      // 2. Cargar población
-      const population = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count')
-        .filter(ee.Filter.eq('year', 2020))
-        .first()
-        .select('population_count');
+      // 2. Clasificar áreas por intensidad de luz
+      const darkAreas = avgRadiance.lt(lowLightThreshold); // Sin/poco alumbrado
+      const moderateAreas = avgRadiance.gte(lowLightThreshold).and(avgRadiance.lt(20));
+      const brightAreas = avgRadiance.gte(20); // Bien iluminadas
 
-      // 3. Calcular radiancia per cápita
-      // Unidad: nW/cm²·sr por habitante
-      const radiancePerCapita = avgRadiance
-        .divide(population.add(1)) // Evitar división por 0
-        .rename('radiance_per_capita');
+      // 3. Calcular áreas (en km²)
+      const pixelAreaKm2 = ee.Image.pixelArea().divide(1e6);
+      const darkAreaKm2 = darkAreas.multiply(pixelAreaKm2);
+      const moderateAreaKm2 = moderateAreas.multiply(pixelAreaKm2);
+      const brightAreaKm2 = brightAreas.multiply(pixelAreaKm2);
 
-      // 4. Identificar áreas con pobre acceso
-      // Umbral bajo: < 0.5 nW/cm²·sr por habitante
-      const poorAccess = radiancePerCapita.lt(poorAccessThreshold);
-      const moderateAccess = radiancePerCapita.gte(poorAccessThreshold)
-        .and(radiancePerCapita.lt(2.0));
-      const goodAccess = radiancePerCapita.gte(2.0);
-
-      // 5. Calcular estadísticas por categoría
-      const popPoor = population.updateMask(poorAccess);
-      const popModerate = population.updateMask(moderateAccess);
-      const popGood = population.updateMask(goodAccess);
-
-      const stats = ee.Image([popPoor, popModerate, popGood]).reduceRegion({
-        reducer: ee.Reducer.sum().repeat(3),
-        geometry: aoi,
-        scale: 500,
-        maxPixels: 1e13,
-        bestEffort: true
-      });
-
-      // 6. Estadísticas de radiancia general
+      // 4. Estadísticas de radiancia
       const radianceStats = avgRadiance.reduceRegion({
         reducer: ee.Reducer.mean()
           .combine(ee.Reducer.median(), '', true)
@@ -108,77 +98,60 @@ class EnergyAccessService {
         bestEffort: true
       });
 
-      const perCapitaStats = radiancePerCapita.reduceRegion({
-        reducer: ee.Reducer.mean()
-          .combine(ee.Reducer.median(), '', true)
-          .combine(ee.Reducer.percentile([10, 25, 75]), '', true),
+      // 5. Calcular áreas por categoría
+      const areaStats = ee.Image([darkAreaKm2, moderateAreaKm2, brightAreaKm2]).reduceRegion({
+        reducer: ee.Reducer.sum().repeat(3),
         geometry: aoi,
         scale: 500,
         maxPixels: 1e13,
         bestEffort: true
       });
 
-      // 7. Detectar "manchas oscuras" (áreas con radiancia < 0.1)
-      const darkSpots = avgRadiance.lt(0.1);
-      const darkSpotsWithPop = darkSpots.and(population.gt(100));
-      
-      const darkPopulation = population.updateMask(darkSpotsWithPop);
-      const darkStats = darkPopulation.reduceRegion({
-        reducer: ee.Reducer.sum(),
-        geometry: aoi,
-        scale: 500,
-        maxPixels: 1e13,
-        bestEffort: true
-      });
-
-      // 8. Generar mapas
-      const radianceMapId = avgRadiance.getMap({
+      // 6. Generar mapas
+      const radianceMap = avgRadiance.getMap({
         min: 0,
-        max: 20,
+        max: 50,
         palette: ['000000', '330033', '663366', '996699', 'ffcc00', 'ffff00', 'ffffff']
       });
 
-      const perCapitaMapId = radiancePerCapita.getMap({
-        min: 0,
-        max: 5,
-        palette: ['8b0000', 'ff0000', 'ff8c00', 'ffd700', 'ffff00', '00ff00', '00ffff']
-      });
-
-      const accessMapId = poorAccess.add(moderateAccess.multiply(2)).add(goodAccess.multiply(3))
+      const accessMap = darkAreas.add(moderateAreas.multiply(2)).add(brightAreas.multiply(3))
+        .selfMask()
         .getMap({
           min: 1,
           max: 3,
           palette: ['red', 'yellow', 'green']
         });
 
-      // 9. Obtener valores
-      const [
-        statsInfo,
-        radianceInfo,
-        perCapitaInfo,
-        darkInfo,
-        radianceMap,
-        perCapitaMap,
-        accessMap
-      ] = await Promise.all([
-        stats.getInfo(),
+      // 7. Obtener valores
+      const [radianceInfo, areaInfo] = await Promise.all([
         radianceStats.getInfo(),
-        perCapitaStats.getInfo(),
-        darkStats.getInfo(),
-        radianceMapId.getInfo(),
-        perCapitaMapId.getInfo(),
-        accessMapId.getInfo()
+        areaStats.getInfo()
       ]);
 
-      const popPoorAccess = statsInfo.sum || 0;
-      const popModerateAccess = statsInfo.sum_1 || 0;
-      const popGoodAccess = statsInfo.sum_2 || 0;
-      const totalPop = popPoorAccess + popModerateAccess + popGoodAccess;
+      const darkArea = Number(areaInfo.sum || 0);
+      const moderateArea = Number(areaInfo.sum_1 || 0);
+      const brightArea = Number(areaInfo.sum_2 || 0);
+      const totalArea = darkArea + moderateArea + brightArea;
 
-      const darkPopCount = darkInfo.sum || 0;
+      const radianceMean = Number(radianceInfo.radiance_mean || 0);
+
+      console.log(`[Energy Access] Radiancia media: ${radianceMean.toFixed(2)} nW/cm²·sr, Áreas oscuras: ${darkArea.toFixed(2)} km²`);
 
       return {
         success: true,
+        summary: {
+          period: { startDate, endDate },
+          imagesUsed: viirsSize,
+          radiance: {
+            mean: radianceInfo.radiance_mean,
+            median: radianceInfo.radiance_median,
+            unit: 'nW/cm²·sr'
+          },
+          coverage: {
+            darkAreaKm2: darkArea,
+            darkPercent: (darkArea / totalArea * 100).toFixed(1)
+          }
+        },
         data: {
           radiance: {
             mean: radianceInfo.radiance_mean,
@@ -188,103 +161,66 @@ class EnergyAccessService {
             p90: radianceInfo.radiance_p90,
             max: radianceInfo.radiance_max,
             unit: 'nW/cm²·sr',
-            description: 'Radiancia promedio de luces nocturnas'
+            description: 'Radiancia promedio de luces nocturnas VIIRS'
           },
-          perCapita: {
-            mean: perCapitaInfo.radiance_per_capita_mean,
-            median: perCapitaInfo.radiance_per_capita_median,
-            p10: perCapitaInfo.radiance_per_capita_p10,
-            p25: perCapitaInfo.radiance_per_capita_p25,
-            p75: perCapitaInfo.radiance_per_capita_p75,
-            unit: 'nW/cm²·sr por habitante',
-            description: 'Radiancia normalizada por población'
-          },
-          access: {
-            poorAccess: {
-              population: Math.round(popPoorAccess),
-              percentage: ((popPoorAccess / totalPop) * 100).toFixed(1),
-              threshold: `< ${poorAccessThreshold}`,
-              level: 'critical',
-              description: 'Población con acceso deficiente a alumbrado/energía'
+          coverage: {
+            darkAreas: {
+              areaKm2: darkArea,
+              percentage: (darkArea / totalArea * 100).toFixed(1),
+              threshold: `< ${lowLightThreshold}`,
+              level: 'poor',
+              description: 'Áreas con poca o ninguna iluminación nocturna'
             },
-            moderateAccess: {
-              population: Math.round(popModerateAccess),
-              percentage: ((popModerateAccess / totalPop) * 100).toFixed(1),
-              threshold: `${poorAccessThreshold} - 2.0`,
-              level: 'medium',
-              description: 'Población con acceso moderado'
+            moderateAreas: {
+              areaKm2: moderateArea,
+              percentage: (moderateArea / totalArea * 100).toFixed(1),
+              threshold: `${lowLightThreshold} - 20`,
+              level: 'moderate',
+              description: 'Áreas con iluminación moderada'
             },
-            goodAccess: {
-              population: Math.round(popGoodAccess),
-              percentage: ((popGoodAccess / totalPop) * 100).toFixed(1),
-              threshold: '≥ 2.0',
+            brightAreas: {
+              areaKm2: brightArea,
+              percentage: (brightArea / totalArea * 100).toFixed(1),
+              threshold: '≥ 20',
               level: 'good',
-              description: 'Población con buen acceso'
+              description: 'Áreas bien iluminadas'
             }
-          },
-          darkSpots: {
-            population: Math.round(darkPopCount),
-            percentage: ((darkPopCount / totalPop) * 100).toFixed(1),
-            threshold: '< 0.1 nW/cm²·sr',
-            description: 'Áreas prácticamente sin iluminación nocturna'
           },
           maps: {
             radiance: {
               urlFormat: radianceMap.urlFormat,
-              description: 'Radiancia de luces nocturnas',
+              description: 'Radiancia de luces nocturnas (VIIRS)',
               legend: {
                 min: 0,
-                max: 20,
+                max: 50,
                 unit: 'nW/cm²·sr',
                 colors: ['negro', 'morado oscuro', 'morado', 'rosa', 'amarillo', 'amarillo brillante', 'blanco']
               }
             },
-            perCapita: {
-              urlFormat: perCapitaMap.urlFormat,
-              description: 'Radiancia per cápita',
-              legend: {
-                min: 0,
-                max: 5,
-                unit: 'nW/cm²·sr por hab',
-                colors: ['rojo oscuro', 'rojo', 'naranja', 'dorado', 'amarillo', 'verde', 'cian']
-              }
-            },
             accessLevel: {
               urlFormat: accessMap.urlFormat,
-              description: 'Nivel de acceso a alumbrado/energía',
+              description: 'Nivel de iluminación nocturna',
               legend: {
                 categories: [
-                  { value: 1, color: 'rojo', label: 'Deficiente' },
+                  { value: 1, color: 'rojo', label: 'Oscuro (poca iluminación)' },
                   { value: 2, color: 'amarillo', label: 'Moderado' },
-                  { value: 3, color: 'verde', label: 'Bueno' }
+                  { value: 3, color: 'verde', label: 'Brillante (bien iluminado)' }
                 ]
               }
             }
           },
-          recommendations: this._generateEnergyRecommendations(
-            popPoorAccess,
-            darkPopCount,
-            totalPop
-          ),
+          recommendations: this._generateEnergyRecommendations(darkArea, totalArea),
           metadata: {
             startDate,
             endDate,
-            period: `${startDate} a ${endDate}`,
-            poorAccessThreshold,
+            lowLightThreshold,
             area: geometry,
-            datasets: [
-              'NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG',
-              'CIESIN/GPWv411/GPW_Population_Count'
-            ],
-            formulas: {
-              radiancePerCapita: 'radiancia_promedio / población',
-              accessLevel: `poor: < ${poorAccessThreshold}, moderate: ${poorAccessThreshold}-2.0, good: ≥ 2.0`
-            },
-            resolution: 'VIIRS: 500m, GPW: ~1km',
+            datasets: ['NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG'],
+            resolution: 'VIIRS: ~500m',
+            note: 'Análisis simplificado sin cálculo per cápita. La radiancia nocturna es un proxy de electrificación y alumbrado público.',
             interpretation: {
-              radiance: 'Mayor radiancia indica más iluminación artificial',
-              perCapita: 'Normalizado por población, evita sesgo de densidad',
-              darkSpots: 'Zonas con población pero sin iluminación nocturna'
+              radiance: 'Mayor radiancia indica más iluminación artificial y posiblemente mejor acceso a electricidad',
+              darkAreas: 'Áreas prioritarias para proyectos de electrificación o mejora de alumbrado público'
             }
           }
         }
@@ -469,37 +405,25 @@ class EnergyAccessService {
    * Genera recomendaciones de electrificación
    * @private
    */
-  _generateEnergyRecommendations(popPoorAccess, darkPopCount, totalPop) {
+  _generateEnergyRecommendations(darkAreaKm2, totalAreaKm2) {
     const recommendations = [];
 
-    const percentPoor = (popPoorAccess / totalPop) * 100;
+    const percentDark = (darkAreaKm2 / totalAreaKm2) * 100;
 
-    if (percentPoor > 30) {
+    if (percentDark > 30) {
       recommendations.push({
         priority: 'urgent',
-        action: 'Auditoría de cobertura eléctrica y alumbrado público',
+        action: 'Auditoría de cobertura de alumbrado público',
         target: 'Empresa distribuidora + Municipalidad',
-        reason: `${percentPoor.toFixed(1)}% de la población con acceso deficiente`,
+        reason: `${percentDark.toFixed(1)}% del área con iluminación deficiente (${darkAreaKm2.toFixed(1)} km²)`,
         estimatedCost: 'Alto - requiere inversión en infraestructura'
       });
-    }
-
-    if (darkPopCount > 5000) {
-      recommendations.push({
-        priority: 'urgent',
-        action: 'Instalar alumbrado público en "manchas oscuras"',
-        target: 'Municipalidad',
-        reason: `${Math.round(darkPopCount).toLocaleString()} personas en zonas sin iluminación`,
-        estimatedCost: 'Medio - instalación de postes y luminarias LED'
-      });
-    }
-
-    if (percentPoor > 10 && percentPoor <= 30) {
+    } else if (percentDark > 10) {
       recommendations.push({
         priority: 'high',
-        action: 'Programa de mejora de alumbrado en barrios prioritarios',
+        action: 'Programa de mejora de alumbrado en zonas prioritarias',
         target: 'Gobierno local',
-        reason: 'Acceso deficiente en áreas específicas',
+        reason: `${darkAreaKm2.toFixed(1)} km² con poca iluminación`,
         estimatedCost: 'Medio'
       });
     }

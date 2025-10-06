@@ -48,26 +48,30 @@ class GreenSpaceAccessService {
       geometry,
       startDate = '2024-01-01',
       endDate = '2024-12-31',
-      ndviThreshold = 0.4,
       dwConfidence = 0.5
     } = params;
 
     try {
+      console.log(`Analizando áreas verdes para ${startDate} - ${endDate}`);
       const aoi = ee.Geometry(geometry);
 
-      // 1. NDVI de MODIS para detectar vegetación general
-      const ndviCollection = ee.ImageCollection('MODIS/MCD43A4_006_NDVI')
-        .filterDate(startDate, endDate)
-        .filterBounds(aoi);
-
-      const ndviMean = ndviCollection.mean().select('NDVI');
-      const vegMaskNDVI = ndviMean.gt(ndviThreshold);
-
-      // 2. Dynamic World para clasificación detallada (10m resolución)
+      // 1. Dynamic World para clasificación de vegetación (10m resolución)
       const dw = ee.ImageCollection('GOOGLE/DYNAMICWORLD/V1')
         .filterDate(startDate, endDate)
         .filterBounds(aoi)
-        .select(['trees', 'grass', 'flooded_vegetation', 'crops']);
+        .select(['trees', 'grass', 'flooded_vegetation', 'label']);
+
+      // Verificar que Dynamic World tenga datos
+      const dwSize = await dw.size().getInfo();
+      console.log(`📊 Imágenes Dynamic World encontradas: ${dwSize}`);
+      
+      if (dwSize === 0) {
+        return {
+          success: false,
+          error: `No hay datos de Dynamic World disponibles para ${startDate} a ${endDate}`,
+          message: 'Intente con un período más amplio o una región diferente'
+        };
+      }
 
       const dwMean = dw.mean();
       
@@ -77,102 +81,108 @@ class GreenSpaceAccessService {
       const floodedVegProb = dwMean.select('flooded_vegetation');
       
       const vegProbTotal = treesProb.add(grassProb).add(floodedVegProb);
-      const vegMaskDW = vegProbTotal.gt(dwConfidence);
+      const vegMask = vegProbTotal.gt(dwConfidence);
 
-      // 3. Cargar población (GPW v4.11)
+      // 2. Cargar población (GPW v4.11)
+      console.log('Cargando datos de población...');
       const population = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count')
-        .filter(ee.Filter.eq('year', 2020))
+        .filter(ee.Filter.date('2020-01-01', '2020-12-31'))
         .first()
         .select('population_count');
 
-      // 4. Calcular área de píxel y área verde total
-      const pixelArea = ee.Image.pixelArea(); // m²
-      const greenArea = vegMaskDW.multiply(pixelArea); // m² de vegetación
+      // 3. Calcular áreas
+      const pixelArea = ee.Image.pixelArea().divide(1e6); // Convertir a km²
+      const greenArea = vegMask.multiply(pixelArea);
 
-      // 5. Reducir por región
-      const stats = greenArea.addBands(population).reduceRegion({
-        reducer: ee.Reducer.sum().repeat(2),
+      // 4. Estadísticas por región
+      console.log('Calculando estadísticas...');
+      const stats = await greenArea.addBands(population).reduceRegion({
+        reducer: ee.Reducer.sum().combine({
+          reducer2: ee.Reducer.mean(),
+          sharedInputs: false
+        }),
         geometry: aoi,
-        scale: 10, // Usar resolución de Dynamic World (10m)
+        scale: 100, // 100m para balance entre precisión y velocidad
         maxPixels: 1e13,
         bestEffort: true
-      });
+      }).getInfo();
 
-      const [statsInfo] = await Promise.all([stats.getInfo()]);
+      const greenAreaKm2 = stats.area_sum || 0;
+      const populationTotal = stats.population_count_sum || 1;
+      
+      // Convertir a m² por habitante
+      const agphValue = (greenAreaKm2 * 1e6) / populationTotal;
 
-      const greenAreaTotal = statsInfo.sum || 0; // m²
-      const populationTotal = statsInfo.sum_1 || 1; // habitantes
+      // 5. Clasificar según estándares OMS y ONU
+      const whoStandard = 9; // OMS recomienda 9 m²/hab
+      const unStandard = 16; // ONU-Habitat recomienda 16 m²/hab
+      const level = this._classifyAGPH(agphValue);
 
-      // 6. Calcular AGPH (m² por habitante)
-      const agph = greenAreaTotal / populationTotal;
-
-      // 7. Clasificar según estándar OMS (9 m²/hab)
-      const whoStandard = 9;
-      const deficit = whoStandard - agph;
-      const level = this._classifyAGPH(agph);
-
-      // 8. Desglose por tipo de vegetación
+      // 6. Desglose por tipo de vegetación
+      console.log('Analizando tipos de vegetación...');
       const treesArea = treesProb.gt(dwConfidence).multiply(pixelArea);
       const grassArea = grassProb.gt(dwConfidence).multiply(pixelArea);
       const floodedArea = floodedVegProb.gt(dwConfidence).multiply(pixelArea);
 
-      const breakdownStats = treesArea
-        .addBands(grassArea)
-        .addBands(floodedArea)
+      const breakdownStats = await ee.Image([treesArea, grassArea, floodedArea])
+        .rename(['trees', 'grass', 'flooded'])
         .reduceRegion({
-          reducer: ee.Reducer.sum().repeat(3),
+          reducer: ee.Reducer.sum(),
           geometry: aoi,
-          scale: 10,
+          scale: 100,
           maxPixels: 1e13,
           bestEffort: true
-        });
+        }).getInfo();
 
-      const [breakdownInfo] = await Promise.all([breakdownStats.getInfo()]);
+      // 7. Generar mapa de visualización
+      const vegMapId = await vegMask.selfMask().getMap({
+        palette: ['00FF00'],
+        opacity: 0.7
+      });
+
+      console.log('✅ Análisis completado');
 
       return {
         success: true,
-        data: {
+        summary: {
+          period: { startDate, endDate },
+          imagesUsed: dwSize,
           agph: {
-            value: agph,
+            value: Math.round(agphValue * 10) / 10,
             unit: 'm² por habitante',
             level: level,
             whoStandard: whoStandard,
-            deficit: deficit > 0 ? deficit : 0,
-            compliance: agph >= whoStandard ? 'Cumple' : 'No cumple'
+            unStandard: unStandard,
+            meetsWHO: agphValue >= whoStandard,
+            meetsUN: agphValue >= unStandard,
+            deficit: agphValue < whoStandard ? Math.round((whoStandard - agphValue) * 10) / 10 : 0
           },
-          greenSpace: {
-            totalArea: greenAreaTotal,
-            unit: 'm²',
-            hectares: greenAreaTotal / 10000,
-            breakdown: {
-              trees: breakdownInfo.sum || 0,
-              grass: breakdownInfo.sum_1 || 0,
-              floodedVegetation: breakdownInfo.sum_2 || 0
-            }
+          totalArea: {
+            green: Math.round(greenAreaKm2 * 100) / 100,
+            unit: 'km²'
           },
-          population: {
-            total: populationTotal,
-            unit: 'habitantes'
-          },
-          metadata: {
-            startDate,
-            endDate,
-            ndviThreshold,
-            dwConfidence,
-            area: geometry,
-            datasets: [
-              'MODIS/MCD43A4_006_NDVI',
-              'GOOGLE/DYNAMICWORLD/V1',
-              'CIESIN/GPWv411/GPW_Population_Count'
-            ],
-            formulas: {
-              agph: 'AGPH = Área total de vegetación (m²) / Población total',
-              ndvi: 'NDVI = (NIR - Red) / (NIR + Red)'
-            },
-            references: {
-              whoStandard: 'OMS recomienda mínimo 9 m²/habitante',
-              resolution: 'Dynamic World: 10m, MODIS NDVI: 500m'
-            }
+          population: Math.round(populationTotal),
+          breakdown: {
+            trees: Math.round((breakdownStats.trees || 0) * 100) / 100,
+            grass: Math.round((breakdownStats.grass || 0) * 100) / 100,
+            flooded: Math.round((breakdownStats.flooded || 0) * 100) / 100,
+            unit: 'km²'
+          }
+        },
+        maps: {
+          vegetation: {
+            urlFormat: vegMapId.urlFormat,
+            description: 'Áreas verdes detectadas (Dynamic World)'
+          }
+        },
+        metadata: {
+          dataset: 'GOOGLE/DYNAMICWORLD/V1',
+          populationSource: 'CIESIN/GPWv411/GPW_Population_Count',
+          resolution: '10m (Dynamic World)',
+          formula: 'AGPH = Área verde total (m²) / Población total',
+          standards: {
+            who: '9 m²/hab (Organización Mundial de la Salud)',
+            un: '16 m²/hab (ONU-Habitat)'
           }
         }
       };
@@ -181,225 +191,136 @@ class GreenSpaceAccessService {
       console.error('Error en calculateAGPH:', error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
+        details: error.stack
       };
     }
   }
 
   /**
-   * Análisis de accesibilidad a parques con isócronas
-   * Calcula población dentro de 300m, 500m y 1km de parques
-   * 
-   * @param {Object} params - Parámetros
-   * @param {ee.Geometry} params.geometry - Área de estudio
-   * @param {ee.FeatureCollection|Array} params.parks - Parques (puntos o polígonos)
-   * @param {Array<Number>} params.distances - Distancias de análisis [300, 500, 1000]
-   * @returns {Promise<Object>} Métricas de accesibilidad
+   * Clasificar nivel de AGPH
    */
-  async analyzeParkAccessibility(params) {
+  _classifyAGPH(agph) {
+    if (agph >= 16) return 'Excelente';
+    if (agph >= 9) return 'Adecuado';
+    if (agph >= 5) return 'Insuficiente';
+    return 'Crítico';
+  }
+
+  /**
+   * MÉTODO SIMPLIFICADO: Calcular accesibilidad a áreas verdes
+   */
+  async analyzeAccessibility(params) {
     await this.initialize();
 
     const {
       geometry,
-      parks,
-      distances = [300, 500, 1000]
-    } = params;
-
-    try {
-      const aoi = ee.Geometry(geometry);
-      
-      // Convertir parques a FeatureCollection si es necesario
-      let parksFC;
-      if (Array.isArray(parks)) {
-        // Array de {lat, lng, name}
-        const features = parks.map(p => 
-          ee.Feature(ee.Geometry.Point([p.lng, p.lat]), {name: p.name})
-        );
-        parksFC = ee.FeatureCollection(features);
-      } else {
-        parksFC = ee.FeatureCollection(parks);
-      }
-
-      // Cargar población
-      const population = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count')
-        .filter(ee.Filter.eq('year', 2020))
-        .first()
-        .select('population_count');
-
-      // Convertir parques a raster
-      const parksRaster = parksFC.reduceToImage({
-        properties: ['system:index'],
-        reducer: ee.Reducer.first()
-      }).unmask(0).gt(0);
-
-      // Calcular distancia euclidiana a parques (en metros)
-      const distanceToPark = parksRaster.not().fastDistanceTransform({
-        neighborhood: 256,
-        units: 'pixels',
-        metric: 'squared_euclidean'
-      }).sqrt().multiply(ee.Image.pixelArea().sqrt());
-
-      const results = {};
-
-      // Calcular población dentro de cada radio
-      for (const distance of distances) {
-        const withinDistance = distanceToPark.lte(distance);
-        const populationNear = population.updateMask(withinDistance);
-        
-        const stats = populationNear.reduceRegion({
-          reducer: ee.Reducer.sum(),
-          geometry: aoi,
-          scale: 100,
-          maxPixels: 1e13,
-          bestEffort: true
-        });
-
-        const [statsInfo] = await Promise.all([stats.getInfo()]);
-        results[`within_${distance}m`] = statsInfo.population_count || 0;
-      }
-
-      // Población total del área
-      const totalPopStats = population.reduceRegion({
-        reducer: ee.Reducer.sum(),
-        geometry: aoi,
-        scale: 100,
-        maxPixels: 1e13,
-        bestEffort: true
-      });
-
-      const [totalPopInfo] = await Promise.all([totalPopStats.getInfo()]);
-      const totalPop = totalPopInfo.population_count || 1;
-
-      // Calcular porcentajes
-      const accessibility = {};
-      for (const distance of distances) {
-        const pop = results[`within_${distance}m`];
-        accessibility[`within_${distance}m`] = {
-          population: pop,
-          percentage: (pop / totalPop * 100).toFixed(2),
-          level: this._classifyAccessibility(pop / totalPop * 100, distance)
-        };
-      }
-
-      // Contar número de parques
-      const parksCount = await parksFC.size().getInfo();
-
-      // Generar mapa de distancia
-      const distanceMapId = distanceToPark.getMap({
-        min: 0,
-        max: 1000,
-        palette: ['green', 'yellow', 'orange', 'red']
-      });
-
-      const [distanceMapInfo] = await Promise.all([distanceMapId.getInfo()]);
-
-      return {
-        success: true,
-        data: {
-          parks: {
-            count: parksCount,
-            density: (parksCount / (totalPop / 10000)).toFixed(2) // parques por 10k hab
-          },
-          accessibility: accessibility,
-          population: {
-            total: totalPop,
-            unit: 'habitantes'
-          },
-          maps: {
-            distance: {
-              urlFormat: distanceMapInfo.urlFormat,
-              description: 'Distancia a parque más cercano (metros)',
-              legend: {
-                min: 0,
-                max: 1000,
-                colors: ['verde', 'amarillo', 'naranja', 'rojo'],
-                units: 'metros'
-              }
-            }
-          },
-          recommendations: this._generateAccessibilityRecommendations(accessibility, totalPop),
-          metadata: {
-            distances: distances,
-            standard: 'Se recomienda que >75% de población viva a <300m de un parque',
-            datasets: ['CIESIN/GPWv411/GPW_Population_Count']
-          }
-        }
-      };
-
-    } catch (error) {
-      console.error('Error en analyzeParkAccessibility:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
-
-  /**
-   * Análisis comparativo AGPH por barrio
-   * 
-   * @param {Object} params - Parámetros
-   * @param {Array<Object>} params.neighborhoods - Array de {name, geometry}
-   * @param {String} params.startDate - Fecha inicial
-   * @param {String} params.endDate - Fecha final
-   * @returns {Promise<Object>} Ranking de barrios por AGPH
-   */
-  async compareNeighborhoods(params) {
-    await this.initialize();
-
-    const {
-      neighborhoods,
       startDate = '2024-01-01',
       endDate = '2024-12-31'
     } = params;
 
     try {
-      const results = [];
+      console.log('Analizando accesibilidad a áreas verdes...');
+      const aoi = ee.Geometry(geometry);
 
-      for (const neighborhood of neighborhoods) {
-        const analysis = await this.calculateAGPH({
-          geometry: neighborhood.geometry,
-          startDate,
-          endDate
-        });
+      // 1. Obtener áreas verdes
+      const dw = ee.ImageCollection('GOOGLE/DYNAMICWORLD/V1')
+        .filterDate(startDate, endDate)
+        .filterBounds(aoi)
+        .select(['trees', 'grass']);
 
-        if (analysis.success) {
-          results.push({
-            name: neighborhood.name,
-            agph: analysis.data.agph.value,
-            level: analysis.data.agph.level,
-            greenAreaHa: analysis.data.greenSpace.hectares,
-            population: analysis.data.population.total,
-            deficit: analysis.data.agph.deficit
-          });
-        }
+      const dwSize = await dw.size().getInfo();
+      if (dwSize === 0) {
+        return {
+          success: false,
+          error: 'No hay datos disponibles para este período'
+        };
       }
 
-      // Ordenar por AGPH (de mayor a menor)
-      results.sort((a, b) => b.agph - a.agph);
+      const dwMean = dw.mean();
+      const vegProb = dwMean.select('trees').add(dwMean.select('grass'));
+      const vegMask = vegProb.gt(0.5);
 
-      // Asignar rankings
-      results.forEach((r, idx) => {
-        r.rank = idx + 1;
+      // 2. Calcular distancia euclidiana a áreas verdes
+      const distance = vegMask.fastDistanceTransform().sqrt()
+        .multiply(ee.Image.pixelArea().sqrt()); // Convertir píxeles a metros
+
+      // 3. Clasificar accesibilidad (OMS: 300m caminando)
+      const accessible300m = distance.lte(300);
+      const accessible500m = distance.lte(500);
+      const accessible1km = distance.lte(1000);
+
+      // 4. Cargar población
+      const population = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count')
+        .filter(ee.Filter.date('2020-01-01', '2020-12-31'))
+        .first()
+        .select('population_count');
+
+      // 5. Calcular población con acceso
+      const stats = await ee.Image([
+        accessible300m.multiply(population),
+        accessible500m.multiply(population),
+        accessible1km.multiply(population),
+        population
+      ]).rename(['pop300', 'pop500', 'pop1km', 'total'])
+        .reduceRegion({
+          reducer: ee.Reducer.sum(),
+          geometry: aoi,
+          scale: 100,
+          maxPixels: 1e13,
+          bestEffort: true
+        }).getInfo();
+
+      const popTotal = stats.total || 1;
+      const pop300 = stats.pop300 || 0;
+      const pop500 = stats.pop500 || 0;
+      const pop1km = stats.pop1km || 0;
+
+      // 6. Generar mapa de distancias
+      const distanceMapId = await distance.getMap({
+        min: 0,
+        max: 1000,
+        palette: ['00FF00', 'FFFF00', 'FF0000']
       });
+
+      console.log('✅ Accesibilidad calculada');
 
       return {
         success: true,
-        data: {
-          ranking: results,
-          summary: {
-            totalNeighborhoods: results.length,
-            excellent: results.filter(r => r.level === 'excellent').length,
-            good: results.filter(r => r.level === 'good').length,
-            fair: results.filter(r => r.level === 'fair').length,
-            poor: results.filter(r => r.level === 'poor').length,
-            average: results.reduce((sum, r) => sum + r.agph, 0) / results.length
+        summary: {
+          period: { startDate, endDate },
+          population: Math.round(popTotal),
+          accessibility: {
+            within300m: {
+              population: Math.round(pop300),
+              percentage: Math.round((pop300 / popTotal) * 1000) / 10,
+              standard: 'OMS (300m caminando)'
+            },
+            within500m: {
+              population: Math.round(pop500),
+              percentage: Math.round((pop500 / popTotal) * 1000) / 10
+            },
+            within1km: {
+              population: Math.round(pop1km),
+              percentage: Math.round((pop1km / popTotal) * 1000) / 10
+            }
           }
+        },
+        maps: {
+          distance: {
+            urlFormat: distanceMapId.urlFormat,
+            description: 'Distancia a áreas verdes (m)'
+          }
+        },
+        metadata: {
+          dataset: 'GOOGLE/DYNAMICWORLD/V1',
+          resolution: '10m',
+          method: 'Distancia euclidiana a vegetación'
         }
       };
 
     } catch (error) {
-      console.error('Error en compareNeighborhoods:', error);
+      console.error('Error en analyzeAccessibility:', error);
       return {
         success: false,
         error: error.message
@@ -408,72 +329,13 @@ class GreenSpaceAccessService {
   }
 
   /**
-   * Clasifica AGPH según estándares
-   * @private
+   * Clasificar nivel de AGPH según estándares internacionales
    */
   _classifyAGPH(agph) {
-    if (agph >= 15) return 'excellent'; // >15 m²/hab
-    if (agph >= 9) return 'good';        // 9-15 m²/hab (OMS)
-    if (agph >= 5) return 'fair';        // 5-9 m²/hab
-    return 'poor';                        // <5 m²/hab
-  }
-
-  /**
-   * Clasifica accesibilidad a parques
-   * @private
-   */
-  _classifyAccessibility(percentage, distance) {
-    if (distance === 300) {
-      if (percentage >= 75) return 'excellent';
-      if (percentage >= 50) return 'good';
-      if (percentage >= 25) return 'fair';
-      return 'poor';
-    } else if (distance === 500) {
-      if (percentage >= 85) return 'excellent';
-      if (percentage >= 65) return 'good';
-      if (percentage >= 40) return 'fair';
-      return 'poor';
-    } else {
-      if (percentage >= 95) return 'excellent';
-      if (percentage >= 80) return 'good';
-      if (percentage >= 60) return 'fair';
-      return 'poor';
-    }
-  }
-
-  /**
-   * Genera recomendaciones de accesibilidad
-   * @private
-   */
-  _generateAccessibilityRecommendations(accessibility, totalPop) {
-    const recommendations = [];
-    
-    const within300 = parseFloat(accessibility.within_300m.percentage);
-    
-    if (within300 < 50) {
-      recommendations.push({
-        priority: 'high',
-        action: 'Crear nuevos parques de barrio',
-        reason: `Solo ${within300.toFixed(1)}% de población tiene acceso a <300m`,
-        target: 'Incrementar a >75%'
-      });
-    } else if (within300 < 75) {
-      recommendations.push({
-        priority: 'medium',
-        action: 'Expandir parques existentes',
-        reason: `${within300.toFixed(1)}% tiene acceso, cercano al objetivo`,
-        target: 'Incrementar a >75%'
-      });
-    } else {
-      recommendations.push({
-        priority: 'low',
-        action: 'Mantener y mejorar calidad',
-        reason: `${within300.toFixed(1)}% tiene buen acceso`,
-        target: 'Mantener >75%'
-      });
-    }
-
-    return recommendations;
+    if (agph >= 16) return 'Excelente';   // ONU-Habitat
+    if (agph >= 9) return 'Adecuado';     // OMS
+    if (agph >= 5) return 'Insuficiente';
+    return 'Crítico';
   }
 }
 

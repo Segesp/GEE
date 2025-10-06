@@ -47,7 +47,7 @@ class UrbanExpansionService {
   }
 
   /**
-   * Analiza expansión urbana entre dos años usando GHSL
+   * Analiza expansión urbana entre dos años usando GHSL (simplificado)
    * 
    * @param {Object} params - Parámetros de análisis
    * @param {ee.Geometry} params.geometry - Geometría del área
@@ -67,138 +67,147 @@ class UrbanExpansionService {
     try {
       const aoi = ee.Geometry(geometry);
 
+      console.log(`[Urban Expansion] Analizando ${yearStart} → ${yearEnd}`);
+
       // Validar años
       if (!this.availableYears.includes(yearStart) || !this.availableYears.includes(yearEnd)) {
-        throw new Error(`Años deben estar en: ${this.availableYears.join(', ')}`);
+        return {
+          success: false,
+          error: `Años deben estar en: ${this.availableYears.join(', ')}`,
+          suggestion: 'Use años entre 1975 y 2030 en intervalos de 5 años'
+        };
       }
 
       // 1. Cargar GHSL para ambos años
-      const ghslStart = ee.ImageCollection('JRC/GHSL/P2023A/GHS_BUILT_S')
-        .filter(ee.Filter.eq('year', yearStart))
-        .first()
-        .select('built_surface');
+      const ghslCollection = ee.ImageCollection('JRC/GHSL/P2023A/GHS_BUILT_S');
+      
+      const ghslStart = ghslCollection
+        .filterBounds(aoi)
+        .filterDate(`${yearStart}-01-01`, `${yearStart}-12-31`)
+        .first();
 
-      const ghslEnd = ee.ImageCollection('JRC/GHSL/P2023A/GHS_BUILT_S')
-        .filter(ee.Filter.eq('year', yearEnd))
-        .first()
-        .select('built_surface');
+      const ghslEnd = ghslCollection
+        .filterBounds(aoi)
+        .filterDate(`${yearEnd}-01-01`, `${yearEnd}-12-31`)
+        .first();
 
-      // 2. Calcular cambio absoluto y relativo
-      const diff = ghslEnd.subtract(ghslStart); // m² de incremento
-      const relativeChange = diff.divide(ghslStart.add(1)).multiply(100); // % cambio
+      // Verificar que existan datos
+      if (!ghslStart || !ghslEnd) {
+        return {
+          success: false,
+          error: `No hay datos de GHSL para los años ${yearStart} o ${yearEnd}`,
+          suggestion: 'Intente con años diferentes'
+        };
+      }
 
-      // 3. Detectar nueva urbanización (donde antes no había)
-      const newUrban = ghslStart.eq(0).and(ghslEnd.gt(0));
+      const builtStart_band = ghslStart.select('built_surface');
+      const builtEnd_band = ghslEnd.select('built_surface');
 
-      // 4. Calcular estadísticas de cambio
-      const pixelArea = ee.Image.pixelArea().divide(10000); // a hectáreas
-      const expansionArea = newUrban.multiply(pixelArea);
+      // 2. Áreas construidas en cada año (convertir a km²)
+      const builtStart = builtStart_band.gt(0).multiply(ee.Image.pixelArea()).divide(1e6);
+      const builtEnd = builtEnd_band.gt(0).multiply(ee.Image.pixelArea()).divide(1e6);
 
-      const stats = diff.addBands(relativeChange).addBands(expansionArea).reduceRegion({
-        reducer: ee.Reducer.sum()
-          .combine(ee.Reducer.mean(), '', true)
-          .combine(ee.Reducer.max(), '', true),
+      // 3. Nueva urbanización (donde antes no había construcción)
+      const newUrban = builtStart_band.eq(0).and(builtEnd_band.gt(0));
+      const newUrbanArea = newUrban.multiply(ee.Image.pixelArea()).divide(1e6);
+
+      // 4. Calcular estadísticas
+      const statsStart = builtStart.reduceRegion({
+        reducer: ee.Reducer.sum(),
         geometry: aoi,
         scale: 100,
         maxPixels: 1e13,
         bestEffort: true
       });
 
-      // 5. Cargar población para calcular densificación
-      const popStart = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count')
-        .filter(ee.Filter.eq('year', this._nearestPopYear(yearStart)))
-        .first();
-
-      const popEnd = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count')
-        .filter(ee.Filter.eq('year', this._nearestPopYear(yearEnd)))
-        .first();
-
-      const popDiff = popEnd.subtract(popStart);
-      const popStats = popDiff.reduceRegion({
+      const statsEnd = builtEnd.reduceRegion({
         reducer: ee.Reducer.sum(),
         geometry: aoi,
-        scale: 1000,
+        scale: 100,
         maxPixels: 1e13,
         bestEffort: true
       });
 
-      // 6. Generar mapas
-      const changeMapId = diff.getMap({
-        min: 0,
-        max: 10000,
-        palette: ['white', 'yellow', 'orange', 'red', 'darkred']
+      const statsNew = newUrbanArea.reduceRegion({
+        reducer: ee.Reducer.sum(),
+        geometry: aoi,
+        scale: 100,
+        maxPixels: 1e13,
+        bestEffort: true
       });
 
-      const relativeMapId = relativeChange.getMap({
-        min: 0,
-        max: 200,
-        palette: ['white', 'lightblue', 'blue', 'purple', 'darkpurple']
+      // 5. Generar mapas
+      const builtStartVis = builtStart_band.gt(0).selfMask();
+      const builtEndVis = builtEnd_band.gt(0).selfMask();
+      const newUrbanVis = newUrban.selfMask();
+
+      const builtStartMap = builtStartVis.getMap({
+        palette: ['yellow']
       });
 
-      const newUrbanMapId = newUrban.updateMask(newUrban).getMap({
+      const builtEndMap = builtEndVis.getMap({
+        palette: ['orange']
+      });
+
+      const newUrbanMap = newUrbanVis.getMap({
         palette: ['red']
       });
 
-      // 7. Obtener valores
-      const [statsInfo, popInfo, changeMapInfo, relativeMapInfo, newUrbanMapInfo] = await Promise.all([
-        stats.getInfo(),
-        popStats.getInfo(),
-        changeMapId.getInfo(),
-        relativeMapId.getInfo(),
-        newUrbanMapId.getInfo()
+      // 6. Obtener todos los valores
+      const [startInfo, endInfo, newInfo] = await Promise.all([
+        statsStart.getInfo(),
+        statsEnd.getInfo(),
+        statsNew.getInfo()
       ]);
 
-      const expansionHa = statsInfo.sum_2 || 0;
-      const avgChange = statsInfo.built_surface_mean || 0;
-      const maxChange = statsInfo.built_surface_max || 0;
-      const popGrowth = popInfo.population_count || 0;
+      const areaStart = startInfo.constant || 0;
+      const areaEnd = endInfo.constant || 0;
+      const areaNew = newInfo.constant || 0;
+      const expansion = areaEnd - areaStart;
+      const expansionPercent = areaStart > 0 ? (expansion / areaStart * 100) : 0;
+
+      console.log(`[Urban Expansion] ${yearStart}: ${areaStart.toFixed(2)} km² → ${yearEnd}: ${areaEnd.toFixed(2)} km² (+${expansion.toFixed(2)} km²)`);
 
       return {
         success: true,
-        data: {
+        summary: {
+          period: { yearStart, yearEnd, years: yearEnd - yearStart },
           expansion: {
-            totalHectares: expansionHa.toFixed(2),
-            averageChangeM2: avgChange.toFixed(2),
-            maxChangeM2: maxChange.toFixed(2),
-            period: `${yearStart}-${yearEnd}`,
-            annualRate: (expansionHa / (yearEnd - yearStart)).toFixed(2),
-            interpretation: this._interpretExpansion(expansionHa, yearEnd - yearStart)
+            totalKm2: expansion,
+            percentChange: expansionPercent,
+            newUrbanKm2: areaNew
+          }
+        },
+        data: {
+          builtArea: {
+            start: areaStart,
+            end: areaEnd,
+            change: expansion,
+            changePercent: expansionPercent,
+            unit: 'km²',
+            period: `${yearStart}-${yearEnd}`
           },
-          population: {
-            growth: Math.round(popGrowth),
-            density: popGrowth > 0 && expansionHa > 0 
-              ? (popGrowth / expansionHa).toFixed(2) 
-              : 0,
-            unit: 'habitantes/hectárea'
+          newUrbanization: {
+            areaKm2: areaNew,
+            description: 'Áreas que pasaron de no construido a construido',
+            annualRate: areaNew / (yearEnd - yearStart),
+            unit: 'km²/año'
           },
           maps: {
-            absoluteChange: {
-              urlFormat: changeMapInfo.urlFormat,
-              description: 'Incremento de superficie construida (m²)',
-              legend: {
-                min: 0,
-                max: 10000,
-                unit: 'm²',
-                colors: ['blanco', 'amarillo', 'naranja', 'rojo', 'rojo oscuro']
-              }
+            builtStart: {
+              urlFormat: builtStartMap.urlFormat,
+              description: `Áreas construidas en ${yearStart}`,
+              legend: { color: 'amarillo' }
             },
-            relativeChange: {
-              urlFormat: relativeMapInfo.urlFormat,
-              description: 'Cambio relativo (%)',
-              legend: {
-                min: 0,
-                max: 200,
-                unit: '%',
-                colors: ['blanco', 'azul claro', 'azul', 'morado', 'morado oscuro']
-              }
+            builtEnd: {
+              urlFormat: builtEndMap.urlFormat,
+              description: `Áreas construidas en ${yearEnd}`,
+              legend: { color: 'naranja' }
             },
             newUrban: {
-              urlFormat: newUrbanMapInfo.urlFormat,
-              description: 'Nuevas áreas urbanizadas',
-              legend: {
-                color: 'rojo',
-                description: 'Áreas que pasaron de 0 a construido'
-              }
+              urlFormat: newUrbanMap.urlFormat,
+              description: 'Nuevas áreas urbanizadas (expansión)',
+              legend: { color: 'rojo' }
             }
           },
           metadata: {
@@ -206,12 +215,10 @@ class UrbanExpansionService {
             yearEnd,
             period: yearEnd - yearStart,
             area: geometry,
-            datasets: [
-              'JRC/GHSL/P2023A/GHS_BUILT_S',
-              'CIESIN/GPWv411/GPW_Population_Count'
-            ],
+            datasets: ['JRC/GHSL/P2023A/GHS_BUILT_S'],
             resolution: 'GHSL: 100m',
-            formula: 'Cambio = Superficie_construida_final - Superficie_construida_inicial'
+            availableYears: this.availableYears.join(', '),
+            note: 'Análisis simplificado sin cálculo de pérdida de vegetación'
           }
         }
       };
@@ -224,7 +231,6 @@ class UrbanExpansionService {
       };
     }
   }
-
   /**
    * Detecta transiciones de vegetación a construido usando Dynamic World
    * 

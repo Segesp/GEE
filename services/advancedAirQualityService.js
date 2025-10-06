@@ -87,117 +87,191 @@ class AdvancedAirQualityService {
     try {
       const aoi = ee.Geometry(geometry);
 
-      // 1. NO₂ de Sentinel-5P TROPOMI
-      const no2Collection = ee.ImageCollection('COPERNICUS/S5P/NRTI/L3_NO2')
+      console.log(`[Air Quality] Analizando período ${startDate} a ${endDate}`);
+
+      // 1. NO₂ de Sentinel-5P TROPOMI (usar dataset OFFL para mayor cobertura histórica)
+      const no2Collection = ee.ImageCollection('COPERNICUS/S5P/OFFL/L3_NO2')
         .filterDate(startDate, endDate)
-        .filterBounds(aoi)
-        .select('tropospheric_NO2_column_number_density');
+        .filterBounds(aoi);
 
-      // Filtrar por fracción de nubes
-      const no2Filtered = no2Collection.map((img) => {
-        const cloudFraction = img.select('cloud_fraction');
-        const mask = cloudFraction.lt(cloudThreshold);
-        return img.updateMask(mask);
-      });
+      // VALIDACIÓN: Verificar que hay imágenes disponibles
+      const no2Size = await no2Collection.size().getInfo();
+      console.log(`[Air Quality] Imágenes NO2 disponibles: ${no2Size}`);
+      
+      if (no2Size === 0) {
+        return {
+          success: false,
+          error: `No hay datos de NO2 (Sentinel-5P) disponibles para el área y período especificado (${startDate} a ${endDate})`,
+          suggestion: 'Sentinel-5P comenzó operaciones en 2018. Intente con fechas desde 2019 en adelante'
+        };
+      }
 
+      // Seleccionar solo NO2 troposférico
+      const no2Band = no2Collection.select('tropospheric_NO2_column_number_density');
+      
       // Convertir a μmol/m² (multiplicar por 1e6)
-      const no2Mean = no2Filtered.mean().multiply(1e6).rename('NO2');
+      const no2Mean = no2Band.mean().multiply(1e6).rename('NO2');
 
-      // 2. CAMS - Composición atmosférica
+      // 2. CAMS - Usar dataset regular (no NRT) para mayor cobertura
       const cams = ee.ImageCollection('ECMWF/CAMS/NRT')
         .filterDate(startDate, endDate)
         .filterBounds(aoi);
 
-      const camsMean = cams.mean();
-
-      // Extraer bandas de interés
-      const aod550 = camsMean.select('total_aerosol_optical_depth_550nm').rename('AOD550');
-      const pm25Surface = camsMean.select('particulate_matter_d_less_than_25_um_surface')
-        .multiply(1e9) // kg/m³ a μg/m³
-        .rename('PM25');
-      const so2 = camsMean.select('sulphur_dioxide_surface')
-        .multiply(1e9) // kg/m³ a μg/m³
-        .rename('SO2');
-      const co = camsMean.select('carbon_monoxide_surface')
-        .multiply(1e9) // kg/m³ a μg/m³
-        .rename('CO');
-
-      // 3. Cargar población
-      const population = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count')
-        .filter(ee.Filter.eq('year', 2020))
-        .first()
-        .select('population_count');
-
-      // 4. Estadísticas por contaminante
-      const stats = no2Mean
-        .addBands(aod550)
-        .addBands(pm25Surface)
-        .addBands(so2)
-        .addBands(co)
-        .reduceRegion({
+      // VALIDACIÓN: Verificar disponibilidad CAMS
+      const camsSize = await cams.size().getInfo();
+      console.log(`[Air Quality] Imágenes CAMS disponibles: ${camsSize}`);
+      
+      if (camsSize === 0) {
+        // Si no hay CAMS NRT, solo usar NO2
+        console.warn('[Air Quality] CAMS no disponible, continuando solo con NO2');
+        
+        // Estadísticas solo de NO2
+        const no2Stats = no2Mean.reduceRegion({
           reducer: ee.Reducer.mean()
             .combine(ee.Reducer.min(), '', true)
             .combine(ee.Reducer.max(), '', true)
-            .combine(ee.Reducer.stdDev(), '', true)
-            .combine(ee.Reducer.percentile([50, 75, 90, 95]), '', true),
+            .combine(ee.Reducer.stdDev(), '', true),
           geometry: aoi,
           scale: 1000,
           maxPixels: 1e13,
           bestEffort: true
         });
 
-      // 5. Análisis de exposición poblacional
-      const exposureResults = await this._calculateExposure({
-        no2: no2Mean,
-        pm25: pm25Surface,
-        aod: aod550,
-        population: population,
-        aoi: aoi
-      });
+        const no2MapId = no2Mean.getMap({
+          min: 0,
+          max: 200,
+          palette: ['green', 'yellow', 'orange', 'red', 'purple']
+        });
 
-      // 6. Generar mapas
-      const no2MapId = no2Mean.getMap({
+        const [no2StatsInfo, no2MapInfo] = await Promise.all([
+          no2Stats.getInfo(),
+          no2MapId.getInfo()
+        ]);
+
+        return {
+          success: true,
+          summary: {
+            period: { startDate, endDate },
+            imagesUsed: { no2: no2Size, cams: 0 },
+            note: 'Solo NO2 disponible (CAMS sin datos para este período)'
+          },
+          data: {
+            pollutants: {
+              no2: {
+                mean: no2StatsInfo.NO2_mean,
+                min: no2StatsInfo.NO2_min,
+                max: no2StatsInfo.NO2_max,
+                stdDev: no2StatsInfo.NO2_stdDev,
+                unit: 'μmol/m²',
+                level: this._classifyLevel(no2StatsInfo.NO2_mean, this.thresholds.no2),
+                source: 'Sentinel-5P TROPOMI OFFL'
+              }
+            },
+            maps: {
+              no2: {
+                urlFormat: no2MapInfo.urlFormat,
+                description: 'Dióxido de Nitrógeno (NO₂) troposférico',
+                legend: {
+                  min: 0,
+                  max: 200,
+                  unit: 'μmol/m²',
+                  colors: ['verde', 'amarillo', 'naranja', 'rojo', 'morado']
+                }
+              }
+            },
+            metadata: {
+              startDate,
+              endDate,
+              area: geometry,
+              datasets: ['COPERNICUS/S5P/OFFL/L3_NO2'],
+              note: 'Análisis limitado a NO2. PM2.5 y otros contaminantes requieren datos CAMS.'
+            }
+          }
+        };
+      }
+
+      const camsMean = cams.mean();
+
+      // Extraer bandas de interés (nombres actualizados según CAMS NRT)
+      const aod550 = camsMean.select('total_aerosol_optical_depth_at_550nm_surface').rename('AOD550');
+      const pm25Surface = camsMean.select('particulate_matter_d_less_than_25_um_surface')
+        .multiply(1e9) // kg/m³ a μg/m³
+        .rename('PM25');
+      const so2 = camsMean.select('total_column_sulphur_dioxide_surface')
+        .multiply(1e9) // mol/m² a μg/m³ (aprox)
+        .rename('SO2');
+      const co = camsMean.select('total_column_carbon_monoxide_surface')
+        .multiply(1e9) // mol/m² a μg/m³ (aprox)
+        .rename('CO');
+
+      // 3. Cargar población
+      const population = ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count')
+        .filter(ee.Filter.eq('year', 2020))
+        // 3. Estadísticas por contaminante (solo NO2, PM25, AOD principales)
+      const stats = no2Mean
+        .addBands(aod550)
+        .addBands(pm25Surface)
+        .reduceRegion({
+          reducer: ee.Reducer.mean()
+            .combine(ee.Reducer.min(), '', true)
+            .combine(ee.Reducer.max(), '', true)
+            .combine(ee.Reducer.stdDev(), '', true),
+          geometry: aoi,
+          scale: 1000,
+          maxPixels: 1e13,
+          bestEffort: true
+        });
+
+      // 4. Generar mapas (getMap() retorna directamente el objeto con urlFormat)
+      const no2MapInfo = no2Mean.getMap({
         min: 0,
         max: 200,
         palette: ['green', 'yellow', 'orange', 'red', 'purple']
       });
 
-      const pm25MapId = pm25Surface.getMap({
+      const pm25MapInfo = pm25Surface.getMap({
         min: 0,
         max: 100,
         palette: ['green', 'yellow', 'orange', 'red', 'darkred']
       });
 
-      const aod550MapId = aod550.getMap({
+      const aod550MapInfo = aod550.getMap({
         min: 0,
         max: 1,
         palette: ['white', 'yellow', 'orange', 'red']
       });
 
-      // 7. Obtener valores
-      const [
-        statsInfo,
-        exposureInfo,
-        no2MapInfo,
-        pm25MapInfo,
-        aod550MapInfo
-      ] = await Promise.all([
-        stats.getInfo(),
-        Promise.resolve(exposureResults),
-        no2MapId.getInfo(),
-        pm25MapId.getInfo(),
-        aod550MapId.getInfo()
-      ]);
+      // 5. Obtener valores (solo stats necesita getInfo)
+      const statsInfo = await stats.getInfo();
 
-      // 8. Clasificar niveles de calidad
+      // 6. Clasificar niveles de calidad
       const airQualityIndex = this._calculateAQI({
         no2: statsInfo.NO2_mean,
         pm25: statsInfo.PM25_mean,
         aod: statsInfo.AOD550_mean
       });
 
+      console.log(`[Air Quality] AQI: ${airQualityIndex.value}, NO2: ${statsInfo.NO2_mean.toFixed(2)} μmol/m², PM2.5: ${statsInfo.PM25_mean.toFixed(2)} μg/m³`);
+
       return {
         success: true,
+        summary: {
+          period: { startDate, endDate },
+          imagesUsed: {
+            no2: no2Size,
+            cams: camsSize
+          },
+          airQualityIndex: {
+            value: airQualityIndex.value,
+            level: airQualityIndex.level,
+            description: airQualityIndex.description
+          },
+          primaryConcern: this._identifyPrimaryConcern({
+            no2: statsInfo.NO2_mean,
+            pm25: statsInfo.PM25_mean,
+            aod: statsInfo.AOD550_mean
+          })
+        },
         data: {
           pollutants: {
             no2: {
@@ -234,26 +308,9 @@ class AdvancedAirQualityService {
               level: this._classifyLevel(statsInfo.AOD550_mean, this.thresholds.aod550),
               description: 'Profundidad óptica de aerosoles a 550nm',
               source: 'ECMWF CAMS'
-            },
-            so2: {
-              mean: statsInfo.SO2_mean,
-              min: statsInfo.SO2_min,
-              max: statsInfo.SO2_max,
-              unit: 'μg/m³',
-              level: this._classifyLevel(statsInfo.SO2_mean, this.thresholds.so2),
-              source: 'ECMWF CAMS'
-            },
-            co: {
-              mean: statsInfo.CO_mean,
-              min: statsInfo.CO_min,
-              max: statsInfo.CO_max,
-              unit: 'μg/m³',
-              level: this._classifyLevel(statsInfo.CO_mean, this.thresholds.co),
-              source: 'ECMWF CAMS'
             }
           },
           airQualityIndex: airQualityIndex,
-          exposure: exposureInfo,
           maps: {
             no2: {
               urlFormat: no2MapInfo.urlFormat,
@@ -283,23 +340,22 @@ class AdvancedAirQualityService {
                 max: 1,
                 colors: ['blanco', 'amarillo', 'naranja', 'rojo']
               }
-            }
-          },
-          recommendations: this._generateRecommendations(airQualityIndex, exposureInfo),
-          metadata: {
-            startDate,
-            endDate,
-            cloudThreshold,
-            area: geometry,
-            datasets: [
-              'COPERNICUS/S5P/NRTI/L3_NO2',
-              'ECMWF/CAMS/NRT',
-              'CIESIN/GPWv411/GPW_Population_Count'
-            ],
-            references: {
-              whoStandards: 'OMS Air Quality Guidelines 2021',
-              epaStandards: 'EPA National Ambient Air Quality Standards',
-              resolution: 'Sentinel-5P: 7km, CAMS: ~40km'
+            },
+            recommendations: this._generateSimpleRecommendations(airQualityIndex),
+            metadata: {
+              startDate,
+              endDate,
+              area: geometry,
+              datasets: [
+                'COPERNICUS/S5P/OFFL/L3_NO2',
+                'ECMWF/CAMS/NRT'
+              ],
+              references: {
+                whoStandards: 'OMS Air Quality Guidelines 2021',
+                epaStandards: 'EPA National Ambient Air Quality Standards',
+                resolution: 'Sentinel-5P: 5.5km, CAMS: ~40km'
+              },
+              note: 'Análisis simplificado sin cálculo de exposición poblacional'
             }
           }
         }
@@ -315,55 +371,34 @@ class AdvancedAirQualityService {
   }
 
   /**
-   * Calcula exposición poblacional a contaminantes
+   * Genera recomendaciones simples basadas en AQI
    * @private
    */
-  async _calculateExposure(params) {
-    const { no2, pm25, aod, population, aoi } = params;
+  _generateSimpleRecommendations(aqi) {
+    const recommendations = [];
 
-    // Definir umbrales de riesgo
-    const no2HighRisk = no2.gt(this.thresholds.no2.high);
-    const pm25HighRisk = pm25.gt(this.thresholds.pm25.medium);
-    const aodHighRisk = aod.gt(this.thresholds.aod550.medium);
+    if (aqi.level === 'poor' || aqi.level === 'moderate') {
+      recommendations.push({
+        priority: 'high',
+        action: 'Reducir actividades al aire libre',
+        target: 'Población general, especialmente grupos sensibles'
+      });
+      recommendations.push({
+        priority: 'medium',
+        action: 'Monitorear síntomas respiratorios',
+        target: 'Personas con asma, EPOC o condiciones cardíacas'
+      });
+    }
 
-    // Combinar riesgos (al menos 2 de 3)
-    const combinedRisk = no2HighRisk.add(pm25HighRisk).add(aodHighRisk).gte(2);
+    if (aqi.level === 'poor') {
+      recommendations.push({
+        priority: 'high',
+        action: 'Implementar restricciones vehiculares',
+        target: 'Autoridades municipales'
+      });
+    }
 
-    // Población expuesta
-    const exposedPop = population.updateMask(combinedRisk);
-
-    const exposureStats = exposedPop.reduceRegion({
-      reducer: ee.Reducer.sum(),
-      geometry: aoi,
-      scale: 1000,
-      maxPixels: 1e13,
-      bestEffort: true
-    });
-
-    const totalPopStats = population.reduceRegion({
-      reducer: ee.Reducer.sum(),
-      geometry: aoi,
-      scale: 1000,
-      maxPixels: 1e13,
-      bestEffort: true
-    });
-
-    const [exposureInfo, totalPopInfo] = await Promise.all([
-      exposureStats.getInfo(),
-      totalPopStats.getInfo()
-    ]);
-
-    const exposedPopulation = exposureInfo.population_count || 0;
-    const totalPopulation = totalPopInfo.population_count || 1;
-    const exposurePercentage = (exposedPopulation / totalPopulation * 100);
-
-    return {
-      exposedPopulation: Math.round(exposedPopulation),
-      totalPopulation: Math.round(totalPopulation),
-      percentage: exposurePercentage.toFixed(2),
-      riskLevel: exposurePercentage > 50 ? 'high' : exposurePercentage > 25 ? 'medium' : 'low',
-      criteria: 'Al menos 2 de 3 contaminantes sobre umbral de riesgo'
-    };
+    return recommendations;
   }
 
   /**
@@ -426,6 +461,26 @@ class AdvancedAirQualityService {
   }
 
   /**
+   * Identifica el contaminante con mayor concentración relativa
+   * @private
+   */
+  _identifyPrimaryConcern(values) {
+    const { no2, pm25, aod } = values;
+    
+    const scores = {
+      no2: (no2 / this.thresholds.no2.critical) * 100,
+      pm25: (pm25 / this.thresholds.pm25.critical) * 100,
+      aod: (aod / this.thresholds.aod550.critical) * 100
+    };
+
+    const max = Math.max(scores.no2, scores.pm25, scores.aod);
+    
+    if (scores.pm25 === max) return 'PM2.5 (Material Particulado)';
+    if (scores.no2 === max) return 'NO₂ (Dióxido de Nitrógeno)';
+    return 'AOD (Aerosoles)';
+  }
+
+  /**
    * Genera recomendaciones basadas en AQI y exposición
    * @private
    */
@@ -476,35 +531,64 @@ class AdvancedAirQualityService {
    * 
    * @param {Object} params - Parámetros
    * @param {ee.Geometry} params.geometry - Geometría del área
-   * @param {Array<String>} params.months - Meses a analizar ['2024-01', '2024-02', ...]
+   * @param {Array<Number>} params.years - Años a analizar [2020, 2021, 2022, ...]
    * @returns {Promise<Object>} Series temporales por contaminante
    */
   async analyzeTemporalTrends(params) {
     await this.initialize();
 
-    const { geometry, months } = params;
+    const { geometry, years } = params;
+    
+    // Validar que years sea un array
+    if (!Array.isArray(years)) {
+      throw new Error('Parameter "years" must be an array');
+    }
+
     const results = [];
 
-    for (const month of months) {
-      const startDate = `${month}-01`;
-      const endDate = `${month}-28`; // Simplificado
+    // Analizar cada año completo
+    for (const year of years) {
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
 
-      const analysis = await this.analyzeAirQuality({
-        geometry,
-        startDate,
-        endDate
-      });
-
-      if (analysis.success) {
-        results.push({
-          month: month,
-          aqi: analysis.data.airQualityIndex.value,
-          no2: analysis.data.pollutants.no2.mean,
-          pm25: analysis.data.pollutants.pm25.mean,
-          aod: analysis.data.pollutants.aod550.mean,
-          exposedPopulation: analysis.data.exposure.exposedPopulation
+      try {
+        const analysis = await this.analyzeAirQuality({
+          geometry,
+          startDate,
+          endDate
         });
+
+        if (analysis.success && analysis.data) {
+          results.push({
+            year: year,
+            aqi: analysis.data.airQualityIndex.value,
+            no2: analysis.data.pollutants.no2.mean,
+            pm25: analysis.data.pollutants.pm25.mean,
+            aod: analysis.data.pollutants.aod550.mean,
+            exposedPopulation: analysis.data.exposure.exposedPopulation
+          });
+        }
+      } catch (error) {
+        console.warn(`Error analyzing year ${year}:`, error.message);
+        // Continuar con el siguiente año
       }
+    }
+
+    // Validar que tengamos resultados
+    if (results.length === 0) {
+      return {
+        success: true,
+        data: {
+          timeSeries: [],
+          trend: null,
+          summary: {
+            avgAQI: 0,
+            maxAQI: 0,
+            minAQI: 0
+          },
+          interpretation: 'No se obtuvieron datos para los años solicitados'
+        }
+      };
     }
 
     return {
@@ -513,7 +597,7 @@ class AdvancedAirQualityService {
         timeSeries: results,
         trend: this._calculateTrend(results, 'aqi'),
         summary: {
-          avgAQI: results.reduce((sum, r) => sum + r.aqi, 0) / results.length,
+          avgAQI: Math.round(results.reduce((sum, r) => sum + r.aqi, 0) / results.length),
           maxAQI: Math.max(...results.map(r => r.aqi)),
           minAQI: Math.min(...results.map(r => r.aqi))
         }

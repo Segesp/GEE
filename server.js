@@ -103,6 +103,8 @@ console.log('📚 Swagger API Documentation habilitada en /api-docs');
 
 // Earth Engine authentication and initialization
 let eeInitialized = false;
+let serviceAccountEmail = null; // Email de la cuenta de servicio
+let eeProjectId = null; // ID del proyecto GEE
 
 function getConfiguredScopes() {
   const extraScopes = process.env.GOOGLE_EE_SCOPES;
@@ -166,6 +168,10 @@ async function initializeEarthEngine() {
 
     const projectId = configuredProject || serviceAccount.project_id || null;
     const scopes = getConfiguredScopes();
+
+    // Guardar email y project ID en variables globales
+    serviceAccountEmail = serviceAccount.client_email;
+    eeProjectId = projectId;
 
     await authenticateWithServiceAccount(serviceAccount, scopes);
 
@@ -5328,10 +5334,10 @@ app.get('/api/vegetation-heat/ndvi', async (req, res) => {
  *         description: End date in YYYY-MM-DD format
  *       - in: query
  *         name: timeOfDay
+ *         description: Time of day (default day)
  *         schema:
  *           type: string
  *           enum: [day, night]
- *         description: Time of day (default: day)
  *     responses:
  *       200:
  *         description: LST data from MODIS
@@ -5379,10 +5385,10 @@ app.get('/api/vegetation-heat/lst', async (req, res) => {
  *         description: Target date in YYYY-MM-DD format
  *       - in: query
  *         name: timeOfDay
+ *         description: Time of day (default day)
  *         schema:
  *           type: string
  *           enum: [day, night]
- *         description: Time of day (default: day)
  *     responses:
  *       200:
  *         description: LST anomaly compared to 2018-2022 climatology
@@ -5441,9 +5447,9 @@ app.get('/api/vegetation-heat/lst-anomaly', async (req, res) => {
  *         description: End date in YYYY-MM-DD format
  *       - in: query
  *         name: threshold
+ *         description: Temperature threshold in °C (default 30)
  *         schema:
  *           type: number
- *         description: Temperature threshold in °C (default: 30)
  *     responses:
  *       200:
  *         description: Heat island events and affected area
@@ -6317,6 +6323,83 @@ app.post('/api/advanced/health/heat-trends', async (req, res) => {
     console.error('Error in /api/advanced/health/heat-trends:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+// ============================================================================
+// HEALTH CHECK ENDPOINT
+// ============================================================================
+
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: Health check endpoint
+ *     description: Verifica el estado del servidor y la conexión a Google Earth Engine
+ *     tags: [System]
+ *     responses:
+ *       200:
+ *         description: Sistema operativo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: ok
+ *                 timestamp:
+ *                   type: string
+ *                   example: 2025-10-06T12:00:00.000Z
+ *                 uptime:
+ *                   type: number
+ *                   example: 3600
+ *                 earthEngine:
+ *                   type: object
+ *                   properties:
+ *                     initialized:
+ *                       type: boolean
+ *                     project:
+ *                       type: string
+ *                     serviceAccount:
+ *                       type: string
+ *       503:
+ *         description: Servicio no disponible
+ */
+app.get('/health', (req, res) => {
+  const healthStatus = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    earthEngine: {
+      initialized: eeInitialized,
+      project: eeProjectId || 'not-configured',
+      serviceAccount: serviceAccountEmail ? serviceAccountEmail.split('@')[0] : 'not-configured'
+    },
+    server: {
+      port: PORT,
+      nodeVersion: process.version,
+      platform: process.platform,
+      memory: {
+        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+        unit: 'MB'
+      }
+    },
+    endpoints: {
+      total: 16,
+      advanced: 16,
+      legacy: 0
+    }
+  };
+
+  // Si Earth Engine no está inicializado, retornar status degraded
+  if (!eeInitialized) {
+    healthStatus.status = 'degraded';
+    healthStatus.warnings = ['Earth Engine not initialized'];
+    return res.status(503).json(healthStatus);
+  }
+
+  res.json(healthStatus);
 });
 
 // ============================================================================
