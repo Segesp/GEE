@@ -5934,6 +5934,392 @@ app.get('/api/advanced/elevation', async (req, res) => {
 });
 
 // ============================================================================
+// ADVANCED ANALYSIS SERVICES (NASA/Copernicus Methodologies)
+// ============================================================================
+
+const advancedHeatIslandService = require('./services/advancedHeatIslandService');
+const greenSpaceAccessService = require('./services/greenSpaceAccessService');
+const advancedAirQualityService = require('./services/advancedAirQualityService');
+const urbanExpansionService = require('./services/urbanExpansionService');
+const floodRiskService = require('./services/floodRiskService');
+const energyAccessService = require('./services/energyAccessService');
+const extremeHeatHealthService = require('./services/extremeHeatHealthService');
+
+/**
+ * @swagger
+ * /api/advanced/heat-island:
+ *   post:
+ *     summary: Análisis avanzado de isla de calor urbana (IIC)
+ *     tags: [Advanced Analysis]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               geometry:
+ *                 type: object
+ *                 description: GeoJSON geometry
+ *               startDate:
+ *                 type: string
+ *               endDate:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Análisis de isla de calor con IIC y exposición poblacional
+ */
+app.post('/api/advanced/heat-island', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await advancedHeatIslandService.calculateUrbanHeatIsland(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/heat-island:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/heat-island/trends:
+ *   post:
+ *     summary: Tendencias temporales de isla de calor
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: Tendencias de IIC a lo largo del tiempo
+ */
+app.post('/api/advanced/heat-island/trends', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await advancedHeatIslandService.analyzeHeatIslandTrends(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/heat-island/trends:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/green-space/agph:
+ *   post:
+ *     summary: Cálculo de Área Verde Por Habitante (AGPH)
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: AGPH y comparación con estándares OMS
+ */
+app.post('/api/advanced/green-space/agph', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await greenSpaceAccessService.calculateAGPH(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/green-space/agph:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/green-space/accessibility:
+ *   post:
+ *     summary: Análisis de accesibilidad a parques
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: Población con acceso a parques en radios 300m, 500m, 1km
+ */
+app.post('/api/advanced/green-space/accessibility', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await greenSpaceAccessService.analyzeParkAccessibility(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/green-space/accessibility:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/air-quality:
+ *   post:
+ *     summary: Análisis avanzado de calidad de aire con CAMS y Sentinel-5P
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: PM2.5, NO2, AOD550, AQI combinado, exposición poblacional
+ */
+app.post('/api/advanced/air-quality', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await advancedAirQualityService.analyzeAirQuality(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/air-quality:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/air-quality/trends:
+ *   post:
+ *     summary: Tendencias temporales de calidad de aire
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: Tendencias mensuales de contaminantes
+ */
+app.post('/api/advanced/air-quality/trends', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await advancedAirQualityService.analyzeTemporalTrends(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/air-quality/trends:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/urban-expansion:
+ *   post:
+ *     summary: Análisis de expansión urbana y pérdida de vegetación
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: Cambios GHSL + transiciones vegetación→construido
+ */
+app.post('/api/advanced/urban-expansion', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await urbanExpansionService.analyzeUrbanExpansion(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/urban-expansion:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/urban-expansion/vegetation-loss:
+ *   post:
+ *     summary: Cuantificación detallada de pérdida de vegetación
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: Hectáreas perdidas por tipo de vegetación
+ */
+app.post('/api/advanced/urban-expansion/vegetation-loss', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await urbanExpansionService.analyzeVegetationLoss(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/urban-expansion/vegetation-loss:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/flood-risk:
+ *   post:
+ *     summary: Evaluación de riesgo de inundaciones
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: Precipitación extrema (P90), TWI, población en riesgo
+ */
+app.post('/api/advanced/flood-risk', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await floodRiskService.analyzeFloodRisk(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/flood-risk:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/flood-risk/drainage:
+ *   post:
+ *     summary: Análisis de problemas de drenaje
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: Zonas con drenaje deficiente
+ */
+app.post('/api/advanced/flood-risk/drainage', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await floodRiskService.analyzeDrainageIssues(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/flood-risk/drainage:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/energy-access:
+ *   post:
+ *     summary: Análisis de acceso a energía con VIIRS Black Marble
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: Radiancia per cápita, zonas con acceso deficiente
+ */
+app.post('/api/advanced/energy-access', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await energyAccessService.analyzeEnergyAccess(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/energy-access:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/energy-access/priorities:
+ *   post:
+ *     summary: Identificar zonas prioritarias para electrificación
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: Áreas sin acceso adecuado a energía
+ */
+app.post('/api/advanced/energy-access/priorities', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await energyAccessService.identifyElectrificationPriorities(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/energy-access/priorities:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/health/heat-vulnerability:
+ *   post:
+ *     summary: Vulnerabilidad al calor extremo y acceso a servicios de salud
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: Días extremos (>40°C), distancia a hospitales, población vulnerable
+ */
+app.post('/api/advanced/health/heat-vulnerability', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await extremeHeatHealthService.analyzeExtremeHeatVulnerability(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/health/heat-vulnerability:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/health/facility-locations:
+ *   post:
+ *     summary: Sugerir ubicaciones para nuevos centros de salud
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: Ubicaciones óptimas basadas en vulnerabilidad
+ */
+app.post('/api/advanced/health/facility-locations', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await extremeHeatHealthService.suggestHealthFacilityLocations(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/health/facility-locations:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/advanced/health/heat-trends:
+ *   post:
+ *     summary: Tendencias de calor extremo a lo largo del tiempo
+ *     tags: [Advanced Analysis]
+ *     responses:
+ *       200:
+ *         description: Análisis temporal de días con calor extremo
+ */
+app.post('/api/advanced/health/heat-trends', async (req, res) => {
+  try {
+    if (!eeInitialized) {
+      return res.status(503).json({ error: 'Earth Engine not initialized' });
+    }
+
+    const result = await extremeHeatHealthService.analyzeHeatTrends(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/advanced/health/heat-trends:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

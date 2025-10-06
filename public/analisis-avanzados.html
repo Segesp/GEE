@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Análisis Avanzados - EcoPlan GEE</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .header {
+      text-align: center;
+      color: white;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .header p {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    .nav-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .nav-button {
+      background: white;
+      color: #667eea;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .nav-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+
+    .tabs {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .tab-buttons {
+      display: flex;
+      background: #f8f9fa;
+      border-bottom: 2px solid #e9ecef;
+      overflow-x: auto;
+      flex-wrap: wrap;
+    }
+
+    .tab-button {
+      padding: 15px 25px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #6c757d;
+      transition: all 0.3s;
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
+    }
+
+    .tab-button:hover {
+      background: #e9ecef;
+      color: #495057;
+    }
+
+    .tab-button.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+      background: white;
+    }
+
+    .tab-content {
+      display: none;
+      padding: 30px;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .analysis-section {
+      margin-bottom: 25px;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      color: #2c3e50;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #667eea;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .control-group label {
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: #495057;
+      font-size: 0.9rem;
+    }
+
+    .control-group input,
+    .control-group select {
+      padding: 10px;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+
+    .control-group input:focus,
+    .control-group select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .analyze-button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 12px 30px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: all 0.3s;
+      box-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
+    }
+
+    .analyze-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .analyze-button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .map-container {
+      height: 500px;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .results-container {
+      margin-top: 20px;
+    }
+
+    .result-card {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      border-left: 4px solid #667eea;
+    }
+
+    .result-card h3 {
+      color: #2c3e50;
+      margin-bottom: 10px;
+    }
+
+    .result-card p {
+      color: #6c757d;
+      line-height: 1.6;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .stat-box {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 5px;
+    }
+
+    .stat-label {
+      color: #6c757d;
+      font-size: 0.9rem;
+    }
+
+    .recommendations {
+      margin-top: 20px;
+    }
+
+    .recommendation-item {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      border-left: 4px solid #28a745;
+    }
+
+    .recommendation-item.urgent {
+      border-left-color: #dc3545;
+    }
+
+    .recommendation-item.high {
+      border-left-color: #fd7e14;
+    }
+
+    .recommendation-item.medium {
+      border-left-color: #ffc107;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #667eea;
+    }
+
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .chart-container {
+      margin: 20px 0;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .error-message {
+      background: #dc3545;
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .info-box {
+      background: #e7f3ff;
+      border-left: 4px solid #2196F3;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .info-box strong {
+      color: #1976D2;
+    }
+
+    @media (max-width: 768px) {
+      .header h1 {
+        font-size: 1.8rem;
+      }
+
+      .tab-buttons {
+        flex-direction: column;
+      }
+
+      .tab-button {
+        text-align: left;
+      }
+
+      .controls {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🛰️ Análisis Avanzados EcoPlan</h1>
+      <p>Metodologías NASA, Copernicus y datasets de alta resolución</p>
+    </div>
+
+    <div class="nav-buttons">
+      <a href="/hub.html" class="nav-button">🏠 Hub Principal</a>
+      <a href="/datos-avanzados.html" class="nav-button">📊 Datos Avanzados</a>
+      <a href="/api-docs" class="nav-button" target="_blank">📖 API Docs</a>
+    </div>
+
+    <div class="tabs">
+      <div class="tab-buttons">
+        <button class="tab-button active" onclick="switchTab('heat-island')">🔥 Isla de Calor</button>
+        <button class="tab-button" onclick="switchTab('green-space')">🌳 Áreas Verdes</button>
+        <button class="tab-button" onclick="switchTab('air-quality')">🌫️ Calidad Aire</button>
+        <button class="tab-button" onclick="switchTab('urban-expansion')">🏗️ Expansión Urbana</button>
+        <button class="tab-button" onclick="switchTab('flood-risk')">💧 Riesgo Inundación</button>
+        <button class="tab-button" onclick="switchTab('energy-access')">💡 Acceso Energía</button>
+        <button class="tab-button" onclick="switchTab('health')">🏥 Salud y Calor</button>
+      </div>
+
+      <!-- Tab 1: Isla de Calor -->
+      <div id="tab-heat-island" class="tab-content active">
+        <div class="analysis-section">
+          <h2 class="section-title">Análisis de Isla de Calor Urbana (IIC)</h2>
+          
+          <div class="info-box">
+            <strong>Metodología:</strong> Cálculo del Índice de Isla de Calor (IIC = LST - LST_vegetación) usando MODIS LST, 
+            con análisis de exposición poblacional y zonas de riesgo. Incluye GHSL para áreas construidas y GPW para población.
+          </div>
+
+          <div class="controls">
+            <div class="control-group">
+              <label>Fecha Inicio:</label>
+              <input type="date" id="heat-start-date" value="2023-01-01">
+            </div>
+            <div class="control-group">
+              <label>Fecha Fin:</label>
+              <input type="date" id="heat-end-date" value="2023-12-31">
+            </div>
+            <div class="control-group">
+              <label>Umbral IIC (°C):</label>
+              <input type="number" id="heat-threshold" value="3" step="0.5">
+            </div>
+            <div class="control-group" style="align-items: flex-end;">
+              <button class="analyze-button" onclick="analyzeHeatIsland()">Analizar</button>
+            </div>
+          </div>
+
+          <div id="heat-loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Analizando temperatura superficial y exposición poblacional...</p>
+          </div>
+
+          <div id="heat-results" class="results-container"></div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Áreas Verdes -->
+      <div id="tab-green-space" class="tab-content">
+        <div class="analysis-section">
+          <h2 class="section-title">Área Verde Por Habitante (AGPH)</h2>
+          
+          <div class="info-box">
+            <strong>Metodología:</strong> Cálculo de m² de vegetación por habitante usando Dynamic World (10m) y GPW. 
+            Comparación con estándares OMS (9 m²/hab). Análisis de accesibilidad a parques en radios de 300m, 500m y 1km.
+          </div>
+
+          <div class="controls">
+            <div class="control-group">
+              <label>Fecha:</label>
+              <input type="date" id="green-date" value="2023-06-01">
+            </div>
+            <div class="control-group">
+              <label>Tipo de Análisis:</label>
+              <select id="green-analysis-type">
+                <option value="agph">AGPH General</option>
+                <option value="accessibility">Accesibilidad a Parques</option>
+              </select>
+            </div>
+            <div class="control-group" style="align-items: flex-end;">
+              <button class="analyze-button" onclick="analyzeGreenSpace()">Analizar</button>
+            </div>
+          </div>
+
+          <div id="green-loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Calculando áreas verdes y accesibilidad...</p>
+          </div>
+
+          <div id="green-results" class="results-container"></div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Calidad del Aire -->
+      <div id="tab-air-quality" class="tab-content">
+        <div class="analysis-section">
+          <h2 class="section-title">Calidad del Aire Avanzada</h2>
+          
+          <div class="info-box">
+            <strong>Metodología:</strong> Integración de ECMWF/CAMS (PM2.5, AOD550, SO₂, CO) y Sentinel-5P (NO₂). 
+            Cálculo de AQI combinado y análisis de exposición poblacional según estándares WHO/EPA.
+          </div>
+
+          <div class="controls">
+            <div class="control-group">
+              <label>Fecha Inicio:</label>
+              <input type="date" id="air-start-date" value="2023-01-01">
+            </div>
+            <div class="control-group">
+              <label>Fecha Fin:</label>
+              <input type="date" id="air-end-date" value="2023-12-31">
+            </div>
+            <div class="control-group">
+              <label>Tipo de Análisis:</label>
+              <select id="air-analysis-type">
+                <option value="current">Estado Actual</option>
+                <option value="trends">Tendencias Temporales</option>
+              </select>
+            </div>
+            <div class="control-group" style="align-items: flex-end;">
+              <button class="analyze-button" onclick="analyzeAirQuality()">Analizar</button>
+            </div>
+          </div>
+
+          <div id="air-loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Analizando múltiples contaminantes atmosféricos...</p>
+          </div>
+
+          <div id="air-results" class="results-container"></div>
+        </div>
+      </div>
+
+      <!-- Tab 4: Expansión Urbana -->
+      <div id="tab-urban-expansion" class="tab-content">
+        <div class="analysis-section">
+          <h2 class="section-title">Expansión Urbana y Pérdida de Vegetación</h2>
+          
+          <div class="info-box">
+            <strong>Metodología:</strong> Análisis temporal con GHSL (1975-2030) y detección de transiciones vegetación→construido 
+            con Dynamic World (10m). Cuantificación de hectáreas perdidas por tipo de cobertura.
+          </div>
+
+          <div class="controls">
+            <div class="control-group">
+              <label>Año Inicial:</label>
+              <select id="urban-start-year">
+                <option value="2015">2015</option>
+                <option value="2020">2020</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label>Año Final:</label>
+              <select id="urban-end-year">
+                <option value="2020">2020</option>
+                <option value="2023" selected>2023</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label>Tipo de Análisis:</label>
+              <select id="urban-analysis-type">
+                <option value="expansion">Expansión Urbana</option>
+                <option value="vegetation">Pérdida de Vegetación</option>
+              </select>
+            </div>
+            <div class="control-group" style="align-items: flex-end;">
+              <button class="analyze-button" onclick="analyzeUrbanExpansion()">Analizar</button>
+            </div>
+          </div>
+
+          <div id="urban-loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Analizando cambios urbanos y pérdida de cobertura vegetal...</p>
+          </div>
+
+          <div id="urban-results" class="results-container"></div>
+        </div>
+      </div>
+
+      <!-- Tab 5: Riesgo de Inundación -->
+      <div id="tab-flood-risk" class="tab-content">
+        <div class="analysis-section">
+          <h2 class="section-title">Riesgo de Inundaciones</h2>
+          
+          <div class="info-box">
+            <strong>Metodología:</strong> Precipitación extrema (P90) con GPM IMERG, TWI (Topographic Wetness Index) calculado 
+            con Copernicus DEM. Matriz de riesgo combinando lluvia extrema, topografía y población.
+          </div>
+
+          <div class="controls">
+            <div class="control-group">
+              <label>Fecha Inicio:</label>
+              <input type="date" id="flood-start-date" value="2023-01-01">
+            </div>
+            <div class="control-group">
+              <label>Fecha Fin:</label>
+              <input type="date" id="flood-end-date" value="2023-12-31">
+            </div>
+            <div class="control-group">
+              <label>Umbral Lluvia (mm):</label>
+              <input type="number" id="flood-threshold" value="100" step="10">
+            </div>
+            <div class="control-group" style="align-items: flex-end;">
+              <button class="analyze-button" onclick="analyzeFloodRisk()">Analizar</button>
+            </div>
+          </div>
+
+          <div id="flood-loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Evaluando riesgo de inundación con precipitación y topografía...</p>
+          </div>
+
+          <div id="flood-results" class="results-container"></div>
+        </div>
+      </div>
+
+      <!-- Tab 6: Acceso a Energía -->
+      <div id="tab-energy-access" class="tab-content">
+        <div class="analysis-section">
+          <h2 class="section-title">Acceso a Energía y Alumbrado</h2>
+          
+          <div class="info-box">
+            <strong>Metodología:</strong> Análisis de luces nocturnas (VIIRS Black Marble VNP46A2). Radiancia per cápita 
+            (nW/cm²·sr por habitante). Identificación de zonas con déficit de electrificación/alumbrado.
+          </div>
+
+          <div class="controls">
+            <div class="control-group">
+              <label>Fecha Inicio:</label>
+              <input type="date" id="energy-start-date" value="2023-01-01">
+            </div>
+            <div class="control-group">
+              <label>Fecha Fin:</label>
+              <input type="date" id="energy-end-date" value="2023-12-31">
+            </div>
+            <div class="control-group">
+              <label>Umbral Acceso Pobre:</label>
+              <input type="number" id="energy-threshold" value="0.5" step="0.1">
+            </div>
+            <div class="control-group" style="align-items: flex-end;">
+              <button class="analyze-button" onclick="analyzeEnergyAccess()">Analizar</button>
+            </div>
+          </div>
+
+          <div id="energy-loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Analizando luces nocturnas y acceso a energía...</p>
+          </div>
+
+          <div id="energy-results" class="results-container"></div>
+        </div>
+      </div>
+
+      <!-- Tab 7: Salud y Calor -->
+      <div id="tab-health" class="tab-content">
+        <div class="analysis-section">
+          <h2 class="section-title">Vulnerabilidad al Calor Extremo</h2>
+          
+          <div class="info-box">
+            <strong>Metodología:</strong> Detección de días con LST >40°C usando MODIS. Cálculo de distancia euclidiana 
+            a hospitales. Población vulnerable: ≥20 días extremos Y >2km de servicios de salud.
+          </div>
+
+          <div class="controls">
+            <div class="control-group">
+              <label>Fecha Inicio:</label>
+              <input type="date" id="health-start-date" value="2023-01-01">
+            </div>
+            <div class="control-group">
+              <label>Fecha Fin:</label>
+              <input type="date" id="health-end-date" value="2023-12-31">
+            </div>
+            <div class="control-group">
+              <label>Umbral Temp (°C):</label>
+              <input type="number" id="health-temp-threshold" value="40" step="1">
+            </div>
+            <div class="control-group">
+              <label>Días Mínimos:</label>
+              <input type="number" id="health-days-threshold" value="20" step="5">
+            </div>
+          </div>
+
+          <div class="controls">
+            <div class="control-group" style="align-items: flex-end;">
+              <button class="analyze-button" onclick="analyzeHealthVulnerability()">Analizar</button>
+            </div>
+          </div>
+
+          <div id="health-loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Evaluando vulnerabilidad al calor extremo...</p>
+          </div>
+
+          <div id="health-results" class="results-container"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <script>
+    // Geometría de ejemplo (área de Lima, Perú)
+    const DEFAULT_GEOMETRY = {
+      type: 'Polygon',
+      coordinates: [[
+        [-77.15, -12.00],
+        [-77.15, -12.20],
+        [-76.95, -12.20],
+        [-76.95, -12.00],
+        [-77.15, -12.00]
+      ]]
+    };
+
+    function switchTab(tabName) {
+      // Ocultar todos los contenidos
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+
+      // Desactivar todos los botones
+      document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+
+      // Activar el tab seleccionado
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    async function analyzeHeatIsland() {
+      const startDate = document.getElementById('heat-start-date').value;
+      const endDate = document.getElementById('heat-end-date').value;
+      const threshold = document.getElementById('heat-threshold').value;
+
+      showLoading('heat');
+
+      try {
+        const response = await fetch('/api/advanced/heat-island', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            geometry: DEFAULT_GEOMETRY,
+            startDate,
+            endDate,
+            iicThreshold: parseFloat(threshold)
+          })
+        });
+
+        const result = await response.json();
+        displayHeatIslandResults(result);
+      } catch (error) {
+        showError('heat', error.message);
+      }
+    }
+
+    async function analyzeGreenSpace() {
+      const date = document.getElementById('green-date').value;
+      const analysisType = document.getElementById('green-analysis-type').value;
+
+      showLoading('green');
+
+      try {
+        const endpoint = analysisType === 'agph' 
+          ? '/api/advanced/green-space/agph' 
+          : '/api/advanced/green-space/accessibility';
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            geometry: DEFAULT_GEOMETRY,
+            date
+          })
+        });
+
+        const result = await response.json();
+        displayGreenSpaceResults(result);
+      } catch (error) {
+        showError('green', error.message);
+      }
+    }
+
+    async function analyzeAirQuality() {
+      const startDate = document.getElementById('air-start-date').value;
+      const endDate = document.getElementById('air-end-date').value;
+      const analysisType = document.getElementById('air-analysis-type').value;
+
+      showLoading('air');
+
+      try {
+        const endpoint = analysisType === 'current'
+          ? '/api/advanced/air-quality'
+          : '/api/advanced/air-quality/trends';
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            geometry: DEFAULT_GEOMETRY,
+            startDate,
+            endDate
+          })
+        });
+
+        const result = await response.json();
+        displayAirQualityResults(result);
+      } catch (error) {
+        showError('air', error.message);
+      }
+    }
+
+    async function analyzeUrbanExpansion() {
+      const startYear = document.getElementById('urban-start-year').value;
+      const endYear = document.getElementById('urban-end-year').value;
+      const analysisType = document.getElementById('urban-analysis-type').value;
+
+      showLoading('urban');
+
+      try {
+        const endpoint = analysisType === 'expansion'
+          ? '/api/advanced/urban-expansion'
+          : '/api/advanced/urban-expansion/vegetation-loss';
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            geometry: DEFAULT_GEOMETRY,
+            yearStart: parseInt(startYear),
+            yearEnd: parseInt(endYear)
+          })
+        });
+
+        const result = await response.json();
+        displayUrbanExpansionResults(result);
+      } catch (error) {
+        showError('urban', error.message);
+      }
+    }
+
+    async function analyzeFloodRisk() {
+      const startDate = document.getElementById('flood-start-date').value;
+      const endDate = document.getElementById('flood-end-date').value;
+      const threshold = document.getElementById('flood-threshold').value;
+
+      showLoading('flood');
+
+      try {
+        const response = await fetch('/api/advanced/flood-risk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            geometry: DEFAULT_GEOMETRY,
+            startDate,
+            endDate,
+            extremeThreshold: parseInt(threshold)
+          })
+        });
+
+        const result = await response.json();
+        displayFloodRiskResults(result);
+      } catch (error) {
+        showError('flood', error.message);
+      }
+    }
+
+    async function analyzeEnergyAccess() {
+      const startDate = document.getElementById('energy-start-date').value;
+      const endDate = document.getElementById('energy-end-date').value;
+      const threshold = document.getElementById('energy-threshold').value;
+
+      showLoading('energy');
+
+      try {
+        const response = await fetch('/api/advanced/energy-access', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            geometry: DEFAULT_GEOMETRY,
+            startDate,
+            endDate,
+            poorAccessThreshold: parseFloat(threshold)
+          })
+        });
+
+        const result = await response.json();
+        displayEnergyAccessResults(result);
+      } catch (error) {
+        showError('energy', error.message);
+      }
+    }
+
+    async function analyzeHealthVulnerability() {
+      const startDate = document.getElementById('health-start-date').value;
+      const endDate = document.getElementById('health-end-date').value;
+      const tempThreshold = document.getElementById('health-temp-threshold').value;
+      const daysThreshold = document.getElementById('health-days-threshold').value;
+
+      showLoading('health');
+
+      try {
+        const response = await fetch('/api/advanced/health/heat-vulnerability', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            geometry: DEFAULT_GEOMETRY,
+            startDate,
+            endDate,
+            extremeTempThreshold: parseInt(tempThreshold),
+            criticalDaysThreshold: parseInt(daysThreshold)
+          })
+        });
+
+        const result = await response.json();
+        displayHealthResults(result);
+      } catch (error) {
+        showError('health', error.message);
+      }
+    }
+
+    function showLoading(prefix) {
+      document.getElementById(`${prefix}-loading`).style.display = 'block';
+      document.getElementById(`${prefix}-results`).innerHTML = '';
+    }
+
+    function showError(prefix, message) {
+      document.getElementById(`${prefix}-loading`).style.display = 'none';
+      document.getElementById(`${prefix}-results`).innerHTML = `
+        <div class="error-message">
+          <strong>Error:</strong> ${message}
+        </div>
+      `;
+    }
+
+    function displayHeatIslandResults(result) {
+      document.getElementById('heat-loading').style.display = 'none';
+      
+      if (!result.success) {
+        showError('heat', result.error);
+        return;
+      }
+
+      const { data } = result;
+      const html = `
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-value">${data.heatIsland.meanIIC?.toFixed(2) || 'N/A'}</div>
+            <div class="stat-label">IIC Promedio (°C)</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${data.heatIsland.maxIIC?.toFixed(2) || 'N/A'}</div>
+            <div class="stat-label">IIC Máximo (°C)</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${data.exposure.population.toLocaleString()}</div>
+            <div class="stat-label">Población Expuesta</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${data.exposure.percentage}%</div>
+            <div class="stat-label">% en Zonas Críticas</div>
+          </div>
+        </div>
+
+        <div class="result-card">
+          <h3>Diagnóstico</h3>
+          <p><strong>Nivel de Riesgo:</strong> ${data.exposure.level}</p>
+          <p>${data.heatIsland.description}</p>
+        </div>
+
+        <div class="recommendations">
+          <h3>Recomendaciones</h3>
+          ${data.recommendations.map(rec => `
+            <div class="recommendation-item ${rec.priority}">
+              <strong>${rec.action}</strong>
+              <p><small>${rec.reason}</small></p>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      document.getElementById('heat-results').innerHTML = html;
+    }
+
+    function displayGreenSpaceResults(result) {
+      document.getElementById('green-loading').style.display = 'none';
+      
+      if (!result.success) {
+        showError('green', result.error);
+        return;
+      }
+
+      const { data } = result;
+      let html = '';
+
+      if (data.agph) {
+        html = `
+          <div class="stats-grid">
+            <div class="stat-box">
+              <div class="stat-value">${data.agph.value.toFixed(2)}</div>
+              <div class="stat-label">AGPH (m²/hab)</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value">${data.comparison.percentageOfStandard}%</div>
+              <div class="stat-label">vs Estándar OMS</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value">${data.population.total.toLocaleString()}</div>
+              <div class="stat-label">Población Total</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value">${(data.vegetation.totalAreaM2/10000).toFixed(2)}</div>
+              <div class="stat-label">Hectáreas Vegetación</div>
+            </div>
+          </div>
+
+          <div class="result-card">
+            <h3>Evaluación</h3>
+            <p><strong>Cumplimiento OMS:</strong> ${data.comparison.meetsStandard ? '✅ Cumple' : '❌ No cumple'}</p>
+            <p>${data.comparison.deficit > 0 ? `Déficit de ${data.comparison.deficit.toFixed(2)} m²/hab` : 'Superávit'}</p>
+          </div>
+        `;
+      } else if (data.accessibility) {
+        html = `
+          <div class="stats-grid">
+            <div class="stat-box">
+              <div class="stat-value">${data.accessibility.within300m.percentage}%</div>
+              <div class="stat-label">Acceso 300m</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value">${data.accessibility.within500m.percentage}%</div>
+              <div class="stat-label">Acceso 500m</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value">${data.accessibility.within1km.percentage}%</div>
+              <div class="stat-label">Acceso 1km</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value">${data.accessibility.noAccess.population.toLocaleString()}</div>
+              <div class="stat-label">Sin Acceso</div>
+            </div>
+          </div>
+        `;
+      }
+
+      if (data.recommendations) {
+        html += `
+          <div class="recommendations">
+            <h3>Recomendaciones</h3>
+            ${data.recommendations.map(rec => `
+              <div class="recommendation-item ${rec.priority}">
+                <strong>${rec.action}</strong>
+                <p><small>${rec.reason}</small></p>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      document.getElementById('green-results').innerHTML = html;
+    }
+
+    function displayAirQualityResults(result) {
+      document.getElementById('air-loading').style.display = 'none';
+      
+      if (!result.success) {
+        showError('air', result.error);
+        return;
+      }
+
+      const { data } = result;
+      let html = '';
+
+      if (data.aqi) {
+        html = `
+          <div class="stats-grid">
+            <div class="stat-box">
+              <div class="stat-value">${data.aqi.value.toFixed(1)}</div>
+              <div class="stat-label">AQI Combinado</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value">${data.pollutants.pm25.mean?.toFixed(2) || 'N/A'}</div>
+              <div class="stat-label">PM2.5 (μg/m³)</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value">${data.pollutants.no2.mean?.toFixed(2) || 'N/A'}</div>
+              <div class="stat-label">NO₂ (μmol/m²)</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value">${data.exposure.population.toLocaleString()}</div>
+              <div class="stat-label">Población Expuesta</div>
+            </div>
+          </div>
+
+          <div class="result-card">
+            <h3>Estado de Calidad del Aire</h3>
+            <p><strong>Nivel:</strong> ${data.aqi.level}</p>
+            <p>${data.aqi.description}</p>
+          </div>
+        `;
+      }
+
+      if (data.recommendations) {
+        html += `
+          <div class="recommendations">
+            <h3>Recomendaciones</h3>
+            ${data.recommendations.map(rec => `
+              <div class="recommendation-item ${rec.priority}">
+                <strong>${rec.action}</strong>
+                <p><small>${rec.reason}</small></p>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      document.getElementById('air-results').innerHTML = html;
+    }
+
+    function displayUrbanExpansionResults(result) {
+      document.getElementById('urban-loading').style.display = 'none';
+      
+      if (!result.success) {
+        showError('urban', result.error);
+        return;
+      }
+
+      const { data } = result;
+      let html = '';
+
+      if (data.expansion) {
+        html = `
+          <div class="stats-grid">
+            <div class="stat-box">
+              <div class="stat-value">${(data.expansion.newUrbanAreaM2/10000).toFixed(2)}</div>
+              <div class="stat-label">Nuevas Hectáreas Urbanas</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value">${data.expansion.relativeChange.toFixed(1)}%</div>
+              <div class="stat-label">Cambio Relativo</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value">${data.population.newUrbanPop?.toLocaleString() || 'N/A'}</div>
+              <div class="stat-label">Población en Nuevas Áreas</div>
+            </div>
+          </div>
+        `;
+      }
+
+      if (data.vegetationLoss) {
+        html += `
+          <div class="result-card">
+            <h3>Pérdida de Vegetación</h3>
+            <p><strong>Total:</strong> ${data.vegetationLoss.totalHectares.toFixed(2)} hectáreas</p>
+            <ul>
+              <li>Árboles: ${data.vegetationLoss.byType.trees?.toFixed(2) || 0} ha</li>
+              <li>Pasto: ${data.vegetationLoss.byType.grass?.toFixed(2) || 0} ha</li>
+              <li>Vegetación inundada: ${data.vegetationLoss.byType.floodedVeg?.toFixed(2) || 0} ha</li>
+            </ul>
+          </div>
+        `;
+      }
+
+      if (data.recommendations) {
+        html += `
+          <div class="recommendations">
+            <h3>Recomendaciones</h3>
+            ${data.recommendations.map(rec => `
+              <div class="recommendation-item ${rec.priority}">
+                <strong>${rec.action}</strong>
+                <p><small>${rec.reason}</small></p>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      document.getElementById('urban-results').innerHTML = html;
+    }
+
+    function displayFloodRiskResults(result) {
+      document.getElementById('flood-loading').style.display = 'none';
+      
+      if (!result.success) {
+        showError('flood', result.error);
+        return;
+      }
+
+      const { data } = result;
+      const html = `
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-value">${data.precipitation.p90Mean?.toFixed(1) || 'N/A'}</div>
+            <div class="stat-label">P90 Lluvia (mm/día)</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${data.risk.populationAffected.toLocaleString()}</div>
+            <div class="stat-label">Población en Riesgo</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${(data.risk.infrastructureAreaM2/10000).toFixed(2)}</div>
+            <div class="stat-label">Infraestructura (ha)</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${data.risk.level}</div>
+            <div class="stat-label">Nivel de Riesgo</div>
+          </div>
+        </div>
+
+        <div class="result-card">
+          <h3>Criterios de Riesgo</h3>
+          <ul>
+            ${data.risk.criteria.map(c => `<li>${c}</li>`).join('')}
+          </ul>
+        </div>
+
+        <div class="recommendations">
+          <h3>Recomendaciones</h3>
+          ${data.recommendations.map(rec => `
+            <div class="recommendation-item ${rec.priority}">
+              <strong>${rec.action}</strong>
+              <p><small>${rec.reason}</small></p>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      document.getElementById('flood-results').innerHTML = html;
+    }
+
+    function displayEnergyAccessResults(result) {
+      document.getElementById('energy-loading').style.display = 'none';
+      
+      if (!result.success) {
+        showError('energy', result.error);
+        return;
+      }
+
+      const { data } = result;
+      const html = `
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-value">${data.perCapita.mean?.toFixed(3) || 'N/A'}</div>
+            <div class="stat-label">Radiancia per cápita</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${data.access.poorAccess.percentage}%</div>
+            <div class="stat-label">Acceso Deficiente</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${data.access.poorAccess.population.toLocaleString()}</div>
+            <div class="stat-label">Población Afectada</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${data.darkSpots.population.toLocaleString()}</div>
+            <div class="stat-label">"Manchas Oscuras"</div>
+          </div>
+        </div>
+
+        <div class="result-card">
+          <h3>Distribución del Acceso</h3>
+          <p><strong>Deficiente:</strong> ${data.access.poorAccess.population.toLocaleString()} personas (${data.access.poorAccess.percentage}%)</p>
+          <p><strong>Moderado:</strong> ${data.access.moderateAccess.population.toLocaleString()} personas (${data.access.moderateAccess.percentage}%)</p>
+          <p><strong>Bueno:</strong> ${data.access.goodAccess.population.toLocaleString()} personas (${data.access.goodAccess.percentage}%)</p>
+        </div>
+
+        <div class="recommendations">
+          <h3>Recomendaciones</h3>
+          ${data.recommendations.map(rec => `
+            <div class="recommendation-item ${rec.priority}">
+              <strong>${rec.action}</strong>
+              <p><small>${rec.reason}</small></p>
+              ${rec.estimatedCost ? `<p><small><strong>Costo estimado:</strong> ${rec.estimatedCost}</small></p>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      document.getElementById('energy-results').innerHTML = html;
+    }
+
+    function displayHealthResults(result) {
+      document.getElementById('health-loading').style.display = 'none';
+      
+      if (!result.success) {
+        showError('health', result.error);
+        return;
+      }
+
+      const { data } = result;
+      const html = `
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-value">${data.extremeDays.mean?.toFixed(1) || 'N/A'}</div>
+            <div class="stat-label">Días Extremos (promedio)</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${(data.healthAccess.meanDistance/1000).toFixed(2)}</div>
+            <div class="stat-label">Distancia a Salud (km)</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${data.vulnerability.populationAffected.toLocaleString()}</div>
+            <div class="stat-label">Población Vulnerable</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${data.vulnerability.level}</div>
+            <div class="stat-label">Nivel de Riesgo</div>
+          </div>
+        </div>
+
+        <div class="result-card">
+          <h3>Criterios de Vulnerabilidad</h3>
+          <ul>
+            ${data.vulnerability.criteria.map(c => `<li>${c}</li>`).join('')}
+          </ul>
+        </div>
+
+        <div class="result-card">
+          <h3>Temperatura</h3>
+          <p><strong>Promedio:</strong> ${data.temperature.mean?.toFixed(1) || 'N/A'}°C</p>
+          <p><strong>Máxima:</strong> ${data.temperature.max?.toFixed(1) || 'N/A'}°C</p>
+          <p><strong>P95:</strong> ${data.temperature.p95?.toFixed(1) || 'N/A'}°C</p>
+        </div>
+
+        <div class="recommendations">
+          <h3>Recomendaciones</h3>
+          ${data.recommendations.map(rec => `
+            <div class="recommendation-item ${rec.priority}">
+              <strong>${rec.action}</strong>
+              <p><small>${rec.reason}</small></p>
+              ${rec.timeline ? `<p><small><strong>Plazo:</strong> ${rec.timeline}</small></p>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      document.getElementById('health-results').innerHTML = html;
+    }
+
+    // Establecer fechas por defecto
+    window.addEventListener('DOMContentLoaded', () => {
+      const today = new Date().toISOString().split('T')[0];
+      const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      // Configurar fechas por defecto para cada tab
+      document.getElementById('heat-start-date').value = oneYearAgo;
+      document.getElementById('heat-end-date').value = today;
+      document.getElementById('air-start-date').value = oneYearAgo;
+      document.getElementById('air-end-date').value = today;
+      document.getElementById('flood-start-date').value = oneYearAgo;
+      document.getElementById('flood-end-date').value = today;
+      document.getElementById('energy-start-date').value = oneYearAgo;
+      document.getElementById('energy-end-date').value = today;
+      document.getElementById('health-start-date').value = oneYearAgo;
+      document.getElementById('health-end-date').value = today;
+      document.getElementById('green-date').value = today;
+    });
+  </script>
+</body>
+</html>
